@@ -25,6 +25,7 @@ FetchContent_MakeAvailable(HighFive)
 set(SOURCES
     src/main.cpp
     src/rotation.cpp
+    src/blade_element.cpp
     src/wingforce.cpp
     src/eom.cpp
     src/integrator.cpp

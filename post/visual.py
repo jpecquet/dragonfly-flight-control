@@ -9,7 +9,6 @@ plt.rcParams["font.serif"] = ["Times New Roman"]
 plt.rcParams['mathtext.fontset'] = 'stix'
 plt.rcParams['font.size'] = 12
 
-
 def plotDragonfly(states, wing_vectors, params, outfile, animate=False):
     """
     Plot or animate the dragonfly simulation.
@@ -144,11 +143,11 @@ def drawWing(ax, origin, vecs, r, label=False):
     xd = x0 + coeff * vecs['drag']
 
     if label:
-        ax.plot([x0[0], xl[0]], [x0[1], xl[1]], [x0[2], xl[2]], 'b', label=r'$\vec{F}_L$')
-        ax.plot([x0[0], xd[0]], [x0[1], xd[1]], [x0[2], xd[2]], 'r', label=r'$\vec{F}_D$')
+        ax.plot([x0[0], xl[0]], [x0[1], xl[1]], [x0[2], xl[2]], 'b', label=r'$\vec{F}_L$', zorder=1000)
+        ax.plot([x0[0], xd[0]], [x0[1], xd[1]], [x0[2], xd[2]], 'r', label=r'$\vec{F}_D$', zorder=1000)
     else:
-        ax.plot([x0[0], xl[0]], [x0[1], xl[1]], [x0[2], xl[2]], 'b')
-        ax.plot([x0[0], xd[0]], [x0[1], xd[1]], [x0[2], xd[2]], 'r')
+        ax.plot([x0[0], xl[0]], [x0[1], xl[1]], [x0[2], xl[2]], 'b', zorder=1000)
+        ax.plot([x0[0], xd[0]], [x0[1], xd[1]], [x0[2], xd[2]], 'r', zorder=1000)
 
 
 def drawEllipsoid(ax, origin, Rx, Ry, Rz):

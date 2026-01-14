@@ -16,12 +16,12 @@ int main() {
     params.Cd0 = 0.4;
     params.Cl0 = 1.2;
     params.omg0 = 8.0 * M_PI;
-    params.gam0 = M_PI / 2.0;
+    params.gam0 = M_PI / 3.0;
     params.phi0 = M_PI / 8.0;
-    params.psim = 0.1 * M_PI / 180.0;
-    params.dpsi = 20.0 * M_PI / 180.0;
-    params.sig0 = M_PI;
-    params.dlt0 = M_PI / 2.0;
+    params.psim = 10.0 * M_PI / 180.0;
+    params.dpsi = 30.0 * M_PI / 180.0;
+    params.sig0 = M_PI / 3.0;
+    params.dlt0 = M_PI / 3.0;
 
     // Initial state: [x, y, z, ux, uy, uz]
     State state = {0.0, 0.0, 0.0, 0.0, 0.0, 2.0};
