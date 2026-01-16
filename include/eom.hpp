@@ -1,25 +1,24 @@
 #pragma once
 
-#include "rotation.hpp"
-#include "wingforce.hpp"
+#include "linalg.hpp"
 
 #include <array>
+#include <functional>
+#include <vector>
 
-struct Parameters {
-    double lb0_f;   // Forewing length
-    double lb0_h;   // Hindwing length
-    double mu0_f;   // Forewing mass parameter
-    double mu0_h;   // Hindwing mass parameter
-    double Cd0;     // Base drag coefficient
-    double Cl0;     // Base lift coefficient
-    double omg0;    // Wing beat frequency
-    double gam0;    // Stroke plane angle
-    double phi0;    // Stroke amplitude
-    double psim;    // Mean pitch angle
-    double dpsi;    // Pitch oscillation amplitude
-    double sig0;    // Fore/hindwing phase offset
-    double dlt0;    // Pitch phase offset
+// Forward declaration
+class Wing;
+
+// Wing angles at a given time
+struct WingAngles {
+    double gam;      // Stroke plane angle
+    double phi;      // Stroke angle
+    double phi_dot;  // Stroke angular velocity
+    double psi;      // Pitch angle
 };
+
+// Function type for computing wing angles from time
+using AngleFunc = std::function<WingAngles(double t)>;
 
 // State vector: [x, y, z, ux, uy, uz]
 using State = std::array<double, 6>;
@@ -27,17 +26,18 @@ using State = std::array<double, 6>;
 // State derivative: [ux, uy, uz, ax, ay, az]
 using StateDerivative = std::array<double, 6>;
 
-struct WingVectors {
-    SingleWingVectors fl;  // Forewing left
-    SingleWingVectors fr;  // Forewing right
-    SingleWingVectors hl;  // Hindwing left
-    SingleWingVectors hr;  // Hindwing right
+struct SingleWingVectors {
+    Vec3 e_s;    // Stroke direction unit vector
+    Vec3 e_r;    // Radial direction unit vector
+    Vec3 e_c;    // Chord direction unit vector
+    Vec3 lift;   // Lift force vector
+    Vec3 drag;   // Drag force vector
 };
 
 // Compute state derivatives (equations of motion)
 StateDerivative equationOfMotion(
     double t,
     const State& state,
-    const Parameters& params,
-    WingVectors& wings
+    const std::vector<Wing>& wings,
+    std::vector<SingleWingVectors>& wing_outputs
 );

@@ -54,10 +54,10 @@ def plotDragonfly(states, wing_vectors, params, outfile, animate=False):
     drawCylinder(ax, xb, t_xc, a_xc, Ra)
 
     # Draw wings
-    drawWing(ax, xb + np.array([fw_x0, 0, 0]), v['fr'], p['lb0_f'], label=True)
-    drawWing(ax, xb + np.array([fw_x0, 0, 0]), v['fl'], p['lb0_f'])
-    drawWing(ax, xb + np.array([hw_x0, 0, 0]), v['hr'], p['lb0_h'])
-    drawWing(ax, xb + np.array([hw_x0, 0, 0]), v['hl'], p['lb0_h'])
+    drawWing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_right'], p['lb0_f'], label=True)
+    drawWing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_left'], p['lb0_f'])
+    drawWing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_right'], p['lb0_h'])
+    drawWing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_left'], p['lb0_h'])
 
     # Set axis limits
     box_width = 1.2
@@ -91,10 +91,10 @@ def plotDragonfly(states, wing_vectors, params, outfile, animate=False):
         drawEllipsoid(ax, xb + np.array([a_xc, 0, 0]), La / 2, Ra, Ra)
         drawCylinder(ax, xb, t_xc, a_xc, Ra)
 
-        drawWing(ax, xb + np.array([fw_x0, 0, 0]), v['fr'], p['lb0_f'], label=True)
-        drawWing(ax, xb + np.array([fw_x0, 0, 0]), v['fl'], p['lb0_f'])
-        drawWing(ax, xb + np.array([hw_x0, 0, 0]), v['hr'], p['lb0_h'])
-        drawWing(ax, xb + np.array([hw_x0, 0, 0]), v['hl'], p['lb0_h'])
+        drawWing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_right'], p['lb0_f'], label=True)
+        drawWing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_left'], p['lb0_f'])
+        drawWing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_right'], p['lb0_h'])
+        drawWing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_left'], p['lb0_h'])
 
         ax.set_xlim([xb[0] + a_xc - La / 2 - (box_width - 1) / 2,
                      xb[0] + a_xc + La / 2 + Lt + Lh + (box_width - 1) / 2])

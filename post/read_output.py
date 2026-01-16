@@ -10,7 +10,7 @@ def read_simulation(filename):
         params: dict of simulation parameters
         time: 1D array of time values
         states: list of state arrays [x, y, z, ux, uy, uz]
-        wings: list of wing vector dicts (one per timestep)
+        wings: list of wing vector dicts (one per timestep), keyed by wing name
     """
     with h5py.File(filename, "r") as f:
         # Read parameters
@@ -23,8 +23,8 @@ def read_simulation(filename):
         # Convert state array to list of arrays (matching Python code interface)
         states = [state_array[i, :] for i in range(state_array.shape[0])]
 
-        # Read wing data
-        wing_names = ["fl", "fr", "hl", "hr"]
+        # Read wing data (variable number of wings with user-defined names)
+        wing_names = [k for k in f["/wings"].keys() if k != "num_wings"]
         vec_names = ["e_s", "e_r", "e_c", "lift", "drag"]
 
         # Pre-read all wing data

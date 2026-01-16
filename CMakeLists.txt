@@ -26,7 +26,7 @@ set(SOURCES
     src/main.cpp
     src/rotation.cpp
     src/blade_element.cpp
-    src/wingforce.cpp
+    src/wing.cpp
     src/eom.cpp
     src/integrator.cpp
     src/output.cpp

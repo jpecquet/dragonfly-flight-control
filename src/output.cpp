@@ -5,41 +5,49 @@
 
 namespace {
 
-// Helper to convert Vec3 array to 2D vector for HDF5
+// Helper to extract a Vec3 member from wing data at a specific wing index
 std::vector<std::vector<double>> toArray(
-    const std::vector<WingVectors>& wing_data,
-    Vec3 SingleWingVectors::* vec_member,
-    SingleWingVectors WingVectors::* wing_member
+    const std::vector<std::vector<SingleWingVectors>>& wing_data,
+    size_t wing_index,
+    Vec3 SingleWingVectors::* vec_member
 ) {
     std::vector<std::vector<double>> result;
     result.reserve(wing_data.size());
-    for (const auto& w : wing_data) {
-        const Vec3& v = (w.*wing_member).*vec_member;
-        result.push_back({v.x(), v.y(), v.z()});
+    for (const auto& timestep : wing_data) {
+        if (wing_index < timestep.size()) {
+            const Vec3& v = timestep[wing_index].*vec_member;
+            result.push_back({v.x(), v.y(), v.z()});
+        }
     }
     return result;
 }
 
 } // namespace
 
-void writeHDF5(const std::string& filename, const SimulationOutput& output) {
+std::string wingGroupName(const Wing& wing) {
+    std::string suffix = (wing.side() == WingSide::Left) ? "_left" : "_right";
+    return wing.name() + suffix;
+}
+
+void writeHDF5(const std::string& filename, const SimulationOutput& output,
+               const std::vector<Wing>& wings) {
     HighFive::File file(filename, HighFive::File::Overwrite);
 
     // Write parameters
     file.createGroup("/parameters");
-    H5Easy::dump(file, "/parameters/lb0_f", output.params.lb0_f);
-    H5Easy::dump(file, "/parameters/lb0_h", output.params.lb0_h);
-    H5Easy::dump(file, "/parameters/mu0_f", output.params.mu0_f);
-    H5Easy::dump(file, "/parameters/mu0_h", output.params.mu0_h);
-    H5Easy::dump(file, "/parameters/Cd0", output.params.Cd0);
-    H5Easy::dump(file, "/parameters/Cl0", output.params.Cl0);
-    H5Easy::dump(file, "/parameters/omg0", output.params.omg0);
-    H5Easy::dump(file, "/parameters/gam0", output.params.gam0);
-    H5Easy::dump(file, "/parameters/phi0", output.params.phi0);
-    H5Easy::dump(file, "/parameters/psim", output.params.psim);
-    H5Easy::dump(file, "/parameters/dpsi", output.params.dpsi);
-    H5Easy::dump(file, "/parameters/sig0", output.params.sig0);
-    H5Easy::dump(file, "/parameters/dlt0", output.params.dlt0);
+    H5Easy::dump(file, "/parameters/lb0_f", output.lb0_f);
+    H5Easy::dump(file, "/parameters/lb0_h", output.lb0_h);
+    H5Easy::dump(file, "/parameters/mu0_f", output.mu0_f);
+    H5Easy::dump(file, "/parameters/mu0_h", output.mu0_h);
+    H5Easy::dump(file, "/parameters/Cd0", output.Cd0);
+    H5Easy::dump(file, "/parameters/Cl0", output.Cl0);
+    H5Easy::dump(file, "/parameters/omg0", output.omg0);
+    H5Easy::dump(file, "/parameters/gam0", output.gam0);
+    H5Easy::dump(file, "/parameters/phi0", output.phi0);
+    H5Easy::dump(file, "/parameters/psim", output.psim);
+    H5Easy::dump(file, "/parameters/dpsi", output.dpsi);
+    H5Easy::dump(file, "/parameters/sig0", output.sig0);
+    H5Easy::dump(file, "/parameters/dlt0", output.dlt0);
 
     // Write time
     file.createDataSet("/time", output.time);
@@ -52,38 +60,19 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output) {
     }
     file.createDataSet("/state", states_2d);
 
-    // Write wing data
+    // Write wing data (variable number of wings)
     file.createGroup("/wings");
 
-    // Forewing left
-    file.createGroup("/wings/fl");
-    file.createDataSet("/wings/fl/e_s", toArray(output.wing_data, &SingleWingVectors::e_s, &WingVectors::fl));
-    file.createDataSet("/wings/fl/e_r", toArray(output.wing_data, &SingleWingVectors::e_r, &WingVectors::fl));
-    file.createDataSet("/wings/fl/e_c", toArray(output.wing_data, &SingleWingVectors::e_c, &WingVectors::fl));
-    file.createDataSet("/wings/fl/lift", toArray(output.wing_data, &SingleWingVectors::lift, &WingVectors::fl));
-    file.createDataSet("/wings/fl/drag", toArray(output.wing_data, &SingleWingVectors::drag, &WingVectors::fl));
+    size_t num_wings = wings.size();
+    H5Easy::dump(file, "/wings/num_wings", static_cast<int>(num_wings));
 
-    // Forewing right
-    file.createGroup("/wings/fr");
-    file.createDataSet("/wings/fr/e_s", toArray(output.wing_data, &SingleWingVectors::e_s, &WingVectors::fr));
-    file.createDataSet("/wings/fr/e_r", toArray(output.wing_data, &SingleWingVectors::e_r, &WingVectors::fr));
-    file.createDataSet("/wings/fr/e_c", toArray(output.wing_data, &SingleWingVectors::e_c, &WingVectors::fr));
-    file.createDataSet("/wings/fr/lift", toArray(output.wing_data, &SingleWingVectors::lift, &WingVectors::fr));
-    file.createDataSet("/wings/fr/drag", toArray(output.wing_data, &SingleWingVectors::drag, &WingVectors::fr));
-
-    // Hindwing left
-    file.createGroup("/wings/hl");
-    file.createDataSet("/wings/hl/e_s", toArray(output.wing_data, &SingleWingVectors::e_s, &WingVectors::hl));
-    file.createDataSet("/wings/hl/e_r", toArray(output.wing_data, &SingleWingVectors::e_r, &WingVectors::hl));
-    file.createDataSet("/wings/hl/e_c", toArray(output.wing_data, &SingleWingVectors::e_c, &WingVectors::hl));
-    file.createDataSet("/wings/hl/lift", toArray(output.wing_data, &SingleWingVectors::lift, &WingVectors::hl));
-    file.createDataSet("/wings/hl/drag", toArray(output.wing_data, &SingleWingVectors::drag, &WingVectors::hl));
-
-    // Hindwing right
-    file.createGroup("/wings/hr");
-    file.createDataSet("/wings/hr/e_s", toArray(output.wing_data, &SingleWingVectors::e_s, &WingVectors::hr));
-    file.createDataSet("/wings/hr/e_r", toArray(output.wing_data, &SingleWingVectors::e_r, &WingVectors::hr));
-    file.createDataSet("/wings/hr/e_c", toArray(output.wing_data, &SingleWingVectors::e_c, &WingVectors::hr));
-    file.createDataSet("/wings/hr/lift", toArray(output.wing_data, &SingleWingVectors::lift, &WingVectors::hr));
-    file.createDataSet("/wings/hr/drag", toArray(output.wing_data, &SingleWingVectors::drag, &WingVectors::hr));
+    for (size_t i = 0; i < num_wings; ++i) {
+        std::string group = "/wings/" + wingGroupName(wings[i]);
+        file.createGroup(group);
+        file.createDataSet(group + "/e_s", toArray(output.wing_data, i, &SingleWingVectors::e_s));
+        file.createDataSet(group + "/e_r", toArray(output.wing_data, i, &SingleWingVectors::e_r));
+        file.createDataSet(group + "/e_c", toArray(output.wing_data, i, &SingleWingVectors::e_c));
+        file.createDataSet(group + "/lift", toArray(output.wing_data, i, &SingleWingVectors::lift));
+        file.createDataSet(group + "/drag", toArray(output.wing_data, i, &SingleWingVectors::drag));
+    }
 }
