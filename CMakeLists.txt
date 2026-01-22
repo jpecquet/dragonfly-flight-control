@@ -50,3 +50,55 @@ target_link_libraries(dragonfly PRIVATE
 set_target_properties(dragonfly PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
+
+# Tests
+enable_testing()
+
+# Physics library (shared between main executable and tests)
+add_library(dragonfly_physics STATIC
+    src/rotation.cpp
+    src/blade_element.cpp
+    src/wing.cpp
+    src/eom.cpp
+    src/integrator.cpp
+)
+
+target_include_directories(dragonfly_physics PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(dragonfly_physics PUBLIC
+    Eigen3::Eigen
+)
+
+# Free fall test
+add_executable(test_freefall tests/test_freefall.cpp)
+target_link_libraries(test_freefall PRIVATE dragonfly_physics)
+set_target_properties(test_freefall PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+add_test(NAME FreeFall COMMAND test_freefall)
+
+# Blade element coefficient test
+add_executable(test_blade_element tests/test_blade_element.cpp)
+target_link_libraries(test_blade_element PRIVATE dragonfly_physics)
+set_target_properties(test_blade_element PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+add_test(NAME BladeElement COMMAND test_blade_element)
+
+# Rotation matrix test
+add_executable(test_rotation tests/test_rotation.cpp)
+target_link_libraries(test_rotation PRIVATE dragonfly_physics)
+set_target_properties(test_rotation PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+add_test(NAME Rotation COMMAND test_rotation)
+
+# Stationary wing test
+add_executable(test_stationary_wing tests/test_stationary_wing.cpp)
+target_link_libraries(test_stationary_wing PRIVATE dragonfly_physics)
+set_target_properties(test_stationary_wing PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+add_test(NAME StationaryWing COMMAND test_stationary_wing)
