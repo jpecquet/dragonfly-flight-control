@@ -3,7 +3,6 @@
 #include "wing.hpp"
 
 #include <cmath>
-#include <stdexcept>
 
 // KinematicParams implementation
 

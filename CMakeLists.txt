@@ -59,9 +59,17 @@ target_link_libraries(dragonfly_optim PUBLIC
 )
 
 # CLI executable
-add_executable(dragonfly_cli apps/dragonfly_cli.cpp src/output.cpp)
+add_executable(dragonfly_cli
+    apps/dragonfly_cli.cpp
+    apps/cmd_sim.cpp
+    apps/cmd_optim.cpp
+    apps/cmd_plot.cpp
+    apps/cmd_test.cpp
+    src/output.cpp
+)
 target_include_directories(dragonfly_cli PRIVATE
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/apps
     ${HDF5_INCLUDE_DIRS}
 )
 target_link_libraries(dragonfly_cli PRIVATE
