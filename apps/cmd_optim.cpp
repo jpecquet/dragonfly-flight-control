@@ -207,6 +207,7 @@ int runOptim(const Config& cfg) {
 
             if (i > 0) {
                 // Tighten bounds around previous solution for continuation
+                if (kin.omg0.is_variable) { kin.omg0.min_bound = kin.omg0.value - da; kin.omg0.max_bound = kin.omg0.value + da; }
                 if (kin.gam0.is_variable) { kin.gam0.min_bound = kin.gam0.value - da; kin.gam0.max_bound = kin.gam0.value + da; }
                 if (kin.phi0.is_variable) { kin.phi0.min_bound = kin.phi0.value - da; kin.phi0.max_bound = kin.phi0.value + da; }
                 if (kin.psim.is_variable) { kin.psim.min_bound = kin.psim.value - da; kin.psim.max_bound = kin.psim.value + da; }

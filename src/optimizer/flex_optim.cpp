@@ -1,13 +1,13 @@
 #include "optimizer/flex_optim.hpp"
 #include "eom.hpp"
+#include "kinematics.hpp"
 #include "wing.hpp"
-
-#include <cmath>
 
 // KinematicParams implementation
 
 std::vector<std::string> KinematicParams::variableNames() const {
     std::vector<std::string> names;
+    if (omg0.is_variable) names.push_back("omg0");
     if (gam0.is_variable) names.push_back("gam0");
     if (phi0.is_variable) names.push_back("phi0");
     if (psim.is_variable) names.push_back("psim");
@@ -18,15 +18,16 @@ std::vector<std::string> KinematicParams::variableNames() const {
 }
 
 std::vector<std::string> KinematicParams::allNames() const {
-    return {"gam0", "phi0", "psim", "dpsi", "dlt0", "sig0"};
+    return {"omg0", "gam0", "phi0", "psim", "dpsi", "dlt0", "sig0"};
 }
 
 std::vector<double> KinematicParams::allValues() const {
-    return {gam0.value, phi0.value, psim.value, dpsi.value, dlt0.value, sig0.value};
+    return {omg0.value, gam0.value, phi0.value, psim.value, dpsi.value, dlt0.value, sig0.value};
 }
 
 std::vector<double> KinematicParams::variableValues() const {
     std::vector<double> values;
+    if (omg0.is_variable) values.push_back(omg0.value);
     if (gam0.is_variable) values.push_back(gam0.value);
     if (phi0.is_variable) values.push_back(phi0.value);
     if (psim.is_variable) values.push_back(psim.value);
@@ -38,6 +39,7 @@ std::vector<double> KinematicParams::variableValues() const {
 
 void KinematicParams::setVariableValues(const std::vector<double>& x) {
     size_t i = 0;
+    if (omg0.is_variable) omg0.value = x[i++];
     if (gam0.is_variable) gam0.value = x[i++];
     if (phi0.is_variable) phi0.value = x[i++];
     if (psim.is_variable) psim.value = x[i++];
@@ -49,6 +51,7 @@ void KinematicParams::setVariableValues(const std::vector<double>& x) {
 void KinematicParams::getVariableBounds(std::vector<double>& lb, std::vector<double>& ub) const {
     lb.clear();
     ub.clear();
+    if (omg0.is_variable) { lb.push_back(omg0.min_bound); ub.push_back(omg0.max_bound); }
     if (gam0.is_variable) { lb.push_back(gam0.min_bound); ub.push_back(gam0.max_bound); }
     if (phi0.is_variable) { lb.push_back(phi0.min_bound); ub.push_back(phi0.max_bound); }
     if (psim.is_variable) { lb.push_back(psim.min_bound); ub.push_back(psim.max_bound); }
@@ -59,6 +62,7 @@ void KinematicParams::getVariableBounds(std::vector<double>& lb, std::vector<dou
 
 size_t KinematicParams::numVariable() const {
     size_t n = 0;
+    if (omg0.is_variable) n++;
     if (gam0.is_variable) n++;
     if (phi0.is_variable) n++;
     if (psim.is_variable) n++;
@@ -90,6 +94,7 @@ static KinematicParam parseParam(const Config& cfg, const std::string& name) {
 
 KinematicParams KinematicParams::fromConfig(const Config& cfg) {
     KinematicParams params;
+    params.omg0 = parseParam(cfg, "omg0");
     params.gam0 = parseParam(cfg, "gam0");
     params.phi0 = parseParam(cfg, "phi0");
     params.psim = parseParam(cfg, "psim");
@@ -103,7 +108,6 @@ KinematicParams KinematicParams::fromConfig(const Config& cfg) {
 
 PhysicalParams PhysicalParams::fromConfig(const Config& cfg) {
     PhysicalParams params;
-    params.omg0 = cfg.getDouble("omg0");
     params.lb0_f = cfg.getDouble("lb0_f");
     params.lb0_h = cfg.getDouble("lb0_h");
     params.mu0_f = cfg.getDouble("mu0_f");
@@ -118,31 +122,14 @@ PhysicalParams PhysicalParams::fromConfig(const Config& cfg) {
 double flexWingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
                          double ux, double uz, int N) {
     // Create angle functions using current kinematic values
-    double gam0 = kin.gam0.value;
-    double phi0 = kin.phi0.value;
-    double psim = kin.psim.value;
-    double dpsi = kin.dpsi.value;
-    double dlt0 = kin.dlt0.value;
-    double sig0 = kin.sig0.value;
-    double omg0 = phys.omg0;
+    double omg0 = kin.omg0.value;
 
-    auto angleFunc_f = [=](double t) -> WingAngles {
-        return {
-            gam0,
-            phi0 * std::cos(omg0 * t),
-            -phi0 * omg0 * std::sin(omg0 * t),
-            psim + dpsi * std::cos(omg0 * t + dlt0)
-        };
-    };
-
-    auto angleFunc_h = [=](double t) -> WingAngles {
-        return {
-            gam0,
-            phi0 * std::cos(omg0 * t + sig0),
-            -phi0 * omg0 * std::sin(omg0 * t + sig0),
-            psim + dpsi * std::cos(omg0 * t + dlt0 + sig0)
-        };
-    };
+    auto angleFunc_f = makeForewingAngleFunc(
+        kin.gam0.value, kin.phi0.value, kin.psim.value,
+        kin.dpsi.value, kin.dlt0.value, omg0);
+    auto angleFunc_h = makeHindwingAngleFunc(
+        kin.gam0.value, kin.phi0.value, kin.psim.value,
+        kin.dpsi.value, kin.dlt0.value, kin.sig0.value, omg0);
 
     // Create wings
     std::vector<Wing> wings;

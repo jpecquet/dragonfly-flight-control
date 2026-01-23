@@ -78,22 +78,27 @@ All quantities are **nondimensional**:
 
 ### C++ (writing)
 ```cpp
-#include <HighFive/HighFive.hpp>
+#include <highfive/H5Easy.hpp>
+#include <highfive/H5File.hpp>
 
 HighFive::File file("output.h5", HighFive::File::Overwrite);
-auto params = file.createGroup("/parameters");
-params.createDataSet("lb0_f", lb0_f);
-// ...
-file.createDataSet("/time", time_vec);
-file.createDataSet("/state", state_matrix);
 
-// Wings (variable number)
+// Parameters
+file.createGroup("/parameters");
+H5Easy::dump(file, "/parameters/lb0_f", lb0_f);
+// ...
+
+// Time and state
+file.createDataSet("/time", time_vec);
+file.createDataSet("/state", state_matrix);  // Eigen::MatrixXd [N x 6]
+
+// Wings
 file.createGroup("/wings");
-H5Easy::dump(file, "/wings/num_wings", num_wings);
-for (int i = 0; i < num_wings; ++i) {
-    std::string group = "/wings/" + std::to_string(i);
+H5Easy::dump(file, "/wings/num_wings", static_cast<int>(wings.size()));
+for (size_t i = 0; i < wings.size(); ++i) {
+    std::string group = "/wings/" + wingGroupName(wings[i]);  // e.g., "fore_left"
     file.createGroup(group);
-    file.createDataSet(group + "/e_s", e_s_data);
+    file.createDataSet(group + "/e_s", e_s_matrix);  // Eigen::MatrixXd [N x 3]
     // ...
 }
 ```

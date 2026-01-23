@@ -1,56 +1,51 @@
-#include "optimizer/objective.hpp"
-#include "optimizer/optim_params.hpp"
+#include "optimizer/flex_optim.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <iostream>
 
-// Test instantAccel returns expected values for known inputs
-bool testInstantAccel() {
-    std::cout << "Testing instantAccel..." << std::endl;
-
-    FixedParams fixed = FixedParams::defaults();
-
-    // Test at hover with vertical stroke plane
-    OptimParams optim = {M_PI / 2.0, M_PI / 4.0, M_PI / 6.0};  // gam0=90deg, psim=45deg, dpsi=30deg
-    FlightCondition flight = {0.0, 0.0};  // hover
-
-    Vec3 a = instantAccel(0.0, optim, flight, fixed);
-
-    // At t=0, we should get a non-zero acceleration (gravity + wing forces)
-    // The z-component should include gravity (-1 in nondimensional units)
-    std::cout << "  Acceleration at t=0: (" << a.x() << ", " << a.y() << ", " << a.z() << ")" << std::endl;
-
-    // Basic sanity checks
-    bool passed = true;
-
-    // y-component should be zero (symmetric flight)
-    if (std::abs(a.y()) > 1e-10) {
-        std::cout << "  FAILED: y-acceleration should be zero (symmetric)" << std::endl;
-        passed = false;
-    }
-
-    // Should get some finite values
-    if (!std::isfinite(a.x()) || !std::isfinite(a.y()) || !std::isfinite(a.z())) {
-        std::cout << "  FAILED: non-finite acceleration values" << std::endl;
-        passed = false;
-    }
-
-    if (passed) {
-        std::cout << "  PASSED" << std::endl;
-    }
-    return passed;
+// Helper to create default physical params
+PhysicalParams defaultPhysicalParams() {
+    PhysicalParams p;
+    p.lb0_f = 0.75;
+    p.lb0_h = 0.75;
+    p.mu0_f = 0.075;
+    p.mu0_h = 0.075;
+    p.Cd0 = 0.4;
+    p.Cl0 = 1.2;
+    return p;
 }
 
-// Test wingBeatAccel is non-negative and finite
+// Helper to create kinematic params with specific values
+KinematicParams makeKinematicParams(double omg0, double gam0, double phi0, double psim,
+                                     double dpsi, double dlt0, double sig0) {
+    KinematicParams k;
+    k.omg0 = {"omg0", false, omg0, omg0, omg0};
+    k.gam0 = {"gam0", false, gam0, gam0, gam0};
+    k.phi0 = {"phi0", false, phi0, phi0, phi0};
+    k.psim = {"psim", false, psim, psim, psim};
+    k.dpsi = {"dpsi", false, dpsi, dpsi, dpsi};
+    k.dlt0 = {"dlt0", false, dlt0, dlt0, dlt0};
+    k.sig0 = {"sig0", false, sig0, sig0, sig0};
+    return k;
+}
+
+// Test flexWingBeatAccel is non-negative and finite
 bool testWingBeatAccel() {
-    std::cout << "Testing wingBeatAccel..." << std::endl;
+    std::cout << "Testing flexWingBeatAccel..." << std::endl;
 
-    FixedParams fixed = FixedParams::defaults();
-    OptimParams optim = {M_PI / 2.0, M_PI / 4.0, M_PI / 6.0};
-    FlightCondition flight = {0.0, 0.0};
+    PhysicalParams phys = defaultPhysicalParams();
+    KinematicParams kin = makeKinematicParams(
+        8.0 * M_PI,   // omg0 (default)
+        M_PI / 2.0,   // gam0 = 90 deg
+        M_PI / 8.0,   // phi0 (default)
+        M_PI / 4.0,   // psim = 45 deg
+        M_PI / 6.0,   // dpsi = 30 deg
+        M_PI / 2.0,   // dlt0 (default)
+        M_PI          // sig0 (default)
+    );
 
-    double accel_sq = wingBeatAccel(optim, flight, fixed);
+    double accel_sq = flexWingBeatAccel(kin, phys, 0.0, 0.0);  // hover
 
     std::cout << "  Mean acceleration squared: " << accel_sq << std::endl;
     std::cout << "  Mean acceleration magnitude: " << std::sqrt(accel_sq) << std::endl;
@@ -77,13 +72,15 @@ bool testWingBeatAccel() {
 bool testConvergence() {
     std::cout << "Testing integration convergence..." << std::endl;
 
-    FixedParams fixed = FixedParams::defaults();
-    OptimParams optim = {M_PI / 2.0, M_PI / 4.0, M_PI / 6.0};
-    FlightCondition flight = {1.0, 0.0};  // forward flight
+    PhysicalParams phys = defaultPhysicalParams();
+    KinematicParams kin = makeKinematicParams(
+        8.0 * M_PI, M_PI / 2.0, M_PI / 8.0, M_PI / 4.0,
+        M_PI / 6.0, M_PI / 2.0, M_PI
+    );
 
-    double accel_N20 = wingBeatAccel(optim, flight, fixed, 20);
-    double accel_N40 = wingBeatAccel(optim, flight, fixed, 40);
-    double accel_N80 = wingBeatAccel(optim, flight, fixed, 80);
+    double accel_N20 = flexWingBeatAccel(kin, phys, 1.0, 0.0, 20);  // forward flight
+    double accel_N40 = flexWingBeatAccel(kin, phys, 1.0, 0.0, 40);
+    double accel_N80 = flexWingBeatAccel(kin, phys, 1.0, 0.0, 80);
 
     std::cout << "  N=20: " << std::sqrt(accel_N20) << std::endl;
     std::cout << "  N=40: " << std::sqrt(accel_N40) << std::endl;
@@ -92,7 +89,6 @@ bool testConvergence() {
     bool passed = true;
 
     // Check that all values are in a reasonable range of each other (within 5%)
-    // This tests that the integration is converging to a consistent value
     double mean_val = (std::sqrt(accel_N20) + std::sqrt(accel_N40) + std::sqrt(accel_N80)) / 3.0;
     double max_deviation = std::max({
         std::abs(std::sqrt(accel_N20) - mean_val),
@@ -115,28 +111,73 @@ bool testConvergence() {
     return passed;
 }
 
-// Test symmetry: changing sign of dpsi should give symmetric behavior
+// Test symmetry: changing sign of dpsi should give finite results
 bool testSymmetry() {
     std::cout << "Testing symmetry..." << std::endl;
 
-    FixedParams fixed = FixedParams::defaults();
-    FlightCondition flight = {0.0, 0.0};
+    PhysicalParams phys = defaultPhysicalParams();
+    KinematicParams kin_pos = makeKinematicParams(
+        8.0 * M_PI, M_PI / 2.0, M_PI / 8.0, M_PI / 4.0,
+        M_PI / 6.0, M_PI / 2.0, M_PI
+    );
+    KinematicParams kin_neg = makeKinematicParams(
+        8.0 * M_PI, M_PI / 2.0, M_PI / 8.0, M_PI / 4.0,
+        -M_PI / 6.0, M_PI / 2.0, M_PI
+    );
 
-    OptimParams optim_pos = {M_PI / 2.0, M_PI / 4.0, M_PI / 6.0};
-    OptimParams optim_neg = {M_PI / 2.0, M_PI / 4.0, -M_PI / 6.0};
-
-    double accel_pos = wingBeatAccel(optim_pos, flight, fixed);
-    double accel_neg = wingBeatAccel(optim_neg, flight, fixed);
+    double accel_pos = flexWingBeatAccel(kin_pos, phys, 0.0, 0.0);
+    double accel_neg = flexWingBeatAccel(kin_neg, phys, 0.0, 0.0);
 
     std::cout << "  dpsi > 0: " << std::sqrt(accel_pos) << std::endl;
     std::cout << "  dpsi < 0: " << std::sqrt(accel_neg) << std::endl;
 
-    // These may not be exactly equal due to the dlt0 phase offset,
-    // but they should be finite
     bool passed = true;
 
     if (!std::isfinite(accel_pos) || !std::isfinite(accel_neg)) {
         std::cout << "  FAILED: non-finite results" << std::endl;
+        passed = false;
+    }
+
+    if (passed) {
+        std::cout << "  PASSED" << std::endl;
+    }
+    return passed;
+}
+
+// Test that variable parameters can be set and retrieved correctly
+bool testVariableParams() {
+    std::cout << "Testing variable parameter handling..." << std::endl;
+
+    KinematicParams kin;
+    kin.omg0 = {"omg0", false, 8.0 * M_PI, 8.0 * M_PI, 8.0 * M_PI};
+    kin.gam0 = {"gam0", false, M_PI / 2.0, M_PI / 2.0, M_PI / 2.0};
+    kin.phi0 = {"phi0", false, M_PI / 8.0, M_PI / 8.0, M_PI / 8.0};
+    kin.psim = {"psim", true, 0.5, 0.0, M_PI / 2.0};  // variable
+    kin.dpsi = {"dpsi", true, 0.3, -M_PI / 2.0, M_PI / 2.0};  // variable
+    kin.dlt0 = {"dlt0", false, M_PI / 2.0, M_PI / 2.0, M_PI / 2.0};
+    kin.sig0 = {"sig0", false, M_PI, M_PI, M_PI};
+
+    bool passed = true;
+
+    // Check numVariable
+    if (kin.numVariable() != 2) {
+        std::cout << "  FAILED: expected 2 variable params, got " << kin.numVariable() << std::endl;
+        passed = false;
+    }
+
+    // Check variableNames
+    auto names = kin.variableNames();
+    if (names.size() != 2 || names[0] != "psim" || names[1] != "dpsi") {
+        std::cout << "  FAILED: unexpected variable names" << std::endl;
+        passed = false;
+    }
+
+    // Check set/get round trip
+    std::vector<double> new_vals = {1.0, 0.5};
+    kin.setVariableValues(new_vals);
+    auto retrieved = kin.variableValues();
+    if (std::abs(retrieved[0] - 1.0) > 1e-10 || std::abs(retrieved[1] - 0.5) > 1e-10) {
+        std::cout << "  FAILED: set/get round trip failed" << std::endl;
         passed = false;
     }
 
@@ -153,9 +194,6 @@ int main() {
     int num_passed = 0;
     int num_tests = 4;
 
-    if (testInstantAccel()) num_passed++;
-    std::cout << std::endl;
-
     if (testWingBeatAccel()) num_passed++;
     std::cout << std::endl;
 
@@ -163,6 +201,9 @@ int main() {
     std::cout << std::endl;
 
     if (testSymmetry()) num_passed++;
+    std::cout << std::endl;
+
+    if (testVariableParams()) num_passed++;
     std::cout << std::endl;
 
     std::cout << "====================" << std::endl;

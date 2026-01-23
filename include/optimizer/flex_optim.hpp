@@ -16,6 +16,7 @@ struct KinematicParam {
 
 // All kinematic parameters for optimization
 struct KinematicParams {
+    KinematicParam omg0;  // Wing beat frequency
     KinematicParam gam0;  // Stroke plane angle
     KinematicParam phi0;  // Stroke amplitude
     KinematicParam psim;  // Mean pitch angle
@@ -50,7 +51,6 @@ struct KinematicParams {
 
 // Fixed physical parameters (not optimized)
 struct PhysicalParams {
-    double omg0;    // Wing beat frequency
     double lb0_f;   // Forewing length
     double lb0_h;   // Hindwing length
     double mu0_f;   // Forewing mass parameter

@@ -13,6 +13,7 @@ cd build && ctest
 ./build/bin/test_blade_element
 ./build/bin/test_rotation
 ./build/bin/test_stationary_wing
+./build/bin/test_optimizer
 
 # Verbose output
 ctest --output-on-failure
@@ -26,6 +27,7 @@ ctest --output-on-failure
 | BladeElement | Aerodynamics | Cd/Cl coefficient formulas |
 | Rotation | Kinematics | Rotation matrix properties |
 | StationaryWing | Full wing pipeline | Wing in uniform flow |
+| Optimizer | Objective function | Mean acceleration convergence |
 
 ## Test Details
 
@@ -108,6 +110,30 @@ Force magnitude: `|F| = (μ₀/2lb₀) · C · U²` where C is Cd or Cl.
 
 ---
 
+### 5. Optimizer (`test_optimizer.cpp`)
+
+**What it tests:** Mean squared acceleration objective function and parameter handling.
+
+**Test cases:**
+
+1. **WingBeatAccel:** Verifies `flexWingBeatAccel()` returns finite, non-negative values for hover conditions.
+
+2. **Convergence:** Tests that integration converges as N increases:
+   - N=20, N=40, N=80 should give results within 5% of each other
+
+3. **Symmetry:** Verifies that changing sign of `dpsi` produces finite results (tests robustness).
+
+4. **VariableParams:** Tests `KinematicParams` get/set round-trip:
+   - `numVariable()` returns correct count
+   - `variableNames()` returns expected names
+   - `setVariableValues()` / `variableValues()` preserve values
+
+**Key structures tested:**
+- `KinematicParams`: Holds omg0, gam0, phi0, psim, dpsi, dlt0, sig0 (each can be fixed or variable)
+- `PhysicalParams`: Holds lb0_f, lb0_h, mu0_f, mu0_h, Cd0, Cl0
+
+---
+
 ## Adding New Tests
 
 1. Create `tests/test_<name>.cpp`
@@ -136,3 +162,4 @@ Each test isolates a specific component:
 - **BladeElement:** Coefficient formulas (no geometry)
 - **Rotation:** Matrix construction (no physics)
 - **StationaryWing:** Full pipeline (no time-varying kinematics)
+- **Optimizer:** Objective function and parameter handling (integration convergence)

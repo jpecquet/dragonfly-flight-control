@@ -1,10 +1,10 @@
 #include "cmd_sim.hpp"
 #include "eom.hpp"
 #include "integrator.hpp"
+#include "kinematics.hpp"
 #include "output.hpp"
 #include "wing.hpp"
 
-#include <cmath>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -44,25 +44,9 @@ int runSim(const Config& cfg) {
     // Output
     std::string output_file = cfg.getString("output");
 
-    // Angle function for forewing
-    auto angleFunc_f = [=](double t) -> WingAngles {
-        return {
-            gam0,
-            phi0 * std::cos(omg0 * t),
-            -phi0 * omg0 * std::sin(omg0 * t),
-            psim + dpsi * std::cos(omg0 * t + dlt0)
-        };
-    };
-
-    // Angle function for hindwing
-    auto angleFunc_h = [=](double t) -> WingAngles {
-        return {
-            gam0,
-            phi0 * std::cos(omg0 * t + sig0),
-            -phi0 * omg0 * std::sin(omg0 * t + sig0),
-            psim + dpsi * std::cos(omg0 * t + dlt0 + sig0)
-        };
-    };
+    // Angle functions
+    auto angleFunc_f = makeForewingAngleFunc(gam0, phi0, psim, dpsi, dlt0, omg0);
+    auto angleFunc_h = makeHindwingAngleFunc(gam0, phi0, psim, dpsi, dlt0, sig0, omg0);
 
     // Create wings
     std::vector<Wing> wings;
