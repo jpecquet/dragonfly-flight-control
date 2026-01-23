@@ -7,20 +7,17 @@ StateDerivative equationOfMotion(
     const std::vector<Wing>& wings,
     std::vector<SingleWingVectors>& wing_outputs
 ) {
-    // Extract velocity from state
-    Vec3 ub(state[3], state[4], state[5]);
-
     // Resize output vector
     wing_outputs.resize(wings.size());
 
     // Sum forces from all wings
-    Vec3 a(0.0, 0.0, 0.0);
+    Vec3 accel = Vec3::Zero();
     for (size_t i = 0; i < wings.size(); ++i) {
-        a += wings[i].computeForce(t, ub, wing_outputs[i]);
+        accel += wings[i].computeForce(t, state.vel, wing_outputs[i]);
     }
 
     // Add gravity
-    a -= Vec3(0.0, 0.0, 1.0);
+    accel -= Vec3(0.0, 0.0, 1.0);
 
-    return {state[3], state[4], state[5], a.x(), a.y(), a.z()};
+    return StateDerivative(state.vel, accel);
 }

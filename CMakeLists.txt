@@ -21,36 +21,6 @@ set(HIGHFIVE_EXAMPLES OFF CACHE BOOL "Disable HighFive examples")
 set(HIGHFIVE_UNIT_TESTS OFF CACHE BOOL "Disable HighFive tests")
 FetchContent_MakeAvailable(HighFive)
 
-# Source files
-set(SOURCES
-    src/main.cpp
-    src/rotation.cpp
-    src/blade_element.cpp
-    src/wing.cpp
-    src/eom.cpp
-    src/integrator.cpp
-    src/output.cpp
-)
-
-# Executable
-add_executable(dragonfly ${SOURCES})
-
-target_include_directories(dragonfly PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
-    ${HDF5_INCLUDE_DIRS}
-)
-
-target_link_libraries(dragonfly PRIVATE
-    Eigen3::Eigen
-    HighFive
-    ${HDF5_LIBRARIES}
-)
-
-# Optional: Set output directory
-set_target_properties(dragonfly PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
-
 # Tests
 enable_testing()
 
@@ -69,6 +39,40 @@ target_include_directories(dragonfly_physics PUBLIC
 
 target_link_libraries(dragonfly_physics PUBLIC
     Eigen3::Eigen
+)
+
+# Find NLopt
+find_package(NLopt REQUIRED)
+
+# Optimizer library
+add_library(dragonfly_optim STATIC
+    src/optimizer/objective.cpp
+    src/optimizer/flex_optim.cpp
+)
+
+target_include_directories(dragonfly_optim PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(dragonfly_optim PUBLIC
+    dragonfly_physics
+)
+
+# CLI executable
+add_executable(dragonfly_cli apps/dragonfly_cli.cpp src/output.cpp)
+target_include_directories(dragonfly_cli PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${HDF5_INCLUDE_DIRS}
+)
+target_link_libraries(dragonfly_cli PRIVATE
+    dragonfly_optim
+    NLopt::nlopt
+    HighFive
+    ${HDF5_LIBRARIES}
+)
+set_target_properties(dragonfly_cli PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    OUTPUT_NAME dragonfly
 )
 
 # Free fall test
@@ -102,3 +106,11 @@ set_target_properties(test_stationary_wing PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 add_test(NAME StationaryWing COMMAND test_stationary_wing)
+
+# Optimizer test
+add_executable(test_optimizer tests/test_optimizer.cpp)
+target_link_libraries(test_optimizer PRIVATE dragonfly_optim)
+set_target_properties(test_optimizer PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+add_test(NAME Optimizer COMMAND test_optimizer)

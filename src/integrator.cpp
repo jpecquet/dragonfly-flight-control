@@ -7,11 +7,10 @@ State stepEuler(double t, double h, const State& y,
     std::vector<SingleWingVectors> wing_outputs;
     StateDerivative k1 = equationOfMotion(t, y, wings, wing_outputs);
 
-    State y_new;
-    for (int i = 0; i < 6; ++i) {
-        y_new[i] = y[i] + h * k1[i];
-    }
-    return y_new;
+    return State(
+        y.pos + h * k1.vel,
+        y.vel + h * k1.accel
+    );
 }
 
 State stepRK4(double t, double h, const State& y,
@@ -22,30 +21,20 @@ State stepRK4(double t, double h, const State& y,
     StateDerivative k1 = equationOfMotion(t, y, wings, wing_outputs);
 
     // k2
-    State y2;
-    for (int i = 0; i < 6; ++i) {
-        y2[i] = y[i] + 0.5 * h * k1[i];
-    }
+    State y2(y.pos + 0.5 * h * k1.vel, y.vel + 0.5 * h * k1.accel);
     StateDerivative k2 = equationOfMotion(t + 0.5 * h, y2, wings, wing_outputs);
 
     // k3
-    State y3;
-    for (int i = 0; i < 6; ++i) {
-        y3[i] = y[i] + 0.5 * h * k2[i];
-    }
+    State y3(y.pos + 0.5 * h * k2.vel, y.vel + 0.5 * h * k2.accel);
     StateDerivative k3 = equationOfMotion(t + 0.5 * h, y3, wings, wing_outputs);
 
     // k4
-    State y4;
-    for (int i = 0; i < 6; ++i) {
-        y4[i] = y[i] + h * k3[i];
-    }
+    State y4(y.pos + h * k3.vel, y.vel + h * k3.accel);
     StateDerivative k4 = equationOfMotion(t + h, y4, wings, wing_outputs);
 
-    // Combine
-    State y_new;
-    for (int i = 0; i < 6; ++i) {
-        y_new[i] = y[i] + (h / 6.0) * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]);
-    }
-    return y_new;
+    // Combine: y_new = y + (h/6) * (k1 + 2*k2 + 2*k3 + k4)
+    return State(
+        y.pos + (h / 6.0) * (k1.vel + 2.0 * k2.vel + 2.0 * k3.vel + k4.vel),
+        y.vel + (h / 6.0) * (k1.accel + 2.0 * k2.accel + 2.0 * k3.accel + k4.accel)
+    );
 }

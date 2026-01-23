@@ -5,18 +5,22 @@
 
 namespace {
 
-// Helper to extract a Vec3 member from wing data at a specific wing index
-std::vector<std::vector<double>> toArray(
+// Helper to extract Vec3 data into a pre-allocated contiguous Eigen matrix
+// Returns Nx3 matrix for efficient HDF5 writing
+Eigen::MatrixXd toMatrix(
     const std::vector<std::vector<SingleWingVectors>>& wing_data,
     size_t wing_index,
     Vec3 SingleWingVectors::* vec_member
 ) {
-    std::vector<std::vector<double>> result;
-    result.reserve(wing_data.size());
-    for (const auto& timestep : wing_data) {
-        if (wing_index < timestep.size()) {
-            const Vec3& v = timestep[wing_index].*vec_member;
-            result.push_back({v.x(), v.y(), v.z()});
+    size_t n = wing_data.size();
+    Eigen::MatrixXd result(n, 3);
+
+    for (size_t i = 0; i < n; ++i) {
+        if (wing_index < wing_data[i].size()) {
+            const Vec3& v = wing_data[i][wing_index].*vec_member;
+            result(i, 0) = v.x();
+            result(i, 1) = v.y();
+            result(i, 2) = v.z();
         }
     }
     return result;
@@ -52,13 +56,19 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     // Write time
     file.createDataSet("/time", output.time);
 
-    // Write states as 2D array
-    std::vector<std::vector<double>> states_2d;
-    states_2d.reserve(output.states.size());
-    for (const auto& s : output.states) {
-        states_2d.push_back({s[0], s[1], s[2], s[3], s[4], s[5]});
+    // Write states as contiguous Nx6 matrix
+    size_t n_states = output.states.size();
+    Eigen::MatrixXd states_matrix(n_states, 6);
+    for (size_t i = 0; i < n_states; ++i) {
+        const State& s = output.states[i];
+        states_matrix(i, 0) = s.pos.x();
+        states_matrix(i, 1) = s.pos.y();
+        states_matrix(i, 2) = s.pos.z();
+        states_matrix(i, 3) = s.vel.x();
+        states_matrix(i, 4) = s.vel.y();
+        states_matrix(i, 5) = s.vel.z();
     }
-    file.createDataSet("/state", states_2d);
+    file.createDataSet("/state", states_matrix);
 
     // Write wing data (variable number of wings)
     file.createGroup("/wings");
@@ -69,10 +79,10 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     for (size_t i = 0; i < num_wings; ++i) {
         std::string group = "/wings/" + wingGroupName(wings[i]);
         file.createGroup(group);
-        file.createDataSet(group + "/e_s", toArray(output.wing_data, i, &SingleWingVectors::e_s));
-        file.createDataSet(group + "/e_r", toArray(output.wing_data, i, &SingleWingVectors::e_r));
-        file.createDataSet(group + "/e_c", toArray(output.wing_data, i, &SingleWingVectors::e_c));
-        file.createDataSet(group + "/lift", toArray(output.wing_data, i, &SingleWingVectors::lift));
-        file.createDataSet(group + "/drag", toArray(output.wing_data, i, &SingleWingVectors::drag));
+        file.createDataSet(group + "/e_s", toMatrix(output.wing_data, i, &SingleWingVectors::e_s));
+        file.createDataSet(group + "/e_r", toMatrix(output.wing_data, i, &SingleWingVectors::e_r));
+        file.createDataSet(group + "/e_c", toMatrix(output.wing_data, i, &SingleWingVectors::e_c));
+        file.createDataSet(group + "/lift", toMatrix(output.wing_data, i, &SingleWingVectors::lift));
+        file.createDataSet(group + "/drag", toMatrix(output.wing_data, i, &SingleWingVectors::drag));
     }
 }

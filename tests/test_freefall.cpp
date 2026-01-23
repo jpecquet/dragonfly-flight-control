@@ -16,14 +16,10 @@
 
 State analyticalFreeFall(const State& initial, double t) {
     double g = 1.0;  // Nondimensional gravity
-    return {
-        initial[0] + initial[3] * t,           // x
-        initial[1] + initial[4] * t,           // y
-        initial[2] + initial[5] * t - 0.5 * g * t * t,  // z
-        initial[3],                            // ux (constant)
-        initial[4],                            // uy (constant)
-        initial[5] - g * t                     // uz
-    };
+    return State(
+        initial.pos + initial.vel * t - Vec3(0, 0, 0.5 * g * t * t),
+        initial.vel - Vec3(0, 0, g * t)
+    );
 }
 
 int main() {
@@ -34,12 +30,11 @@ int main() {
     std::vector<Wing> wings;
 
     // Initial state with non-zero velocity to make test more interesting
-    // [x, y, z, ux, uy, uz]
-    State initial = {0.0, 0.0, 10.0, 1.0, 0.5, 2.0};
+    State initial(0.0, 0.0, 10.0, 1.0, 0.5, 2.0);
 
     std::cout << "Initial state:\n";
-    std::cout << "  Position: (" << initial[0] << ", " << initial[1] << ", " << initial[2] << ")\n";
-    std::cout << "  Velocity: (" << initial[3] << ", " << initial[4] << ", " << initial[5] << ")\n\n";
+    std::cout << "  Position: (" << initial.pos.x() << ", " << initial.pos.y() << ", " << initial.pos.z() << ")\n";
+    std::cout << "  Velocity: (" << initial.vel.x() << ", " << initial.vel.y() << ", " << initial.vel.z() << ")\n\n";
 
     // Integration parameters
     double dt = 0.001;   // Small timestep for accuracy
@@ -62,18 +57,10 @@ int main() {
         State exact = analyticalFreeFall(initial, t);
 
         // Position error (Euclidean distance)
-        double pos_error = std::sqrt(
-            std::pow(state[0] - exact[0], 2) +
-            std::pow(state[1] - exact[1], 2) +
-            std::pow(state[2] - exact[2], 2)
-        );
+        double pos_error = (state.pos - exact.pos).norm();
 
         // Velocity error (Euclidean distance)
-        double vel_error = std::sqrt(
-            std::pow(state[3] - exact[3], 2) +
-            std::pow(state[4] - exact[4], 2) +
-            std::pow(state[5] - exact[5], 2)
-        );
+        double vel_error = (state.vel - exact.vel).norm();
 
         max_pos_error = std::max(max_pos_error, pos_error);
         max_vel_error = std::max(max_vel_error, vel_error);
@@ -85,12 +72,12 @@ int main() {
     std::cout << "After t = " << T << " seconds:\n\n";
 
     std::cout << "Simulated state:\n";
-    std::cout << "  Position: (" << state[0] << ", " << state[1] << ", " << state[2] << ")\n";
-    std::cout << "  Velocity: (" << state[3] << ", " << state[4] << ", " << state[5] << ")\n\n";
+    std::cout << "  Position: (" << state.pos.x() << ", " << state.pos.y() << ", " << state.pos.z() << ")\n";
+    std::cout << "  Velocity: (" << state.vel.x() << ", " << state.vel.y() << ", " << state.vel.z() << ")\n\n";
 
     std::cout << "Analytical solution:\n";
-    std::cout << "  Position: (" << exact_final[0] << ", " << exact_final[1] << ", " << exact_final[2] << ")\n";
-    std::cout << "  Velocity: (" << exact_final[3] << ", " << exact_final[4] << ", " << exact_final[5] << ")\n\n";
+    std::cout << "  Position: (" << exact_final.pos.x() << ", " << exact_final.pos.y() << ", " << exact_final.pos.z() << ")\n";
+    std::cout << "  Velocity: (" << exact_final.vel.x() << ", " << exact_final.vel.y() << ", " << exact_final.vel.z() << ")\n\n";
 
     std::cout << "Maximum errors over simulation:\n";
     std::cout << "  Position error: " << max_pos_error << "\n";

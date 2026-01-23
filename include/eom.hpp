@@ -2,7 +2,6 @@
 
 #include "linalg.hpp"
 
-#include <array>
 #include <functional>
 #include <vector>
 
@@ -20,11 +19,30 @@ struct WingAngles {
 // Function type for computing wing angles from time
 using AngleFunc = std::function<WingAngles(double t)>;
 
-// State vector: [x, y, z, ux, uy, uz]
-using State = std::array<double, 6>;
+// State vector with position and velocity
+struct State {
+    Vec3 pos;  // Position [x, y, z]
+    Vec3 vel;  // Velocity [ux, uy, uz]
+
+    // Default constructor
+    State() : pos(Vec3::Zero()), vel(Vec3::Zero()) {}
+
+    // Construct from components
+    State(const Vec3& p, const Vec3& v) : pos(p), vel(v) {}
+
+    // Construct from 6 doubles for backward compatibility
+    State(double x, double y, double z, double ux, double uy, double uz)
+        : pos(x, y, z), vel(ux, uy, uz) {}
+};
 
 // State derivative: [ux, uy, uz, ax, ay, az]
-using StateDerivative = std::array<double, 6>;
+struct StateDerivative {
+    Vec3 vel;   // Velocity (derivative of position)
+    Vec3 accel; // Acceleration (derivative of velocity)
+
+    StateDerivative() : vel(Vec3::Zero()), accel(Vec3::Zero()) {}
+    StateDerivative(const Vec3& v, const Vec3& a) : vel(v), accel(a) {}
+};
 
 struct SingleWingVectors {
     Vec3 e_s;    // Stroke direction unit vector
