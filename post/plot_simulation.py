@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Postprocessing entry point for dragonfly simulation.
+Visualize dragonfly simulation output.
 
 Usage:
-    python main.py <input.h5> [output.png|output.mp4]
+    python -m post.plot_simulation <input.h5> [output.png|output.mp4]
 
 If output ends with .mp4, creates an animation.
 Otherwise, creates a static image.
@@ -11,13 +11,15 @@ Otherwise, creates a static image.
 import sys
 from pathlib import Path
 
-from read_output import read_simulation
-from visual import plotDragonfly
+# Import package to set matplotlib config
+import post
+from post.io import read_simulation
+from post.dragonfly import plot_dragonfly
 
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python main.py <input.h5> [output.png|output.mp4]")
+        print(__doc__)
         sys.exit(1)
 
     input_file = sys.argv[1]
@@ -37,7 +39,7 @@ def main():
     animate = output_file.endswith(".mp4")
     print(f"Creating {'animation' if animate else 'static image'}: {output_file}")
 
-    plotDragonfly(states, wings, params, output_file, animate=animate)
+    plot_dragonfly(states, wings, params, output_file, animate=animate)
 
     print("Done.")
 

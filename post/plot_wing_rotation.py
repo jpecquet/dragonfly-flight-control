@@ -4,56 +4,32 @@ Animate wing rotation test results.
 
 Visualizes the wing basis vectors (e_s, e_r, e_c) as they rotate
 through three successive phases:
-  Phase 1: Stroke plane (gam) 0° → 90°
-  Phase 2: Flapping (phi) 0° → 25°
-  Phase 3: Pitch (psi) 0° → 45°
+  Phase 1: Stroke plane (gam) 0 -> 90 deg
+  Phase 2: Flapping (phi) 0 -> 25 deg
+  Phase 3: Pitch (psi) 0 -> 45 deg
 
 Usage:
-    python post/animate_wing_rotation.py wing_rotation.h5 output.mp4
+    python -m post.plot_wing_rotation <input.h5> <output.mp4|gif>
 """
 
 import sys
-import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as ani
-from mpl_toolkits.mplot3d import Axes3D
 
-plt.rcParams["font.family"] = "serif"
-plt.rcParams["font.serif"] = ["Times New Roman"]
-plt.rcParams['mathtext.fontset'] = 'stix'
-plt.rcParams['font.size'] = 11
+# Import package to set matplotlib config
+import post
+from post.io import read_wing_rotation
 
 
-def read_data(filename):
-    """Read wing rotation data from HDF5 file."""
-    with h5py.File(filename, 'r') as f:
-        data = {
-            'frames_per_phase': f['/parameters/frames_per_phase'][()],
-            'total_frames': f['/parameters/total_frames'][()],
-            'phase_boundaries': f['/parameters/phase_boundaries'][:],
-            'gam_range': (f['/parameters/gam_start'][()], f['/parameters/gam_end'][()]),
-            'phi_range': (f['/parameters/phi_start'][()], f['/parameters/phi_end'][()]),
-            'psi_range': (f['/parameters/psi_start'][()], f['/parameters/psi_end'][()]),
-            'is_left': f['/parameters/is_left'][()] == 1,
-            'gam': f['/angles/gam'][:],
-            'phi': f['/angles/phi'][:],
-            'psi': f['/angles/psi'][:],
-            'e_s': f['/wing/e_s'][:],
-            'e_r': f['/wing/e_r'][:],
-            'e_c': f['/wing/e_c'][:],
-        }
-    return data
-
-
-def get_phase(frame, phase_boundaries):
+def _get_phase(frame, phase_boundaries):
     """Return phase number (1, 2, or 3) and phase name."""
     if frame < phase_boundaries[1]:
-        return 1, "Stroke plane (γ)"
+        return 1, "Stroke plane (gamma)"
     elif frame < phase_boundaries[2]:
-        return 2, "Flapping (φ)"
+        return 2, "Flapping (phi)"
     else:
-        return 3, "Pitch (ψ)"
+        return 3, "Pitch (psi)"
 
 
 def animate_vectors(data, outfile):
@@ -99,11 +75,11 @@ def animate_vectors(data, outfile):
         phi = data['phi'][frame]
         psi = data['psi'][frame]
 
-        phase_num, phase_name = get_phase(frame, phase_boundaries)
+        phase_num, phase_name = _get_phase(frame, phase_boundaries)
 
         # Title with angles and wing side
         ax.set_title(f"{side.capitalize()} wing - Phase {phase_num}: {phase_name}\n"
-                     f"γ = {gam:.1f}°, φ = {phi:.1f}°, ψ = {psi:.1f}°",
+                     f"gam = {gam:.1f} deg, phi = {phi:.1f} deg, psi = {psi:.1f} deg",
                      fontsize=12)
 
         # Set axis limits and labels
@@ -134,23 +110,23 @@ def animate_vectors(data, outfile):
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python animate_wing_rotation.py <input.h5> <output.mp4|gif>")
+        print(__doc__)
         sys.exit(1)
 
     infile = sys.argv[1]
     outfile = sys.argv[2]
 
     print(f"Reading {infile}...")
-    data = read_data(infile)
+    data = read_wing_rotation(infile)
 
     side = "left" if data['is_left'] else "right"
     print(f"Wing: {side}")
     print(f"Total frames: {data['total_frames']}")
     print(f"Frames per phase: {data['frames_per_phase']}")
     print(f"Angle ranges:")
-    print(f"  γ (stroke plane): {data['gam_range'][0]}° → {data['gam_range'][1]}°")
-    print(f"  φ (flapping):     {data['phi_range'][0]}° → {data['phi_range'][1]}°")
-    print(f"  ψ (pitch):        {data['psi_range'][0]}° → {data['psi_range'][1]}°")
+    print(f"  gam (stroke plane): {data['gam_range'][0]} deg -> {data['gam_range'][1]} deg")
+    print(f"  phi (flapping):     {data['phi_range'][0]} deg -> {data['phi_range'][1]} deg")
+    print(f"  psi (pitch):        {data['psi_range'][0]} deg -> {data['psi_range'][1]} deg")
 
     print(f"Creating animation...")
     animate_vectors(data, outfile)

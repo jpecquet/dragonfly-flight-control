@@ -1,15 +1,14 @@
+"""
+3D visualization of dragonfly body and wings.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as ani
-from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-plt.rcParams["font.family"] = "serif"
-plt.rcParams["font.serif"] = ["Times New Roman"]
-plt.rcParams['mathtext.fontset'] = 'stix'
-plt.rcParams['font.size'] = 12
 
-def plotDragonfly(states, wing_vectors, params, outfile, animate=False):
+def plot_dragonfly(states, wing_vectors, params, outfile, animate=False):
     """
     Plot or animate the dragonfly simulation.
 
@@ -48,16 +47,16 @@ def plotDragonfly(states, wing_vectors, params, outfile, animate=False):
     h_xc = t_xc + Lt / 2 + Lh / 2
 
     # Draw body
-    drawEllipsoid(ax, xb + np.array([h_xc, 0, 0]), Lh / 2, Rh, Lh / 2)
-    drawEllipsoid(ax, xb + np.array([t_xc, 0, 0]), Lt / 2, Rt, Rt * 1.5)
-    drawEllipsoid(ax, xb + np.array([a_xc, 0, 0]), La / 2, Ra, Ra)
-    drawCylinder(ax, xb, t_xc, a_xc, Ra)
+    _draw_ellipsoid(ax, xb + np.array([h_xc, 0, 0]), Lh / 2, Rh, Lh / 2)
+    _draw_ellipsoid(ax, xb + np.array([t_xc, 0, 0]), Lt / 2, Rt, Rt * 1.5)
+    _draw_ellipsoid(ax, xb + np.array([a_xc, 0, 0]), La / 2, Ra, Ra)
+    _draw_cylinder(ax, xb, t_xc, a_xc, Ra)
 
     # Draw wings
-    drawWing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_right'], p['lb0_f'], label=True)
-    drawWing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_left'], p['lb0_f'])
-    drawWing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_right'], p['lb0_h'])
-    drawWing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_left'], p['lb0_h'])
+    _draw_wing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_right'], p['lb0_f'], label=True)
+    _draw_wing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_left'], p['lb0_f'])
+    _draw_wing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_right'], p['lb0_h'])
+    _draw_wing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_left'], p['lb0_h'])
 
     # Set axis limits
     box_width = 1.2
@@ -86,15 +85,15 @@ def plotDragonfly(states, wing_vectors, params, outfile, animate=False):
         for line in ax.lines:
             line.remove()
 
-        drawEllipsoid(ax, xb + np.array([h_xc, 0, 0]), Lh / 2, Rh, Lh / 2)
-        drawEllipsoid(ax, xb + np.array([t_xc, 0, 0]), Lt / 2, Rt, Rt * 1.5)
-        drawEllipsoid(ax, xb + np.array([a_xc, 0, 0]), La / 2, Ra, Ra)
-        drawCylinder(ax, xb, t_xc, a_xc, Ra)
+        _draw_ellipsoid(ax, xb + np.array([h_xc, 0, 0]), Lh / 2, Rh, Lh / 2)
+        _draw_ellipsoid(ax, xb + np.array([t_xc, 0, 0]), Lt / 2, Rt, Rt * 1.5)
+        _draw_ellipsoid(ax, xb + np.array([a_xc, 0, 0]), La / 2, Ra, Ra)
+        _draw_cylinder(ax, xb, t_xc, a_xc, Ra)
 
-        drawWing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_right'], p['lb0_f'], label=True)
-        drawWing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_left'], p['lb0_f'])
-        drawWing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_right'], p['lb0_h'])
-        drawWing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_left'], p['lb0_h'])
+        _draw_wing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_right'], p['lb0_f'], label=True)
+        _draw_wing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_left'], p['lb0_f'])
+        _draw_wing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_right'], p['lb0_h'])
+        _draw_wing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_left'], p['lb0_h'])
 
         ax.set_xlim([xb[0] + a_xc - La / 2 - (box_width - 1) / 2,
                      xb[0] + a_xc + La / 2 + Lt + Lh + (box_width - 1) / 2])
@@ -108,7 +107,7 @@ def plotDragonfly(states, wing_vectors, params, outfile, animate=False):
     plt.close()
 
 
-def drawWing(ax, origin, vecs, r, label=False):
+def _draw_wing(ax, origin, vecs, r, label=False):
     """Draw a single wing as a 3D polygon with force vectors."""
     e_c = vecs['e_c']
     e_r = vecs['e_r']
@@ -150,7 +149,7 @@ def drawWing(ax, origin, vecs, r, label=False):
         ax.plot([x0[0], xd[0]], [x0[1], xd[1]], [x0[2], xd[2]], 'r', zorder=1000)
 
 
-def drawEllipsoid(ax, origin, Rx, Ry, Rz):
+def _draw_ellipsoid(ax, origin, Rx, Ry, Rz):
     """Draw an ellipsoid surface."""
     u = np.linspace(0, 2 * np.pi, 20)
     v = np.linspace(0, np.pi, 10)
@@ -160,7 +159,7 @@ def drawEllipsoid(ax, origin, Rx, Ry, Rz):
     ax.plot_surface(x, y, z, color='lightgray', shade=True)
 
 
-def drawCylinder(ax, origin, x1, x2, R):
+def _draw_cylinder(ax, origin, x1, x2, R):
     """Draw a cylinder along the x-axis."""
     theta = np.linspace(0, 2 * np.pi, 20)
     x = np.array([x1, x2])

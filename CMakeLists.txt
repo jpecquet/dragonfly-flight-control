@@ -44,6 +44,15 @@ target_link_libraries(dragonfly_physics PUBLIC
 # Find NLopt
 find_package(NLopt REQUIRED)
 
+# Sampling library (Sobol sequence generator)
+add_library(dragonfly_sampling STATIC
+    src/sampling.cpp
+)
+
+target_include_directories(dragonfly_sampling PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
 # Optimizer library
 add_library(dragonfly_optim STATIC
     src/optimize.cpp
@@ -51,10 +60,14 @@ add_library(dragonfly_optim STATIC
 
 target_include_directories(dragonfly_optim PUBLIC
     ${CMAKE_SOURCE_DIR}/include
+    ${HDF5_INCLUDE_DIRS}
 )
 
 target_link_libraries(dragonfly_optim PUBLIC
     dragonfly_physics
+    dragonfly_sampling
+    HighFive
+    ${HDF5_LIBRARIES}
 )
 
 # CLI executable
@@ -121,3 +134,19 @@ set_target_properties(test_optimizer PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 add_test(NAME Optimizer COMMAND test_optimizer)
+
+# Sampling test (Sobol sequence)
+add_executable(test_sampling tests/test_sampling.cpp)
+target_link_libraries(test_sampling PRIVATE dragonfly_sampling)
+set_target_properties(test_sampling PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+add_test(NAME Sampling COMMAND test_sampling)
+
+# Terminal velocity test
+add_executable(test_terminal_velocity tests/test_terminal_velocity.cpp)
+target_link_libraries(test_terminal_velocity PRIVATE dragonfly_physics)
+set_target_properties(test_terminal_velocity PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+add_test(NAME TerminalVelocity COMMAND test_terminal_velocity)

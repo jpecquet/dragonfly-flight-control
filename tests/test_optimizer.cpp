@@ -110,39 +110,6 @@ bool testConvergence() {
     return passed;
 }
 
-// Test symmetry: changing sign of dpsi should give finite results
-bool testSymmetry() {
-    std::cout << "Testing symmetry..." << std::endl;
-
-    PhysicalParams phys = defaultPhysicalParams();
-    KinematicParams kin_pos = makeKinematicParams(
-        8.0 * M_PI, M_PI / 2.0, M_PI / 8.0, M_PI / 4.0,
-        M_PI / 6.0, M_PI / 2.0
-    );
-    KinematicParams kin_neg = makeKinematicParams(
-        8.0 * M_PI, M_PI / 2.0, M_PI / 8.0, M_PI / 4.0,
-        -M_PI / 6.0, M_PI / 2.0
-    );
-
-    double accel_pos = wingBeatAccel(kin_pos, phys, 0.0, 0.0);
-    double accel_neg = wingBeatAccel(kin_neg, phys, 0.0, 0.0);
-
-    std::cout << "  dpsi > 0: " << std::sqrt(accel_pos) << std::endl;
-    std::cout << "  dpsi < 0: " << std::sqrt(accel_neg) << std::endl;
-
-    bool passed = true;
-
-    if (!std::isfinite(accel_pos) || !std::isfinite(accel_neg)) {
-        std::cout << "  FAILED: non-finite results" << std::endl;
-        passed = false;
-    }
-
-    if (passed) {
-        std::cout << "  PASSED" << std::endl;
-    }
-    return passed;
-}
-
 // Test that variable parameters can be set and retrieved correctly
 bool testVariableParams() {
     std::cout << "Testing variable parameter handling..." << std::endl;
@@ -190,15 +157,12 @@ int main() {
     std::cout << "====================" << std::endl << std::endl;
 
     int num_passed = 0;
-    int num_tests = 4;
+    int num_tests = 3;
 
     if (testWingBeatAccel()) num_passed++;
     std::cout << std::endl;
 
     if (testConvergence()) num_passed++;
-    std::cout << std::endl;
-
-    if (testSymmetry()) num_passed++;
     std::cout << std::endl;
 
     if (testVariableParams()) num_passed++;

@@ -74,3 +74,45 @@ double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
 // Convenience overload that allocates internally (for one-off calls)
 double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
                          double ux, double uz, int N = 40);
+
+// Optimization algorithm selection
+enum class OptimAlgorithm {
+    COBYLA,     // Local (current default, grid search + local)
+    DIRECT,     // Global: dividing rectangles
+    MLSL,       // Global: multi-level single-linkage
+    CRS2,       // Global: controlled random search
+    MULTISTART  // Multi-start local optimization with Sobol sampling
+};
+
+// Parse algorithm name from string
+OptimAlgorithm parseAlgorithm(const std::string& name);
+
+// Optimizer configuration
+struct OptimConfig {
+    OptimAlgorithm algorithm = OptimAlgorithm::COBYLA;
+    int n_samples = 100;           // Sobol samples (replaces n_grid for MULTISTART)
+    int n_grid = 5;                // Grid resolution for COBYLA (legacy)
+    int max_eval = 200;            // Max evaluations per local optimization
+    double equilibrium_tol = 1e-6; // Threshold for equilibrium detection
+    bool map_landscape = false;    // Generate landscape HDF5 file
+    int map_resolution = 50;       // Resolution for landscape mapping
+
+    static OptimConfig fromConfig(const Config& cfg);
+};
+
+// Landscape data for visualization
+struct LandscapeData {
+    std::vector<std::string> param_names;  // Names of varying parameters
+    std::vector<double> param1_values;     // First parameter values
+    std::vector<double> param2_values;     // Second parameter values (if 2D)
+    std::vector<std::vector<double>> objective_values;  // Objective at each point
+    double ux;  // Forward velocity
+
+    void writeHDF5(const std::string& filename) const;
+};
+
+// Compute objective function landscape for visualization
+LandscapeData computeLandscape(
+    const KinematicParams& kin_template,
+    const PhysicalParams& phys,
+    double ux, int resolution);

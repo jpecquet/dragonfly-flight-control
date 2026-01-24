@@ -77,6 +77,12 @@ All quantities are **nondimensional**:
 
 ### Python (reading)
 ```python
+# Using the postprocessing library
+from post.io import read_simulation
+
+params, time, states, wings = read_simulation("output.h5")
+
+# Or directly with h5py
 import h5py
 
 with h5py.File("output.h5", "r") as f:

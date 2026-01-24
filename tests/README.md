@@ -14,6 +14,8 @@ cd build && ctest
 ./build/bin/test_rotation
 ./build/bin/test_stationary_wing
 ./build/bin/test_optimizer
+./build/bin/test_sampling
+./build/bin/test_terminal_velocity
 
 # Verbose output
 ctest --output-on-failure
@@ -28,6 +30,8 @@ ctest --output-on-failure
 | Rotation | Kinematics | Rotation matrix properties |
 | StationaryWing | Full wing pipeline | Wing in uniform flow |
 | Optimizer | Objective function | Mean acceleration convergence |
+| Sampling | Sobol sequences | Quasi-random distribution properties |
+| TerminalVelocity | End-to-end physics | Steady-state falling wing |
 
 ## Test Details
 
@@ -121,16 +125,55 @@ Force magnitude: `|F| = (μ₀/2lb₀) · C · U²` where C is Cd or Cl.
 2. **Convergence:** Tests that integration converges as N increases:
    - N=20, N=40, N=80 should give results within 5% of each other
 
-3. **Symmetry:** Verifies that changing sign of `dpsi` produces finite results (tests robustness).
-
-4. **VariableParams:** Tests `KinematicParams` get/set round-trip:
+3. **VariableParams:** Tests `KinematicParams` get/set round-trip:
    - `numVariable()` returns correct count
    - `variableNames()` returns expected names
    - `setVariableValues()` / `variableValues()` preserve values
 
-**Key structures tested:**
-- `KinematicParams`: Holds omg0, gam0, phi0, psim, dpsi, dlt0, sig0 (each can be fixed or variable)
-- `PhysicalParams`: Holds lb0_f, lb0_h, mu0_f, mu0_h, Cd0, Cl0
+---
+
+### 6. Sampling (`test_sampling.cpp`)
+
+**What it tests:** Sobol quasi-random sequence generator for optimization sampling.
+
+**Test cases:**
+
+1. **UnitRange:** All samples fall within [0, 1)^d
+2. **Bounds:** Samples respect custom lower/upper bounds
+3. **Determinism:** Reset produces identical sequence
+4. **Uniformity:** Samples cover space evenly (no empty bins, no clustering)
+5. **GenerateSobolSamples:** Convenience function returns correct count and bounds
+6. **Index:** Sequence index tracks correctly through calls and reset
+
+---
+
+### 7. TerminalVelocity (`test_terminal_velocity.cpp`)
+
+**What it tests:** End-to-end physics validation — a falling wing reaches the correct terminal velocity.
+
+**Setup:** Wing with fixed pitch angle ψ (no flapping), falling from rest under gravity until steady state.
+
+**Analytical solution:** At terminal velocity, aerodynamic drag balances gravity:
+
+```
+|u_z| = √(2λ₀ / (μ₀ · Cd))
+```
+
+where Cd depends on the angle of attack, which is determined by ψ.
+
+**Test cases:**
+
+| ψ | Chord orientation | α | Cd | Terminal velocity |
+|---|-------------------|---|-----|-------------------|
+| π/2 | Horizontal | ±π/2 | Cd₀ + 2 | √(2λ₀ / (μ₀(Cd₀ + 2))) |
+| 0 | Vertical (down) | π | Cd₀ | √(2λ₀ / (μ₀·Cd₀)) |
+| π | Vertical (up) | π | Cd₀ | √(2λ₀ / (μ₀·Cd₀)) |
+
+**Method:** Integrates until velocity stabilizes, compares against analytical formula.
+
+**Expected accuracy:** < 0.001% relative error.
+
+**Note:** Only ψ ∈ {0, π/2, π, ...} permit pure vertical fall. Other angles cause horizontal drift due to lift.
 
 ---
 
@@ -162,4 +205,6 @@ Each test isolates a specific component:
 - **BladeElement:** Coefficient formulas (no geometry)
 - **Rotation:** Matrix construction (no physics)
 - **StationaryWing:** Full pipeline (no time-varying kinematics)
-- **Optimizer:** Objective function and parameter handling (integration convergence)
+- **Optimizer:** Objective function and parameter handling
+- **Sampling:** Quasi-random sequence generation
+- **TerminalVelocity:** End-to-end steady-state physics

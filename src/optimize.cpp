@@ -3,6 +3,9 @@
 #include "kinematics.hpp"
 #include "wing.hpp"
 
+#include <highfive/H5File.hpp>
+#include <stdexcept>
+
 // KinematicParams implementation
 
 std::vector<std::string> KinematicParams::variableNames() const {
@@ -183,4 +186,116 @@ double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
     OptimBuffers buf;
     buf.init(kin, phys);
     return wingBeatAccel(kin, phys, buf, ux, uz, N);
+}
+
+// Algorithm selection implementation
+
+OptimAlgorithm parseAlgorithm(const std::string& name) {
+    if (name == "cobyla") return OptimAlgorithm::COBYLA;
+    if (name == "direct") return OptimAlgorithm::DIRECT;
+    if (name == "mlsl") return OptimAlgorithm::MLSL;
+    if (name == "crs2") return OptimAlgorithm::CRS2;
+    if (name == "multistart") return OptimAlgorithm::MULTISTART;
+    throw std::runtime_error("Unknown optimization algorithm: " + name);
+}
+
+OptimConfig OptimConfig::fromConfig(const Config& cfg) {
+    OptimConfig oc;
+    oc.algorithm = parseAlgorithm(cfg.getString("algorithm", "cobyla"));
+    oc.n_samples = cfg.getInt("n_samples", 100);
+    oc.n_grid = cfg.getInt("n_grid", 5);
+    oc.max_eval = cfg.getInt("max_eval", 200);
+    oc.equilibrium_tol = cfg.getDouble("equilibrium_tol", 1e-6);
+    oc.map_landscape = cfg.getString("map_landscape", "false") == "true";
+    oc.map_resolution = cfg.getInt("map_resolution", 50);
+    return oc;
+}
+
+// Landscape computation for visualization
+
+LandscapeData computeLandscape(
+    const KinematicParams& kin_template,
+    const PhysicalParams& phys,
+    double ux, int resolution) {
+
+    LandscapeData data;
+    data.ux = ux;
+    data.param_names = kin_template.variableNames();
+
+    std::vector<double> lb, ub;
+    kin_template.getVariableBounds(lb, ub);
+
+    size_t n_var = lb.size();
+    if (n_var == 0) {
+        throw std::runtime_error("computeLandscape: no variable parameters");
+    }
+
+    OptimBuffers buffers;
+    buffers.init(kin_template, phys);
+
+    if (n_var == 1) {
+        // 1D landscape
+        data.param1_values.resize(resolution);
+        data.objective_values.resize(resolution, std::vector<double>(1));
+
+        for (int i = 0; i < resolution; ++i) {
+            double t = static_cast<double>(i) / (resolution - 1);
+            double val = lb[0] + t * (ub[0] - lb[0]);
+            data.param1_values[i] = val;
+
+            KinematicParams kin = kin_template;
+            kin.setVariableValues({val});
+            double accel = std::sqrt(wingBeatAccel(kin, phys, buffers, ux, 0.0));
+            data.objective_values[i][0] = accel;
+        }
+    } else {
+        // 2D landscape (first two variable parameters)
+        data.param1_values.resize(resolution);
+        data.param2_values.resize(resolution);
+        data.objective_values.resize(resolution, std::vector<double>(resolution));
+
+        for (int i = 0; i < resolution; ++i) {
+            double t1 = static_cast<double>(i) / (resolution - 1);
+            data.param1_values[i] = lb[0] + t1 * (ub[0] - lb[0]);
+        }
+        for (int j = 0; j < resolution; ++j) {
+            double t2 = static_cast<double>(j) / (resolution - 1);
+            data.param2_values[j] = lb[1] + t2 * (ub[1] - lb[1]);
+        }
+
+        for (int i = 0; i < resolution; ++i) {
+            for (int j = 0; j < resolution; ++j) {
+                KinematicParams kin = kin_template;
+
+                // Set first two variable parameters; keep others at midpoint
+                std::vector<double> x = kin_template.variableValues();
+                x[0] = data.param1_values[i];
+                x[1] = data.param2_values[j];
+                kin.setVariableValues(x);
+
+                double accel = std::sqrt(wingBeatAccel(kin, phys, buffers, ux, 0.0));
+                data.objective_values[i][j] = accel;
+            }
+        }
+    }
+
+    return data;
+}
+
+void LandscapeData::writeHDF5(const std::string& filename) const {
+    HighFive::File file(filename, HighFive::File::Overwrite);
+
+    file.createDataSet("ux", ux);
+
+    // Write parameter names
+    file.createDataSet("param_names", param_names);
+
+    // Write parameter values
+    file.createDataSet("param1_values", param1_values);
+    if (!param2_values.empty()) {
+        file.createDataSet("param2_values", param2_values);
+    }
+
+    // Write objective values
+    file.createDataSet("objective", objective_values);
 }

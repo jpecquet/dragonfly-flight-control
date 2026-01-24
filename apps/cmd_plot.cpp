@@ -7,9 +7,8 @@
 int runPlot(const Config& cfg) {
     std::string input_file = cfg.getString("input");
     std::string output_file = cfg.getString("output");
-    std::string script_path = cfg.getString("script", "post/main.py");
 
-    std::string cmd = "python3 " + script_path + " " + input_file + " " + output_file;
+    std::string cmd = "python3 -m post.plot_simulation " + input_file + " " + output_file;
     std::cout << "Running: " << cmd << std::endl;
 
     int ret = std::system(cmd.c_str());
