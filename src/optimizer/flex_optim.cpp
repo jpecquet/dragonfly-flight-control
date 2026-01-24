@@ -13,16 +13,15 @@ std::vector<std::string> KinematicParams::variableNames() const {
     if (psim.is_variable) names.push_back("psim");
     if (dpsi.is_variable) names.push_back("dpsi");
     if (dlt0.is_variable) names.push_back("dlt0");
-    if (sig0.is_variable) names.push_back("sig0");
     return names;
 }
 
 std::vector<std::string> KinematicParams::allNames() const {
-    return {"omg0", "gam0", "phi0", "psim", "dpsi", "dlt0", "sig0"};
+    return {"omg0", "gam0", "phi0", "psim", "dpsi", "dlt0"};
 }
 
 std::vector<double> KinematicParams::allValues() const {
-    return {omg0.value, gam0.value, phi0.value, psim.value, dpsi.value, dlt0.value, sig0.value};
+    return {omg0.value, gam0.value, phi0.value, psim.value, dpsi.value, dlt0.value};
 }
 
 std::vector<double> KinematicParams::variableValues() const {
@@ -33,7 +32,6 @@ std::vector<double> KinematicParams::variableValues() const {
     if (psim.is_variable) values.push_back(psim.value);
     if (dpsi.is_variable) values.push_back(dpsi.value);
     if (dlt0.is_variable) values.push_back(dlt0.value);
-    if (sig0.is_variable) values.push_back(sig0.value);
     return values;
 }
 
@@ -45,7 +43,6 @@ void KinematicParams::setVariableValues(const std::vector<double>& x) {
     if (psim.is_variable) psim.value = x[i++];
     if (dpsi.is_variable) dpsi.value = x[i++];
     if (dlt0.is_variable) dlt0.value = x[i++];
-    if (sig0.is_variable) sig0.value = x[i++];
 }
 
 void KinematicParams::getVariableBounds(std::vector<double>& lb, std::vector<double>& ub) const {
@@ -57,7 +54,6 @@ void KinematicParams::getVariableBounds(std::vector<double>& lb, std::vector<dou
     if (psim.is_variable) { lb.push_back(psim.min_bound); ub.push_back(psim.max_bound); }
     if (dpsi.is_variable) { lb.push_back(dpsi.min_bound); ub.push_back(dpsi.max_bound); }
     if (dlt0.is_variable) { lb.push_back(dlt0.min_bound); ub.push_back(dlt0.max_bound); }
-    if (sig0.is_variable) { lb.push_back(sig0.min_bound); ub.push_back(sig0.max_bound); }
 }
 
 size_t KinematicParams::numVariable() const {
@@ -68,7 +64,6 @@ size_t KinematicParams::numVariable() const {
     if (psim.is_variable) n++;
     if (dpsi.is_variable) n++;
     if (dlt0.is_variable) n++;
-    if (sig0.is_variable) n++;
     return n;
 }
 
@@ -100,20 +95,23 @@ KinematicParams KinematicParams::fromConfig(const Config& cfg) {
     params.psim = parseParam(cfg, "psim");
     params.dpsi = parseParam(cfg, "dpsi");
     params.dlt0 = parseParam(cfg, "dlt0");
-    params.sig0 = parseParam(cfg, "sig0");
+    // Note: sig0 removed - phase offsets are now per-wing in WingConfig
     return params;
 }
 
 // PhysicalParams implementation
 
 PhysicalParams PhysicalParams::fromConfig(const Config& cfg) {
+    if (!cfg.hasWings()) {
+        throw std::runtime_error("Config must define wings using [[wing]] sections");
+    }
+
     PhysicalParams params;
-    params.lb0_f = cfg.getDouble("lb0_f");
-    params.lb0_h = cfg.getDouble("lb0_h");
-    params.mu0_f = cfg.getDouble("mu0_f");
-    params.mu0_h = cfg.getDouble("mu0_h");
-    params.Cd0 = cfg.getDouble("Cd0");
-    params.Cl0 = cfg.getDouble("Cl0");
+    for (const auto& entry : cfg.getWingEntries()) {
+        WingSide side = (entry.side == "left") ? WingSide::Left : WingSide::Right;
+        params.wings.emplace_back(entry.name, side, entry.mu0, entry.lb0,
+                                  entry.Cd0, entry.Cl0, entry.phase);
+    }
     return params;
 }
 
@@ -121,22 +119,20 @@ PhysicalParams PhysicalParams::fromConfig(const Config& cfg) {
 
 double flexWingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
                          double ux, double uz, int N) {
-    // Create angle functions using current kinematic values
     double omg0 = kin.omg0.value;
 
-    auto angleFunc_f = makeForewingAngleFunc(
-        kin.gam0.value, kin.phi0.value, kin.psim.value,
-        kin.dpsi.value, kin.dlt0.value, omg0);
-    auto angleFunc_h = makeHindwingAngleFunc(
-        kin.gam0.value, kin.phi0.value, kin.psim.value,
-        kin.dpsi.value, kin.dlt0.value, kin.sig0.value, omg0);
-
-    // Create wings
+    // Create wings from configurations
     std::vector<Wing> wings;
-    wings.emplace_back("fore", phys.mu0_f, phys.lb0_f, WingSide::Left, phys.Cd0, phys.Cl0, angleFunc_f);
-    wings.emplace_back("fore", phys.mu0_f, phys.lb0_f, WingSide::Right, phys.Cd0, phys.Cl0, angleFunc_f);
-    wings.emplace_back("hind", phys.mu0_h, phys.lb0_h, WingSide::Left, phys.Cd0, phys.Cl0, angleFunc_h);
-    wings.emplace_back("hind", phys.mu0_h, phys.lb0_h, WingSide::Right, phys.Cd0, phys.Cl0, angleFunc_h);
+    wings.reserve(phys.wings.size());
+
+    for (const auto& wc : phys.wings) {
+        // Phase offset is now fully specified in WingConfig
+        auto angleFunc = makeAngleFunc(
+            kin.gam0.value, kin.phi0.value, kin.psim.value,
+            kin.dpsi.value, kin.dlt0.value, wc.phaseOffset, omg0);
+
+        wings.emplace_back(wc.name, wc.mu0, wc.lb0, wc.side, wc.Cd0, wc.Cl0, angleFunc);
+    }
 
     // Wing beat period
     double T = 2.0 * M_PI / omg0;

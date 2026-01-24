@@ -10,16 +10,6 @@
 #include <vector>
 
 int runSim(const Config& cfg) {
-    // Wing geometry
-    double mu0_f = cfg.getDouble("mu0_f");
-    double lb0_f = cfg.getDouble("lb0_f");
-    double mu0_h = cfg.getDouble("mu0_h");
-    double lb0_h = cfg.getDouble("lb0_h");
-
-    // Aerodynamic coefficients
-    double Cd0 = cfg.getDouble("Cd0");
-    double Cl0 = cfg.getDouble("Cl0");
-
     // Kinematic parameters
     double omg0 = cfg.getDouble("omg0");
     double gam0 = cfg.getDouble("gam0");
@@ -27,7 +17,6 @@ int runSim(const Config& cfg) {
     double psim = cfg.getDouble("psim");
     double dpsi = cfg.getDouble("dpsi");
     double dlt0 = cfg.getDouble("dlt0");
-    double sig0 = cfg.getDouble("sig0");
 
     // Initial conditions
     double x0 = cfg.getDouble("x0", 0.0);
@@ -44,16 +33,26 @@ int runSim(const Config& cfg) {
     // Output
     std::string output_file = cfg.getString("output");
 
-    // Angle functions
-    auto angleFunc_f = makeForewingAngleFunc(gam0, phi0, psim, dpsi, dlt0, omg0);
-    auto angleFunc_h = makeHindwingAngleFunc(gam0, phi0, psim, dpsi, dlt0, sig0, omg0);
+    // Build wing configurations from [[wing]] sections
+    if (!cfg.hasWings()) {
+        throw std::runtime_error("Config must define wings using [[wing]] sections");
+    }
 
-    // Create wings
+    std::vector<WingConfig> wingConfigs;
+    for (const auto& entry : cfg.getWingEntries()) {
+        WingSide side = (entry.side == "left") ? WingSide::Left : WingSide::Right;
+        wingConfigs.emplace_back(entry.name, side, entry.mu0, entry.lb0,
+                                 entry.Cd0, entry.Cl0, entry.phase);
+    }
+    std::cout << "Loaded " << wingConfigs.size() << " wings from config" << std::endl;
+
+    // Create wings from configurations
     std::vector<Wing> wings;
-    wings.emplace_back("fore", mu0_f, lb0_f, WingSide::Left, Cd0, Cl0, angleFunc_f);
-    wings.emplace_back("fore", mu0_f, lb0_f, WingSide::Right, Cd0, Cl0, angleFunc_f);
-    wings.emplace_back("hind", mu0_h, lb0_h, WingSide::Left, Cd0, Cl0, angleFunc_h);
-    wings.emplace_back("hind", mu0_h, lb0_h, WingSide::Right, Cd0, Cl0, angleFunc_h);
+    wings.reserve(wingConfigs.size());
+    for (const auto& wc : wingConfigs) {
+        auto angleFunc = makeAngleFunc(gam0, phi0, psim, dpsi, dlt0, wc.phaseOffset, omg0);
+        wings.emplace_back(wc.name, wc.mu0, wc.lb0, wc.side, wc.Cd0, wc.Cl0, angleFunc);
+    }
 
     // Initial state
     State state(x0, y0, z0, ux0, uy0, uz0);
@@ -66,18 +65,12 @@ int runSim(const Config& cfg) {
 
     // Output storage
     SimulationOutput output;
-    output.lb0_f = lb0_f;
-    output.lb0_h = lb0_h;
-    output.mu0_f = mu0_f;
-    output.mu0_h = mu0_h;
-    output.Cd0 = Cd0;
-    output.Cl0 = Cl0;
+    output.wingConfigs = wingConfigs;
     output.omg0 = omg0;
     output.gam0 = gam0;
     output.phi0 = phi0;
     output.psim = psim;
     output.dpsi = dpsi;
-    output.sig0 = sig0;
     output.dlt0 = dlt0;
     output.time.reserve(nsteps + 1);
     output.states.reserve(nsteps + 1);

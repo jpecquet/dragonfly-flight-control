@@ -1,24 +1,25 @@
 #include "optimizer/flex_optim.hpp"
+#include "wing.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <iostream>
 
-// Helper to create default physical params
+// Helper to create default physical params (4-wing dragonfly)
 PhysicalParams defaultPhysicalParams() {
-    PhysicalParams p;
-    p.lb0_f = 0.75;
-    p.lb0_h = 0.75;
-    p.mu0_f = 0.075;
-    p.mu0_h = 0.075;
-    p.Cd0 = 0.4;
-    p.Cl0 = 1.2;
-    return p;
+    PhysicalParams params;
+    // Forewing pair
+    params.wings.emplace_back("fore", WingSide::Left, 0.075, 0.75, 0.4, 1.2, 0.0);
+    params.wings.emplace_back("fore", WingSide::Right, 0.075, 0.75, 0.4, 1.2, 0.0);
+    // Hindwing pair (phase offset = pi)
+    params.wings.emplace_back("hind", WingSide::Left, 0.075, 0.75, 0.4, 1.2, M_PI);
+    params.wings.emplace_back("hind", WingSide::Right, 0.075, 0.75, 0.4, 1.2, M_PI);
+    return params;
 }
 
 // Helper to create kinematic params with specific values
 KinematicParams makeKinematicParams(double omg0, double gam0, double phi0, double psim,
-                                     double dpsi, double dlt0, double sig0) {
+                                     double dpsi, double dlt0) {
     KinematicParams k;
     k.omg0 = {"omg0", false, omg0, omg0, omg0};
     k.gam0 = {"gam0", false, gam0, gam0, gam0};
@@ -26,7 +27,6 @@ KinematicParams makeKinematicParams(double omg0, double gam0, double phi0, doubl
     k.psim = {"psim", false, psim, psim, psim};
     k.dpsi = {"dpsi", false, dpsi, dpsi, dpsi};
     k.dlt0 = {"dlt0", false, dlt0, dlt0, dlt0};
-    k.sig0 = {"sig0", false, sig0, sig0, sig0};
     return k;
 }
 
@@ -41,8 +41,7 @@ bool testWingBeatAccel() {
         M_PI / 8.0,   // phi0 (default)
         M_PI / 4.0,   // psim = 45 deg
         M_PI / 6.0,   // dpsi = 30 deg
-        M_PI / 2.0,   // dlt0 (default)
-        M_PI          // sig0 (default)
+        M_PI / 2.0    // dlt0 (default)
     );
 
     double accel_sq = flexWingBeatAccel(kin, phys, 0.0, 0.0);  // hover
@@ -75,7 +74,7 @@ bool testConvergence() {
     PhysicalParams phys = defaultPhysicalParams();
     KinematicParams kin = makeKinematicParams(
         8.0 * M_PI, M_PI / 2.0, M_PI / 8.0, M_PI / 4.0,
-        M_PI / 6.0, M_PI / 2.0, M_PI
+        M_PI / 6.0, M_PI / 2.0
     );
 
     double accel_N20 = flexWingBeatAccel(kin, phys, 1.0, 0.0, 20);  // forward flight
@@ -118,11 +117,11 @@ bool testSymmetry() {
     PhysicalParams phys = defaultPhysicalParams();
     KinematicParams kin_pos = makeKinematicParams(
         8.0 * M_PI, M_PI / 2.0, M_PI / 8.0, M_PI / 4.0,
-        M_PI / 6.0, M_PI / 2.0, M_PI
+        M_PI / 6.0, M_PI / 2.0
     );
     KinematicParams kin_neg = makeKinematicParams(
         8.0 * M_PI, M_PI / 2.0, M_PI / 8.0, M_PI / 4.0,
-        -M_PI / 6.0, M_PI / 2.0, M_PI
+        -M_PI / 6.0, M_PI / 2.0
     );
 
     double accel_pos = flexWingBeatAccel(kin_pos, phys, 0.0, 0.0);
@@ -155,7 +154,6 @@ bool testVariableParams() {
     kin.psim = {"psim", true, 0.5, 0.0, M_PI / 2.0};  // variable
     kin.dpsi = {"dpsi", true, 0.3, -M_PI / 2.0, M_PI / 2.0};  // variable
     kin.dlt0 = {"dlt0", false, M_PI / 2.0, M_PI / 2.0, M_PI / 2.0};
-    kin.sig0 = {"sig0", false, M_PI, M_PI, M_PI};
 
     bool passed = true;
 

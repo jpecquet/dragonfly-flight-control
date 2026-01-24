@@ -8,56 +8,55 @@ The dragonfly flight simulation outputs data in HDF5 format. This document speci
 
 ```
 simulation_output.h5
-├── /parameters          (group)
-│   ├── lb0_f            (scalar) - Forewing length
-│   ├── lb0_h            (scalar) - Hindwing length
-│   ├── mu0_f            (scalar) - Forewing mass parameter
-│   ├── mu0_h            (scalar) - Hindwing mass parameter
-│   ├── Cd0              (scalar) - Base drag coefficient
-│   ├── Cl0              (scalar) - Base lift coefficient
-│   ├── omg0             (scalar) - Wing beat frequency
-│   ├── gam0             (scalar) - Stroke plane angle
-│   ├── phi0             (scalar) - Stroke amplitude
-│   ├── psim             (scalar) - Mean pitch angle
-│   ├── dpsi             (scalar) - Pitch oscillation amplitude
-│   ├── sig0             (scalar) - Fore/hindwing phase offset
-│   └── dlt0             (scalar) - Pitch phase offset
+├── /parameters              (group)
+│   ├── omg0                 (scalar) - Wing beat frequency
+│   ├── gam0                 (scalar) - Stroke plane angle
+│   ├── phi0                 (scalar) - Stroke amplitude
+│   ├── psim                 (scalar) - Mean pitch angle
+│   ├── dpsi                 (scalar) - Pitch oscillation amplitude
+│   ├── dlt0                 (scalar) - Pitch phase offset
+│   └── /wings               (group)
+│       ├── count            (scalar) - Number of wings
+│       ├── sides            (array)  - Wing sides (0=left, 1=right)
+│       ├── mu0              (array)  - Mass parameters
+│       ├── lb0              (array)  - Span lengths
+│       ├── Cd0              (array)  - Drag coefficients
+│       ├── Cl0              (array)  - Lift coefficients
+│       └── phase_offset     (array)  - Phase offsets (radians)
 │
-├── /time                (dataset) [N] - Time values
+├── /time                    (dataset) [N] - Time values
 │
-├── /state               (dataset) [N x 6] - State vectors
+├── /state                   (dataset) [N x 6] - State vectors
 │   └── columns: [x, y, z, ux, uy, uz]
 │
-└── /wings               (group)
-    ├── num_wings        (scalar) - Number of wings
-    ├── /fore_left       (group) - Forewing left
-    │   ├── e_s          (dataset) [N x 3] - Stroke direction unit vector
-    │   ├── e_r          (dataset) [N x 3] - Radial direction unit vector
-    │   ├── e_c          (dataset) [N x 3] - Chord direction unit vector
-    │   ├── lift         (dataset) [N x 3] - Lift force vector
-    │   └── drag         (dataset) [N x 3] - Drag force vector
-    ├── /fore_right      (group) - Forewing right
-    │   └── ... (same structure)
-    ├── /hind_left       (group) - Hindwing left
-    │   └── ... (same structure)
-    └── /hind_right      (group) - Hindwing right
-        └── ... (same structure)
+└── /wings                   (group)
+    ├── num_wings            (scalar) - Number of wings
+    └── /{name}_{side}       (group)  - Per-wing data (variable number)
+        ├── e_s              (dataset) [N x 3] - Stroke direction unit vector
+        ├── e_r              (dataset) [N x 3] - Radial direction unit vector
+        ├── e_c              (dataset) [N x 3] - Chord direction unit vector
+        ├── lift             (dataset) [N x 3] - Lift force vector
+        └── drag             (dataset) [N x 3] - Drag force vector
 ```
 
 ## Wing Names
 
-Wing names are constructed from the user-defined identifier passed to the Wing constructor in `main.cpp` combined with the wing's sidedness (`_left` or `_right`). For a standard 4-wing dragonfly:
-- `fore_left`: Forewing left
-- `fore_right`: Forewing right
-- `hind_left`: Hindwing left
-- `hind_right`: Hindwing right
+Wing group names are constructed from the config-defined name combined with the side (`_left` or `_right`). Examples:
+
+**4-wing dragonfly:**
+- `fore_left`, `fore_right`, `hind_left`, `hind_right`
+
+**6-wing configuration:**
+- `fore_left`, `fore_right`, `mid_left`, `mid_right`, `hind_left`, `hind_right`
 
 ## Data Types
 
 | Field | HDF5 Type | Description |
 |-------|-----------|-------------|
-| Parameters | `H5T_NATIVE_DOUBLE` | All scalar parameters are 64-bit floats |
-| num_wings | `H5T_NATIVE_INT` | Number of wings |
+| Kinematic params | `H5T_NATIVE_DOUBLE` | Scalar 64-bit floats |
+| Wing config arrays | `H5T_NATIVE_DOUBLE` | 1D arrays, length = num_wings |
+| count, num_wings | `H5T_NATIVE_INT` | Number of wings |
+| sides | `H5T_NATIVE_INT` | 0=left, 1=right |
 | time | `H5T_NATIVE_DOUBLE` | 1D array of size N |
 | state | `H5T_NATIVE_DOUBLE` | 2D array of shape [N, 6] |
 | Wing vectors | `H5T_NATIVE_DOUBLE` | 2D arrays of shape [N, 3] |
@@ -76,46 +75,26 @@ All quantities are **nondimensional**:
 
 ## Usage
 
-### C++ (writing)
-```cpp
-#include <highfive/H5Easy.hpp>
-#include <highfive/H5File.hpp>
-
-HighFive::File file("output.h5", HighFive::File::Overwrite);
-
-// Parameters
-file.createGroup("/parameters");
-H5Easy::dump(file, "/parameters/lb0_f", lb0_f);
-// ...
-
-// Time and state
-file.createDataSet("/time", time_vec);
-file.createDataSet("/state", state_matrix);  // Eigen::MatrixXd [N x 6]
-
-// Wings
-file.createGroup("/wings");
-H5Easy::dump(file, "/wings/num_wings", static_cast<int>(wings.size()));
-for (size_t i = 0; i < wings.size(); ++i) {
-    std::string group = "/wings/" + wingGroupName(wings[i]);  // e.g., "fore_left"
-    file.createGroup(group);
-    file.createDataSet(group + "/e_s", e_s_matrix);  // Eigen::MatrixXd [N x 3]
-    // ...
-}
-```
-
 ### Python (reading)
 ```python
 import h5py
 
 with h5py.File("output.h5", "r") as f:
-    params = {k: f["/parameters"][k][()] for k in f["/parameters"].keys()}
+    # Kinematic parameters
+    omg0 = f["/parameters/omg0"][()]
+    gam0 = f["/parameters/gam0"][()]
+
+    # Wing configurations
+    wing_count = f["/parameters/wings/count"][()]
+    phase_offsets = f["/parameters/wings/phase_offset"][:]
+
+    # Time series data
     time = f["/time"][:]
     state = f["/state"][:]
 
-    # Wing names are the subgroup names under /wings (excluding num_wings)
+    # Wing data (variable number of wings)
     wing_names = [k for k in f["/wings"].keys() if k != "num_wings"]
-    wings = {
-        name: {vec: f[f"/wings/{name}/{vec}"][:] for vec in ["e_s", "e_r", "e_c", "lift", "drag"]}
-        for name in wing_names
-    }
+    for name in wing_names:
+        e_s = f[f"/wings/{name}/e_s"][:]
+        lift = f[f"/wings/{name}/lift"][:]
 ```

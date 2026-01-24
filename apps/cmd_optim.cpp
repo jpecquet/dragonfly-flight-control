@@ -213,7 +213,6 @@ int runOptim(const Config& cfg) {
                 if (kin.psim.is_variable) { kin.psim.min_bound = kin.psim.value - da; kin.psim.max_bound = kin.psim.value + da; }
                 if (kin.dpsi.is_variable) { kin.dpsi.min_bound = kin.dpsi.value - da; kin.dpsi.max_bound = kin.dpsi.value + da; }
                 if (kin.dlt0.is_variable) { kin.dlt0.min_bound = kin.dlt0.value - da; kin.dlt0.max_bound = kin.dlt0.value + da; }
-                if (kin.sig0.is_variable) { kin.sig0.min_bound = kin.sig0.value - da; kin.sig0.max_bound = kin.sig0.value + da; }
 
                 runOptimization(kin, phys, ux, 0.0);
             }

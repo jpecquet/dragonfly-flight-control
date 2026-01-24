@@ -37,21 +37,41 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
                const std::vector<Wing>& wings) {
     HighFive::File file(filename, HighFive::File::Overwrite);
 
-    // Write parameters
+    // Write kinematic parameters
     file.createGroup("/parameters");
-    H5Easy::dump(file, "/parameters/lb0_f", output.lb0_f);
-    H5Easy::dump(file, "/parameters/lb0_h", output.lb0_h);
-    H5Easy::dump(file, "/parameters/mu0_f", output.mu0_f);
-    H5Easy::dump(file, "/parameters/mu0_h", output.mu0_h);
-    H5Easy::dump(file, "/parameters/Cd0", output.Cd0);
-    H5Easy::dump(file, "/parameters/Cl0", output.Cl0);
     H5Easy::dump(file, "/parameters/omg0", output.omg0);
     H5Easy::dump(file, "/parameters/gam0", output.gam0);
     H5Easy::dump(file, "/parameters/phi0", output.phi0);
     H5Easy::dump(file, "/parameters/psim", output.psim);
     H5Easy::dump(file, "/parameters/dpsi", output.dpsi);
-    H5Easy::dump(file, "/parameters/sig0", output.sig0);
     H5Easy::dump(file, "/parameters/dlt0", output.dlt0);
+
+    // Write wing configurations
+    size_t num_configs = output.wingConfigs.size();
+    file.createGroup("/parameters/wings");
+    H5Easy::dump(file, "/parameters/wings/count", static_cast<int>(num_configs));
+
+    // Store wing config arrays
+    std::vector<std::string> names;
+    std::vector<int> sides;
+    std::vector<double> mu0_vals, lb0_vals, Cd0_vals, Cl0_vals, phase_vals;
+
+    for (const auto& wc : output.wingConfigs) {
+        names.push_back(wc.name + (wc.side == WingSide::Left ? "_left" : "_right"));
+        sides.push_back(wc.side == WingSide::Left ? 0 : 1);
+        mu0_vals.push_back(wc.mu0);
+        lb0_vals.push_back(wc.lb0);
+        Cd0_vals.push_back(wc.Cd0);
+        Cl0_vals.push_back(wc.Cl0);
+        phase_vals.push_back(wc.phaseOffset);
+    }
+
+    H5Easy::dump(file, "/parameters/wings/sides", sides);
+    H5Easy::dump(file, "/parameters/wings/mu0", mu0_vals);
+    H5Easy::dump(file, "/parameters/wings/lb0", lb0_vals);
+    H5Easy::dump(file, "/parameters/wings/Cd0", Cd0_vals);
+    H5Easy::dump(file, "/parameters/wings/Cl0", Cl0_vals);
+    H5Easy::dump(file, "/parameters/wings/phase_offset", phase_vals);
 
     // Write time
     file.createDataSet("/time", output.time);

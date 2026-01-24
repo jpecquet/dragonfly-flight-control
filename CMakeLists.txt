@@ -63,7 +63,7 @@ add_executable(dragonfly_cli
     apps/cmd_sim.cpp
     apps/cmd_optim.cpp
     apps/cmd_plot.cpp
-    apps/cmd_test.cpp
+    apps/cmd_wingtest.cpp
     src/output.cpp
 )
 target_include_directories(dragonfly_cli PRIVATE

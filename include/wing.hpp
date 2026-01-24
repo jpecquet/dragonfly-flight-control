@@ -9,6 +9,23 @@
 
 enum class WingSide { Left, Right };
 
+// Configuration for a single wing (used for variable wing count support)
+struct WingConfig {
+    std::string name;       // Wing identifier (e.g., "fore", "hind", "aux")
+    WingSide side;          // Left or Right
+    double mu0;             // Mass parameter
+    double lb0;             // Span length
+    double Cd0;             // Drag coefficient
+    double Cl0;             // Lift coefficient
+    double phaseOffset;     // Phase offset from reference (radians)
+
+    WingConfig() = default;
+    WingConfig(const std::string& name_, WingSide side_, double mu0_, double lb0_,
+               double Cd0_, double Cl0_, double phaseOffset_ = 0.0)
+        : name(name_), side(side_), mu0(mu0_), lb0(lb0_),
+          Cd0(Cd0_), Cl0(Cl0_), phaseOffset(phaseOffset_) {}
+};
+
 class Wing {
 public:
     Wing(const std::string& name, double mu0, double lb0, WingSide side,

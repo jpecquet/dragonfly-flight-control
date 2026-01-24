@@ -7,23 +7,15 @@
 #include <vector>
 
 struct SimulationOutput {
-    // Wing geometry parameters
-    double lb0_f;  // Forewing length
-    double lb0_h;  // Hindwing length
-    double mu0_f;  // Forewing mass parameter
-    double mu0_h;  // Hindwing mass parameter
+    // Wing configurations (supports variable number of wings)
+    std::vector<WingConfig> wingConfigs;
 
-    // Aerodynamic coefficients
-    double Cd0;    // Base drag coefficient
-    double Cl0;    // Base lift coefficient
-
-    // Kinematic parameters
+    // Kinematic parameters (shared across all wings)
     double omg0;   // Wing beat frequency
     double gam0;   // Stroke plane angle
     double phi0;   // Stroke amplitude
     double psim;   // Mean pitch angle
     double dpsi;   // Pitch oscillation amplitude
-    double sig0;   // Fore/hindwing phase offset
     double dlt0;   // Pitch phase offset
 
     std::vector<double> time;

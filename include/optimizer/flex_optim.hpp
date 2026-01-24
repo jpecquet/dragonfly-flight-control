@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../config.hpp"
+#include "../wing.hpp"
 
 #include <string>
 #include <vector>
@@ -15,6 +16,7 @@ struct KinematicParam {
 };
 
 // All kinematic parameters for optimization
+// Note: Phase offsets are now per-wing in WingConfig, not global
 struct KinematicParams {
     KinematicParam omg0;  // Wing beat frequency
     KinematicParam gam0;  // Stroke plane angle
@@ -22,7 +24,6 @@ struct KinematicParams {
     KinematicParam psim;  // Mean pitch angle
     KinematicParam dpsi;  // Pitch amplitude
     KinematicParam dlt0;  // Pitch phase offset
-    KinematicParam sig0;  // Fore/hind phase offset
 
     // Get list of variable parameter names
     std::vector<std::string> variableNames() const;
@@ -51,12 +52,7 @@ struct KinematicParams {
 
 // Fixed physical parameters (not optimized)
 struct PhysicalParams {
-    double lb0_f;   // Forewing length
-    double lb0_h;   // Hindwing length
-    double mu0_f;   // Forewing mass parameter
-    double mu0_h;   // Hindwing mass parameter
-    double Cd0;     // Drag coefficient
-    double Cl0;     // Lift coefficient
+    std::vector<WingConfig> wings;  // Wing configurations
 
     static PhysicalParams fromConfig(const Config& cfg);
 };

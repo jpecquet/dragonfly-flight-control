@@ -1,4 +1,4 @@
-#include "cmd_test.hpp"
+#include "cmd_wingtest.hpp"
 #include "rotation.hpp"
 
 #include <highfive/H5Easy.hpp>
@@ -23,7 +23,7 @@ struct TestConfig {
     AngleRange psi{0.0, 45.0};
     int frames_per_phase = 50;
     bool is_left = true;
-    std::string output_file = "wing_rotation.h5";
+    std::string output_file = "wingtest.h5";
 };
 
 bool parseRange(const char* arg, AngleRange& range) {
@@ -80,7 +80,7 @@ constexpr double deg2rad(double deg) {
 
 }  // namespace
 
-int runTest(int argc, char* argv[]) {
+int runWingtest(int argc, char* argv[]) {
     TestConfig cfg = parseTestArgs(argc, argv);
 
     int total_frames = 3 * cfg.frames_per_phase;
