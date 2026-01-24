@@ -76,9 +76,12 @@ int runSim(const Config& cfg) {
     output.states.reserve(nsteps + 1);
     output.wing_data.reserve(nsteps + 1);
 
+    // Pre-allocate scratch buffer for integrator (avoids repeated allocation)
+    std::vector<SingleWingVectors> scratch(wings.size());
+
     // Store initial state
     double t = 0.0;
-    std::vector<SingleWingVectors> wing_data;
+    std::vector<SingleWingVectors> wing_data(wings.size());
     equationOfMotion(t, state, wings, wing_data);
     output.time.push_back(t);
     output.states.push_back(state);
@@ -87,14 +90,13 @@ int runSim(const Config& cfg) {
     // Time integration
     std::cout << "Running simulation for " << n_wingbeats << " wingbeats..." << std::endl;
     for (int i = 0; i < nsteps; ++i) {
-        state = stepRK4(t, dt, state, wings);
+        state = stepRK4(t, dt, state, wings, scratch);
         t += dt;
 
-        std::vector<SingleWingVectors> wd;
-        equationOfMotion(t, state, wings, wd);
+        equationOfMotion(t, state, wings, wing_data);
         output.time.push_back(t);
         output.states.push_back(state);
-        output.wing_data.push_back(wd);
+        output.wing_data.push_back(wing_data);
     }
 
     // Write output

@@ -1,5 +1,5 @@
 #include "cmd_optim.hpp"
-#include "optimizer/flex_optim.hpp"
+#include "optimize.hpp"
 
 #include <nlopt.hpp>
 
@@ -14,29 +14,30 @@
 namespace {
 
 // Context for NLopt objective callback
-struct OptimContext {
+struct NLoptContext {
     KinematicParams* kin;
     const PhysicalParams* phys;
+    OptimBuffers* buffers;  // Pre-allocated buffers to avoid allocation in hot path
     double ux;
     double uz;
 };
 
-double flexNloptObjective(const std::vector<double>& x, std::vector<double>& grad, void* data) {
+double nloptObjective(const std::vector<double>& x, std::vector<double>& grad, void* data) {
     (void)grad;
-    auto* ctx = static_cast<OptimContext*>(data);
+    auto* ctx = static_cast<NLoptContext*>(data);
     ctx->kin->setVariableValues(x);
-    return flexWingBeatAccel(*ctx->kin, *ctx->phys, ctx->ux, ctx->uz);
+    return wingBeatAccel(*ctx->kin, *ctx->phys, *ctx->buffers, ctx->ux, ctx->uz);
 }
 
 // Optimize and return the result, modifying kin in place
 double runOptimization(KinematicParams& kin, const PhysicalParams& phys,
-                       double ux, double uz, int max_eval = 200) {
+                       OptimBuffers& buffers, double ux, double uz, int max_eval = 200) {
     size_t n = kin.numVariable();
     if (n == 0) {
-        return flexWingBeatAccel(kin, phys, ux, uz);
+        return wingBeatAccel(kin, phys, buffers, ux, uz);
     }
 
-    OptimContext ctx{&kin, &phys, ux, uz};
+    NLoptContext ctx{&kin, &phys, &buffers, ux, uz};
 
     nlopt::opt opt(nlopt::LN_COBYLA, n);
 
@@ -44,7 +45,7 @@ double runOptimization(KinematicParams& kin, const PhysicalParams& phys,
     kin.getVariableBounds(lb, ub);
     opt.set_lower_bounds(lb);
     opt.set_upper_bounds(ub);
-    opt.set_min_objective(flexNloptObjective, &ctx);
+    opt.set_min_objective(nloptObjective, &ctx);
     opt.set_maxeval(max_eval);
     opt.set_xtol_rel(1e-8);
     opt.set_ftol_rel(1e-10);
@@ -150,14 +151,18 @@ int runOptim(const Config& cfg) {
         }
     }
 
+    // Pre-allocate buffers for grid search (reused across all grid points)
+    OptimBuffers grid_buffers;
+    grid_buffers.init(kin_template, phys);
+
     // Recursive grid search (handles arbitrary number of variable parameters)
     std::function<void(size_t, std::vector<double>&)> gridSearch = [&](size_t depth, std::vector<double>& init_vals) {
         if (depth == var_names.size()) {
             KinematicParams kin = kin_template;
             kin.setVariableValues(init_vals);
 
-            runOptimization(kin, phys, ux_min, 0.0);
-            double accel = std::sqrt(flexWingBeatAccel(kin, phys, ux_min, 0.0));
+            runOptimization(kin, phys, grid_buffers, ux_min, 0.0);
+            double accel = std::sqrt(wingBeatAccel(kin, phys, grid_buffers, ux_min, 0.0));
 
             if (accel < 1e-6 && (branches.empty() || isNewBranch(branches, kin))) {
                 branches.push_back(kin);
@@ -202,6 +207,10 @@ int runOptim(const Config& cfg) {
         std::vector<std::vector<double>> branch_data;
         KinematicParams kin = branches[b];
 
+        // Pre-allocate buffers for this branch's continuation
+        OptimBuffers branch_buffers;
+        branch_buffers.init(kin, phys);
+
         for (int i = 0; i < n_velocity; ++i) {
             double ux = ux_min + i * (ux_max - ux_min) / (n_velocity - 1);
 
@@ -214,7 +223,7 @@ int runOptim(const Config& cfg) {
                 if (kin.dpsi.is_variable) { kin.dpsi.min_bound = kin.dpsi.value - da; kin.dpsi.max_bound = kin.dpsi.value + da; }
                 if (kin.dlt0.is_variable) { kin.dlt0.min_bound = kin.dlt0.value - da; kin.dlt0.max_bound = kin.dlt0.value + da; }
 
-                runOptimization(kin, phys, ux, 0.0);
+                runOptimization(kin, phys, branch_buffers, ux, 0.0);
             }
 
             // Store all values (converted to degrees) plus ux

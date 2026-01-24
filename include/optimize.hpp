@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../config.hpp"
-#include "../wing.hpp"
+#include "config.hpp"
+#include "wing.hpp"
 
 #include <string>
 #include <vector>
@@ -57,6 +57,20 @@ struct PhysicalParams {
     static PhysicalParams fromConfig(const Config& cfg);
 };
 
-// Compute mean squared acceleration for flexible parameter set
-double flexWingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
+// Pre-allocated buffers for optimization (avoids allocation in hot path)
+struct OptimBuffers {
+    std::vector<Wing> wings;
+    std::vector<SingleWingVectors> scratch1;
+    std::vector<SingleWingVectors> scratch2;
+
+    // Initialize buffers for given wing count
+    void init(const KinematicParams& kin, const PhysicalParams& phys);
+};
+
+// Compute mean squared acceleration with pre-allocated buffers (use in hot paths)
+double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
+                         OptimBuffers& buffers, double ux, double uz, int N = 40);
+
+// Convenience overload that allocates internally (for one-off calls)
+double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
                          double ux, double uz, int N = 40);

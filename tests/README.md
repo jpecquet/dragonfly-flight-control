@@ -116,7 +116,7 @@ Force magnitude: `|F| = (μ₀/2lb₀) · C · U²` where C is Cd or Cl.
 
 **Test cases:**
 
-1. **WingBeatAccel:** Verifies `flexWingBeatAccel()` returns finite, non-negative values for hover conditions.
+1. **WingBeatAccel:** Verifies `wingBeatAccel()` returns finite, non-negative values for hover conditions.
 
 2. **Convergence:** Tests that integration converges as N increases:
    - N=20, N=40, N=80 should give results within 5% of each other

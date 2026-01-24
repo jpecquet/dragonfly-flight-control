@@ -1,4 +1,4 @@
-#include "optimizer/flex_optim.hpp"
+#include "optimize.hpp"
 #include "wing.hpp"
 
 #include <algorithm>
@@ -30,9 +30,9 @@ KinematicParams makeKinematicParams(double omg0, double gam0, double phi0, doubl
     return k;
 }
 
-// Test flexWingBeatAccel is non-negative and finite
+// Test wingBeatAccel is non-negative and finite
 bool testWingBeatAccel() {
-    std::cout << "Testing flexWingBeatAccel..." << std::endl;
+    std::cout << "Testing wingBeatAccel..." << std::endl;
 
     PhysicalParams phys = defaultPhysicalParams();
     KinematicParams kin = makeKinematicParams(
@@ -44,7 +44,7 @@ bool testWingBeatAccel() {
         M_PI / 2.0    // dlt0 (default)
     );
 
-    double accel_sq = flexWingBeatAccel(kin, phys, 0.0, 0.0);  // hover
+    double accel_sq = wingBeatAccel(kin, phys, 0.0, 0.0);  // hover
 
     std::cout << "  Mean acceleration squared: " << accel_sq << std::endl;
     std::cout << "  Mean acceleration magnitude: " << std::sqrt(accel_sq) << std::endl;
@@ -77,9 +77,9 @@ bool testConvergence() {
         M_PI / 6.0, M_PI / 2.0
     );
 
-    double accel_N20 = flexWingBeatAccel(kin, phys, 1.0, 0.0, 20);  // forward flight
-    double accel_N40 = flexWingBeatAccel(kin, phys, 1.0, 0.0, 40);
-    double accel_N80 = flexWingBeatAccel(kin, phys, 1.0, 0.0, 80);
+    double accel_N20 = wingBeatAccel(kin, phys, 1.0, 0.0, 20);  // forward flight
+    double accel_N40 = wingBeatAccel(kin, phys, 1.0, 0.0, 40);
+    double accel_N80 = wingBeatAccel(kin, phys, 1.0, 0.0, 80);
 
     std::cout << "  N=20: " << std::sqrt(accel_N20) << std::endl;
     std::cout << "  N=40: " << std::sqrt(accel_N40) << std::endl;
@@ -124,8 +124,8 @@ bool testSymmetry() {
         -M_PI / 6.0, M_PI / 2.0
     );
 
-    double accel_pos = flexWingBeatAccel(kin_pos, phys, 0.0, 0.0);
-    double accel_neg = flexWingBeatAccel(kin_neg, phys, 0.0, 0.0);
+    double accel_pos = wingBeatAccel(kin_pos, phys, 0.0, 0.0);
+    double accel_neg = wingBeatAccel(kin_neg, phys, 0.0, 0.0);
 
     std::cout << "  dpsi > 0: " << std::sqrt(accel_pos) << std::endl;
     std::cout << "  dpsi < 0: " << std::sqrt(accel_neg) << std::endl;

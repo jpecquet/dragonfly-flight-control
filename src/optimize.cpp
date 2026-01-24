@@ -1,4 +1,4 @@
-#include "optimizer/flex_optim.hpp"
+#include "optimize.hpp"
 #include "eom.hpp"
 #include "kinematics.hpp"
 #include "wing.hpp"
@@ -95,7 +95,6 @@ KinematicParams KinematicParams::fromConfig(const Config& cfg) {
     params.psim = parseParam(cfg, "psim");
     params.dpsi = parseParam(cfg, "dpsi");
     params.dlt0 = parseParam(cfg, "dlt0");
-    // Note: sig0 removed - phase offsets are now per-wing in WingConfig
     return params;
 }
 
@@ -115,43 +114,73 @@ PhysicalParams PhysicalParams::fromConfig(const Config& cfg) {
     return params;
 }
 
-// Objective function
+// Internal helper to create wings
 
-double flexWingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
-                         double ux, double uz, int N) {
-    double omg0 = kin.omg0.value;
-
-    // Create wings from configurations
+static std::vector<Wing> createWings(const KinematicParams& kin, const PhysicalParams& phys) {
     std::vector<Wing> wings;
     wings.reserve(phys.wings.size());
 
+    double omg0 = kin.omg0.value;
     for (const auto& wc : phys.wings) {
-        // Phase offset is now fully specified in WingConfig
         auto angleFunc = makeAngleFunc(
             kin.gam0.value, kin.phi0.value, kin.psim.value,
             kin.dpsi.value, kin.dlt0.value, wc.phaseOffset, omg0);
-
         wings.emplace_back(wc.name, wc.mu0, wc.lb0, wc.side, wc.Cd0, wc.Cl0, angleFunc);
     }
+    return wings;
+}
 
-    // Wing beat period
+// OptimBuffers implementation
+
+void OptimBuffers::init(const KinematicParams& kin, const PhysicalParams& phys) {
+    wings = createWings(kin, phys);
+    scratch1.resize(wings.size());
+    scratch2.resize(wings.size());
+}
+
+// Update angle functions on pre-allocated wings
+static void updateWingAngleFuncs(std::vector<Wing>& wings, const KinematicParams& kin,
+                                  const PhysicalParams& phys) {
+    double omg0 = kin.omg0.value;
+    for (size_t i = 0; i < wings.size(); ++i) {
+        const auto& wc = phys.wings[i];
+        auto angleFunc = makeAngleFunc(
+            kin.gam0.value, kin.phi0.value, kin.psim.value,
+            kin.dpsi.value, kin.dlt0.value, wc.phaseOffset, omg0);
+        wings[i].setAngleFunc(std::move(angleFunc));
+    }
+}
+
+// Objective function (pre-allocated buffers version - use in hot paths)
+
+double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
+                         OptimBuffers& buf, double ux, double uz, int N) {
+    updateWingAngleFuncs(buf.wings, kin, phys);
+
+    double omg0 = kin.omg0.value;
     double T = 2.0 * M_PI / omg0;
     double dt = T / N;
 
-    // Trapezoidal integration
     Vec3 a_mean = Vec3::Zero();
     double t = 0.0;
     State state(0.0, 0.0, 0.0, ux, 0.0, uz);
 
     while (t < T) {
-        std::vector<SingleWingVectors> wo1, wo2;
-
-        StateDerivative d1 = equationOfMotion(t, state, wings, wo1);
-        StateDerivative d2 = equationOfMotion(t + dt, state, wings, wo2);
+        StateDerivative d1 = equationOfMotion(t, state, buf.wings, buf.scratch1);
+        StateDerivative d2 = equationOfMotion(t + dt, state, buf.wings, buf.scratch2);
 
         a_mean += (dt / T) * (d1.accel + d2.accel) / 2.0;
         t += dt;
     }
 
     return a_mean.squaredNorm();
+}
+
+// Convenience overload (allocates internally, for one-off calls)
+
+double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
+                         double ux, double uz, int N) {
+    OptimBuffers buf;
+    buf.init(kin, phys);
+    return wingBeatAccel(kin, phys, buf, ux, uz, N);
 }

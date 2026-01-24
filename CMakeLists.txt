@@ -46,7 +46,7 @@ find_package(NLopt REQUIRED)
 
 # Optimizer library
 add_library(dragonfly_optim STATIC
-    src/optimizer/flex_optim.cpp
+    src/optimize.cpp
 )
 
 target_include_directories(dragonfly_optim PUBLIC

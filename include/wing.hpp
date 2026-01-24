@@ -38,6 +38,9 @@ public:
         SingleWingVectors& vecs   // Output: orientation and force vectors
     ) const;
 
+    // Update the angle function (for reusing Wing objects with new kinematics)
+    void setAngleFunc(AngleFunc func) { angleFunc_ = std::move(func); }
+
     // Accessors
     const std::string& name() const { return name_; }
     double mu0() const { return mu0_; }

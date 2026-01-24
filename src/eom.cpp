@@ -16,8 +16,8 @@ StateDerivative equationOfMotion(
         accel += wings[i].computeForce(t, state.vel, wing_outputs[i]);
     }
 
-    // Add gravity
-    accel -= Vec3(0.0, 0.0, 1.0);
+    // Subtract gravity (nondimensional g = 1 in Z direction)
+    accel(2) -= 1.0;
 
     return StateDerivative(state.vel, accel);
 }
