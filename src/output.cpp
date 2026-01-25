@@ -66,6 +66,7 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
         phase_vals.push_back(wc.phaseOffset);
     }
 
+    H5Easy::dump(file, "/parameters/wings/names", names);
     H5Easy::dump(file, "/parameters/wings/sides", sides);
     H5Easy::dump(file, "/parameters/wings/mu0", mu0_vals);
     H5Easy::dump(file, "/parameters/wings/lb0", lb0_vals);

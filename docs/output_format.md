@@ -17,6 +17,7 @@ simulation_output.h5
 │   ├── dlt0                 (scalar) - Pitch phase offset
 │   └── /wings               (group)
 │       ├── count            (scalar) - Number of wings
+│       ├── names            (array)  - Wing names (e.g., "fore", "hind")
 │       ├── sides            (array)  - Wing sides (0=left, 1=right)
 │       ├── mu0              (array)  - Mass parameters
 │       ├── lb0              (array)  - Span lengths
@@ -54,6 +55,7 @@ Wing group names are constructed from the config-defined name combined with the 
 | Field | HDF5 Type | Description |
 |-------|-----------|-------------|
 | Kinematic params | `H5T_NATIVE_DOUBLE` | Scalar 64-bit floats |
+| names | Variable-length string | Wing name strings |
 | Wing config arrays | `H5T_NATIVE_DOUBLE` | 1D arrays, length = num_wings |
 | count, num_wings | `H5T_NATIVE_INT` | Number of wings |
 | sides | `H5T_NATIVE_INT` | 0=left, 1=right |
@@ -63,8 +65,9 @@ Wing group names are constructed from the config-defined name combined with the 
 
 ## Coordinate System
 
+Right-handed coordinate system:
 - **X**: Forward (body heading direction)
-- **Y**: Right (lateral)
+- **Y**: Left (lateral)
 - **Z**: Up (vertical)
 
 ## Units

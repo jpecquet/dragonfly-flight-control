@@ -90,8 +90,8 @@ OptimAlgorithm parseAlgorithm(const std::string& name);
 // Optimizer configuration
 struct OptimConfig {
     OptimAlgorithm algorithm = OptimAlgorithm::COBYLA;
-    int n_samples = 100;           // Sobol samples (replaces n_grid for MULTISTART)
-    int n_grid = 5;                // Grid resolution for COBYLA (legacy)
+    int n_samples = 100;           // Sobol samples for MULTISTART algorithm
+    int n_grid = 5;                // Grid resolution for COBYLA grid search
     int max_eval = 200;            // Max evaluations per local optimization
     double equilibrium_tol = 1e-6; // Threshold for equilibrium detection
     bool map_landscape = false;    // Generate landscape HDF5 file

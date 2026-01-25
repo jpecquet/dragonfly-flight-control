@@ -1,30 +1,58 @@
 """
-3D visualization of dragonfly body and wings.
+3D visualization of dragonfly body and wings using PyVista.
 """
 
+from pathlib import Path
+
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as ani
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import pyvista as pv
+
+# Asset directory relative to this file
+ASSETS_DIR = Path(__file__).parent.parent / "assets"
+
+# Base wing mesh filenames (modeled as right wings, mirrored for left)
+WING_MESHES = {
+    'fore': 'forewing.obj',
+    'hind': 'hindwing.obj',
+}
 
 
-def plot_dragonfly(states, wing_vectors, params, outfile, animate=False):
+def plot_dragonfly(states, wing_vectors, params, outfile):
     """
-    Plot or animate the dragonfly simulation.
+    Animate the dragonfly simulation.
 
     Args:
         states: list of state arrays [x, y, z, ux, uy, uz]
-        wing_vectors: list of wing vector dicts
+        wing_vectors: list of wing vector dicts (one per timestep)
         params: parameter dict
-        outfile: output filename (.png or .mp4)
-        animate: if True, create animation; otherwise static image
+        outfile: output filename (.mp4)
     """
-    xb = states[0][0:3]
-    v = wing_vectors[0]
     p = params
 
-    fig = plt.figure(figsize=(4, 4))
-    ax = fig.add_subplot(111, projection='3d')
+    # Get per-wing lb0 values
+    wing_lb0 = p.get('wing_lb0', {})
+
+    # Validate exactly 4 wings with expected names
+    expected_wings = {'fore_left', 'fore_right', 'hind_left', 'hind_right'}
+    wing_names = set(wing_vectors[0].keys())
+
+    if wing_names != expected_wings:
+        missing = expected_wings - wing_names
+        unexpected = wing_names - expected_wings
+        msg = "Dragonfly visualization requires exactly 4 wings: fore_left, fore_right, hind_left, hind_right."
+        if missing:
+            msg += f" Missing: {missing}."
+        if unexpected:
+            msg += f" Unexpected: {unexpected}."
+        raise ValueError(msg)
+
+    wing_names = list(wing_vectors[0].keys())
+
+    # Calculate average lb0 for fore and hind wings
+    fore_lb0 = [wing_lb0.get(w, 0.75) for w in wing_names if 'fore' in w]
+    hind_lb0 = [wing_lb0.get(w, 0.75) for w in wing_names if 'hind' in w]
+    avg_fore = sum(fore_lb0) / len(fore_lb0) if fore_lb0 else 0.75
+    avg_hind = sum(hind_lb0) / len(hind_lb0) if hind_lb0 else 0.75
 
     # Body segment lengths
     Lh = 0.1
@@ -37,7 +65,7 @@ def plot_dragonfly(states, wing_vectors, params, outfile, animate=False):
     Ra = 0.03
 
     # Wing attachment positions
-    dw = 0.2 * (p['lb0_f'] + p['lb0_h']) / 2
+    dw = 0.2 * (avg_fore + avg_hind) / 2
     fw_x0 = dw / 2
     hw_x0 = -dw / 2
 
@@ -46,125 +74,169 @@ def plot_dragonfly(states, wing_vectors, params, outfile, animate=False):
     t_xc = a_xc + La / 2 + Lt / 2
     h_xc = t_xc + Lt / 2 + Lh / 2
 
-    # Draw body
-    _draw_ellipsoid(ax, xb + np.array([h_xc, 0, 0]), Lh / 2, Rh, Lh / 2)
-    _draw_ellipsoid(ax, xb + np.array([t_xc, 0, 0]), Lt / 2, Rt, Rt * 1.5)
-    _draw_ellipsoid(ax, xb + np.array([a_xc, 0, 0]), La / 2, Ra, Ra)
-    _draw_cylinder(ax, xb, t_xc, a_xc, Ra)
+    # Determine wing names and their properties
+    wing_info = []
+    for wname in wing_names:
+        lb0 = wing_lb0.get(wname, 0.75)
+        if 'fore' in wname:
+            offset = fw_x0
+        else:
+            offset = hw_x0
+        wing_info.append((wname, offset, lb0))
 
-    # Draw wings
-    _draw_wing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_right'], p['lb0_f'], label=True)
-    _draw_wing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_left'], p['lb0_f'])
-    _draw_wing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_right'], p['lb0_h'])
-    _draw_wing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_left'], p['lb0_h'])
+    # Pre-create body mesh at origin (will be copied and translated each frame)
+    body_template = _make_body_template(h_xc, t_xc, a_xc, Lh, Lt, La, Rh, Rt, Ra)
 
-    # Set axis limits
-    box_width = 1.2
-    ax.set_xlim([xb[0] + a_xc - La / 2 - (box_width - 1) / 2,
-                 xb[0] + a_xc + La / 2 + Lt + Lh + (box_width - 1) / 2])
-    ax.set_ylim([xb[1] - box_width / 2, xb[1] + box_width / 2])
-    ax.set_zlim([xb[2] - box_width / 2, xb[2] + box_width / 2])
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    ax.set_box_aspect([1, 1, 1])
-    ax.set_title(r'$\overline{u}_x = %.2f$, $\overline{u}_z = %.2f$' % (states[0][3], states[0][5]))
-    plt.legend(loc='upper center')
+    # Load wing meshes
+    wing_templates = _load_wing_meshes()
 
-    if not animate:
-        plt.savefig(outfile, dpi=300, bbox_inches='tight')
-        plt.close()
-        return
+    # Create plotter
+    plotter = pv.Plotter(off_screen=True, window_size=[800, 800])
+    plotter.set_background('white')
 
-    def update(i):
+    plotter.open_movie(outfile, framerate=30)
+
+    for i in range(len(states)):
+        plotter.clear_actors()
+
         xb = states[i][0:3]
         v = wing_vectors[i]
 
-        for artist in ax.collections:
-            artist.remove()
-        for line in ax.lines:
-            line.remove()
+        # Translate body template
+        body = body_template.copy()
+        body.translate(xb, inplace=True)
+        plotter.add_mesh(body, color='tan', smooth_shading=True)
 
-        _draw_ellipsoid(ax, xb + np.array([h_xc, 0, 0]), Lh / 2, Rh, Lh / 2)
-        _draw_ellipsoid(ax, xb + np.array([t_xc, 0, 0]), Lt / 2, Rt, Rt * 1.5)
-        _draw_ellipsoid(ax, xb + np.array([a_xc, 0, 0]), La / 2, Ra, Ra)
-        _draw_cylinder(ax, xb, t_xc, a_xc, Ra)
+        # Collect all wings into one mesh
+        all_wings = None
+        lift_lines = []
+        drag_lines = []
 
-        _draw_wing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_right'], p['lb0_f'], label=True)
-        _draw_wing(ax, xb + np.array([fw_x0, 0, 0]), v['fore_left'], p['lb0_f'])
-        _draw_wing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_right'], p['lb0_h'])
-        _draw_wing(ax, xb + np.array([hw_x0, 0, 0]), v['hind_left'], p['lb0_h'])
+        for wname, offset, lb0 in wing_info:
+            origin = xb + np.array([offset, 0, 0])
+            wing_mesh = _transform_wing_mesh(wing_templates[wname], origin, v[wname])
 
-        ax.set_xlim([xb[0] + a_xc - La / 2 - (box_width - 1) / 2,
-                     xb[0] + a_xc + La / 2 + Lt + Lh + (box_width - 1) / 2])
-        ax.set_ylim([xb[1] - box_width / 2, xb[1] + box_width / 2])
-        ax.set_zlim([xb[2] - box_width / 2, xb[2] + box_width / 2])
-        ax.set_title(r'$\overline{u}_x = %.2f$, $\overline{u}_z = %.2f$' % (states[i][3], states[i][5]))
-        ax.set_box_aspect([1, 1, 1])
+            if all_wings is None:
+                all_wings = wing_mesh
+            else:
+                all_wings = all_wings + wing_mesh
 
-    anim = ani.FuncAnimation(fig=fig, func=update, frames=np.arange(len(states)), interval=30)
-    anim.save(filename=outfile, writer="ffmpeg")
-    plt.close()
+            # Collect force vector endpoints
+            cp = origin + 0.67 * lb0 * v[wname]['e_r']
+            lift_mag = np.linalg.norm(v[wname]['lift'])
+            drag_mag = np.linalg.norm(v[wname]['drag'])
+            if lift_mag > 1e-10:
+                lift_lines.append((cp, cp + 0.05 * v[wname]['lift']))
+            if drag_mag > 1e-10:
+                drag_lines.append((cp, cp + 0.05 * v[wname]['drag']))
 
+        # Add all wings as single mesh
+        plotter.add_mesh(all_wings, color='lightblue', opacity=0.4,
+                         smooth_shading=True, show_edges=True, edge_color='gray')
 
-def _draw_wing(ax, origin, vecs, r, label=False):
-    """Draw a single wing as a 3D polygon with force vectors."""
-    e_c = vecs['e_c']
-    e_r = vecs['e_r']
+        # Add force lines as batched meshes
+        if lift_lines:
+            plotter.add_mesh(_make_lines(lift_lines), color='blue', line_width=3)
+        if drag_lines:
+            plotter.add_mesh(_make_lines(drag_lines), color='red', line_width=3)
 
-    c = 0.2 * r
-    rtip = 0.07 * r
-    angle = (c - 2 * rtip) / (r / 2 - rtip)
-    vertices = [origin]
+        # Camera and title
+        ux, uz = states[i][3], states[i][5]
+        plotter.add_text(f"ux = {ux:.2f}, uz = {uz:.2f}",
+                         position='upper_edge', font_size=12)
 
-    # Leading edge curve
-    theta = np.linspace(0, np.pi - angle, 40)
-    for tht in theta:
-        vertices.append(origin + (r - rtip + rtip * np.sin(tht)) * e_r + (rtip * np.cos(tht) - rtip) * e_c)
+        # Set camera to follow body
+        plotter.camera.position = (xb[0] + 1.5, xb[1] + 1.5, xb[2] + 0.8)
+        plotter.camera.focal_point = tuple(xb)
+        plotter.camera.up = (0, 0, 1)
 
-    # Trailing edge
-    theta = np.linspace(angle, 0, 10)
-    for tht in theta:
-        vertices.append(origin + (r / 2 + rtip * np.sin(tht)) * e_r + (-c + rtip * (1 - np.cos(tht))) * e_c)
+        plotter.write_frame()
 
-    # Root curve
-    theta = np.linspace(0, np.pi / 2, 20)
-    for tht in theta:
-        vertices.append(origin + (rtip - rtip * np.sin(tht)) * e_r + (-rtip * np.cos(tht) - c + rtip) * e_c)
-
-    poly = Poly3DCollection([vertices], alpha=0.3, facecolor='lightgray', edgecolor='k', linewidth=1)
-    ax.add_collection3d(poly)
-
-    # Force vectors at 2/3 span
-    x0 = origin + 2 / 3 * r * e_r - c / 2 * e_c
-    coeff = 0.05
-    xl = x0 + coeff * vecs['lift']
-    xd = x0 + coeff * vecs['drag']
-
-    if label:
-        ax.plot([x0[0], xl[0]], [x0[1], xl[1]], [x0[2], xl[2]], 'b', label=r'$\vec{F}_L$', zorder=1000)
-        ax.plot([x0[0], xd[0]], [x0[1], xd[1]], [x0[2], xd[2]], 'r', label=r'$\vec{F}_D$', zorder=1000)
-    else:
-        ax.plot([x0[0], xl[0]], [x0[1], xl[1]], [x0[2], xl[2]], 'b', zorder=1000)
-        ax.plot([x0[0], xd[0]], [x0[1], xd[1]], [x0[2], xd[2]], 'r', zorder=1000)
+    plotter.close()
 
 
-def _draw_ellipsoid(ax, origin, Rx, Ry, Rz):
-    """Draw an ellipsoid surface."""
-    u = np.linspace(0, 2 * np.pi, 20)
-    v = np.linspace(0, np.pi, 10)
-    x = Rx * np.outer(np.cos(u), np.sin(v)) + origin[0]
-    y = Ry * np.outer(np.sin(u), np.sin(v)) + origin[1]
-    z = Rz * np.outer(np.ones_like(u), np.cos(v)) + origin[2]
-    ax.plot_surface(x, y, z, color='lightgray', shade=True)
+def _load_wing_meshes():
+    """Load wing meshes from assets directory.
+
+    Base meshes are modeled as right wings. The same mesh is used for both
+    left and right; mirroring is handled in _transform_wing_mesh.
+    """
+    meshes = {}
+    for base_name, filename in WING_MESHES.items():
+        path = ASSETS_DIR / filename
+        if not path.exists():
+            raise FileNotFoundError(f"Wing mesh not found: {path}")
+        mesh = pv.read(str(path))
+        # Use same base mesh for both left and right
+        meshes[f'{base_name}_left'] = mesh
+        meshes[f'{base_name}_right'] = mesh
+    return meshes
 
 
-def _draw_cylinder(ax, origin, x1, x2, R):
-    """Draw a cylinder along the x-axis."""
-    theta = np.linspace(0, 2 * np.pi, 20)
-    x = np.array([x1, x2])
-    X, Theta = np.meshgrid(x, theta)
-    X = X + np.ones_like(X) * origin[0]
-    Y = R * np.cos(Theta) + np.ones_like(X) * origin[1]
-    Z = R * np.sin(Theta) + np.ones_like(X) * origin[2]
-    ax.plot_surface(X, Y, Z, color='lightgray', alpha=1, shade=True)
+def _transform_wing_mesh(template, origin, vecs):
+    """
+    Transform wing mesh from local coordinates to world coordinates.
+
+    Mesh convention (Blender export with forward=X, up=Z):
+    - +X along chord (leading to trailing edge)
+    - -Y along span (root to tip, since meshes are modeled as right wings)
+    - +Z normal (dorsal)
+
+    All meshes are mirrored so local +Y points toward tip, then rotation
+    maps local +Y to world e_r (which points outward for both sides).
+    """
+    e_r = vecs['e_r']  # span direction
+    e_c = vecs['e_c']  # chord direction
+    e_n = np.cross(e_c, e_r)  # normal, right-hand rule: chord × span
+
+    # Rotation matrix: local [X, Y, Z] -> world [e_c, e_r, e_n]
+    rotation = np.column_stack([e_c, e_r, e_n])
+
+    wing = template.copy()
+    points = wing.points.copy()
+
+    # Mirror Y so local +Y points toward tip (base mesh has tip at -Y)
+    points[:, 1] = -points[:, 1]
+
+    # Suppress spurious BLAS warnings on large matmul (results are valid)
+    with np.errstate(divide='ignore', over='ignore', invalid='ignore'):
+        wing.points = (rotation @ points.T).T + origin
+    return wing
+
+
+def _make_body_template(h_xc, t_xc, a_xc, Lh, Lt, La, Rh, Rt, Ra):
+    """Create body mesh centered at origin (will be translated per frame)."""
+    # Head
+    head = pv.ParametricEllipsoid(Lh / 2, Rh, Lh / 2)
+    head.translate([h_xc, 0, 0], inplace=True)
+
+    # Thorax
+    thorax = pv.ParametricEllipsoid(Lt / 2, Rt, Rt * 1.5)
+    thorax.translate([t_xc, 0, 0], inplace=True)
+
+    # Abdomen
+    abdomen = pv.ParametricEllipsoid(La / 2, Ra, Ra)
+    abdomen.translate([a_xc, 0, 0], inplace=True)
+
+    # Connector cylinder between thorax and abdomen
+    connector = pv.Cylinder(
+        center=[(t_xc + a_xc) / 2, 0, 0],
+        direction=[1, 0, 0],
+        radius=Ra,
+        height=t_xc - a_xc
+    )
+
+    # Combine all body parts
+    body = head + thorax + abdomen + connector
+    return body
+
+
+def _make_lines(segments):
+    """Create a single PolyData with multiple line segments."""
+    points = []
+    lines = []
+    for start, end in segments:
+        idx = len(points)
+        points.extend([start, end])
+        lines.extend([2, idx, idx + 1])
+    return pv.PolyData(np.array(points), lines=lines)

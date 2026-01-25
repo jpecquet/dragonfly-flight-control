@@ -17,8 +17,18 @@ def read_simulation(filename):
         wings: list of wing vector dicts (one per timestep), keyed by wing name
     """
     with h5py.File(filename, "r") as f:
-        # Read parameters
-        params = {key: f["/parameters"][key][()] for key in f["/parameters"].keys()}
+        # Read parameters (skip subgroups like 'wings')
+        params = {}
+        for key in f["/parameters"].keys():
+            item = f["/parameters"][key]
+            if isinstance(item, h5py.Dataset):
+                params[key] = item[()]
+
+        # Extract per-wing parameters for visualization
+        wing_names_raw = f["/parameters/wings/names"][:]
+        wing_names_param = [n.decode() if isinstance(n, bytes) else n for n in wing_names_raw]
+        wing_lb0 = f["/parameters/wings/lb0"][:]
+        params['wing_lb0'] = dict(zip(wing_names_param, wing_lb0))
 
         # Read time and state
         time = f["/time"][:]

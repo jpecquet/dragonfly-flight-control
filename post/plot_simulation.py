@@ -3,16 +3,11 @@
 Visualize dragonfly simulation output.
 
 Usage:
-    python -m post.plot_simulation <input.h5> [output.png|output.mp4]
-
-If output ends with .mp4, creates an animation.
-Otherwise, creates a static image.
+    python -m post.plot_simulation <input.h5> [output.mp4]
 """
 import sys
 from pathlib import Path
 
-# Import package to set matplotlib config
-import post
 from post.io import read_simulation
 from post.dragonfly import plot_dragonfly
 
@@ -28,18 +23,16 @@ def main():
     if len(sys.argv) >= 3:
         output_file = sys.argv[2]
     else:
-        output_file = Path(input_file).stem + ".png"
+        output_file = Path(input_file).stem + ".mp4"
 
     print(f"Reading simulation data from {input_file}...")
     params, time, states, wings = read_simulation(input_file)
 
-    print(f"Loaded {len(states)} timesteps")
-    print(f"Parameters: lb0_f={params['lb0_f']}, lb0_h={params['lb0_h']}, omg0={params['omg0']:.2f}")
+    print(f"Loaded {len(states)} timesteps, {len(params['wing_lb0'])} wings")
+    print(f"Wings: {list(params['wing_lb0'].keys())}")
 
-    animate = output_file.endswith(".mp4")
-    print(f"Creating {'animation' if animate else 'static image'}: {output_file}")
-
-    plot_dragonfly(states, wings, params, output_file, animate=animate)
+    print(f"Creating animation: {output_file}")
+    plot_dragonfly(states, wings, params, output_file)
 
     print("Done.")
 
