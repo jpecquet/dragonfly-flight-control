@@ -7,7 +7,7 @@
 *.slo
 *.lo
 *.o
-*.obj
+# *.obj # using .obj format for 3d assets
 
 # Precompiled Headers
 *.gch
