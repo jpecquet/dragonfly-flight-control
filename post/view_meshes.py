@@ -18,10 +18,10 @@ WING_MESHES = {
     'hind': 'hindwing.obj',
 }
 
-# Wing display config: (x_offset, color)
-WING_CONFIG = {
-    'fore': (0.1, 'lightblue', 'lightgreen'),   # x_offset, left_color, right_color
-    'hind': (-0.1, 'lightyellow', 'lightcoral'),
+# Wing root offset along X axis
+WING_XOFFSET = {
+    'fore':  0.03,
+    'hind': -0.03
 }
 
 
@@ -38,20 +38,20 @@ def main():
             continue
 
         base_mesh = pv.read(str(path))
-        x_off, left_color, right_color = WING_CONFIG[base_name]
+        x_off = WING_XOFFSET[base_name]
 
         # Right wing (original mesh)
         right = base_mesh.copy()
-        right.translate([x_off, 0, 0], inplace=True)
-        plotter.add_mesh(right, color=right_color, opacity=0.7,
-                         show_edges=True, edge_color='gray', label=f'{base_name}_right')
+        right.translate([x_off, -0.02, 0], inplace=True)
+        plotter.add_mesh(right, color='k', opacity=0.7,
+                         show_edges=True, edge_color='k', label=f'{base_name}_right')
 
         # Left wing (mirror Y)
         left = base_mesh.copy()
         left.points[:, 1] = -left.points[:, 1]
-        left.translate([x_off, 0, 0], inplace=True)
-        plotter.add_mesh(left, color=left_color, opacity=0.7,
-                         show_edges=True, edge_color='gray', label=f'{base_name}_left')
+        left.translate([x_off, 0.02, 0], inplace=True)
+        plotter.add_mesh(left, color='k', opacity=0.7,
+                         show_edges=True, edge_color='k', label=f'{base_name}_left')
 
     plotter.add_axes()
     plotter.add_legend()

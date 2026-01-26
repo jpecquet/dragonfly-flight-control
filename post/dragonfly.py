@@ -65,7 +65,7 @@ def plot_dragonfly(states, wing_vectors, params, outfile):
     Ra = 0.03
 
     # Wing attachment positions
-    dw = 0.2 * (avg_fore + avg_hind) / 2
+    dw = 0.06
     fw_x0 = dw / 2
     hw_x0 = -dw / 2
 
@@ -79,10 +79,14 @@ def plot_dragonfly(states, wing_vectors, params, outfile):
     for wname in wing_names:
         lb0 = wing_lb0.get(wname, 0.75)
         if 'fore' in wname:
-            offset = fw_x0
+            xoffset = fw_x0
         else:
-            offset = hw_x0
-        wing_info.append((wname, offset, lb0))
+            xoffset = hw_x0
+        if 'right' in wname:
+            yoffset = -0.02
+        else:
+            yoffset = 0.02
+        wing_info.append((wname, xoffset, yoffset, lb0))
 
     # Pre-create body mesh at origin (will be copied and translated each frame)
     body_template = _make_body_template(h_xc, t_xc, a_xc, Lh, Lt, La, Rh, Rt, Ra)
@@ -91,7 +95,7 @@ def plot_dragonfly(states, wing_vectors, params, outfile):
     wing_templates = _load_wing_meshes()
 
     # Create plotter
-    plotter = pv.Plotter(off_screen=True, window_size=[800, 800])
+    plotter = pv.Plotter(off_screen=True, window_size=[1600, 1600])
     plotter.set_background('white')
 
     plotter.open_movie(outfile, framerate=30)
@@ -112,8 +116,8 @@ def plot_dragonfly(states, wing_vectors, params, outfile):
         lift_lines = []
         drag_lines = []
 
-        for wname, offset, lb0 in wing_info:
-            origin = xb + np.array([offset, 0, 0])
+        for wname, xoffset, yoffset, lb0 in wing_info:
+            origin = xb + np.array([xoffset, yoffset, 0])
             wing_mesh = _transform_wing_mesh(wing_templates[wname], origin, v[wname])
 
             if all_wings is None:
@@ -131,8 +135,8 @@ def plot_dragonfly(states, wing_vectors, params, outfile):
                 drag_lines.append((cp, cp + 0.05 * v[wname]['drag']))
 
         # Add all wings as single mesh
-        plotter.add_mesh(all_wings, color='lightblue', opacity=0.4,
-                         smooth_shading=True, show_edges=True, edge_color='gray')
+        plotter.add_mesh(all_wings, color='k', opacity=1.0,
+                         smooth_shading=True, show_edges=True, edge_color='k')
 
         # Add force lines as batched meshes
         if lift_lines:
