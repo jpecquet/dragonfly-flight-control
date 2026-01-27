@@ -11,12 +11,14 @@ struct SimulationOutput {
     std::vector<WingConfig> wingConfigs;
 
     // Kinematic parameters (shared across all wings)
-    double omg0;   // Wing beat frequency
-    double gam0;   // Stroke plane angle
-    double phi0;   // Stroke amplitude
-    double psim;   // Mean pitch angle
-    double dpsi;   // Pitch oscillation amplitude
-    double dlt0;   // Pitch phase offset
+    double omg0;    // Wing beat frequency
+    double gam0;    // Mean stroke plane angle
+    double dgam;    // Stroke plane oscillation amplitude
+    double dlt_gam; // Stroke plane phase offset
+    double phi0;    // Stroke amplitude
+    double psim;    // Mean pitch angle
+    double dpsi;    // Pitch oscillation amplitude
+    double dlt0;    // Pitch phase offset
 
     std::vector<double> time;
     std::vector<State> states;

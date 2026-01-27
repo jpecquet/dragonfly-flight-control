@@ -71,7 +71,7 @@ def read_wing_rotation(filename):
 
     Returns:
         dict with keys: frames_per_phase, total_frames, phase_boundaries,
-                       gam_range, phi_range, psi_range, is_left,
+                       gam_range, phi_range, psi_range, is_left, sequence,
                        gam, phi, psi, e_s, e_r, e_c
     """
     with h5py.File(filename, 'r') as f:
@@ -90,6 +90,12 @@ def read_wing_rotation(filename):
             'e_r': f['/wing/e_r'][:],
             'e_c': f['/wing/e_c'][:],
         }
+        # Read sequence (with fallback for older files)
+        if '/parameters/sequence' in f:
+            seq_raw = f['/parameters/sequence'][:]
+            data['sequence'] = [s.decode() if isinstance(s, bytes) else s for s in seq_raw]
+        else:
+            data['sequence'] = ['gam', 'phi', 'psi']  # default for backward compat
     return data
 
 

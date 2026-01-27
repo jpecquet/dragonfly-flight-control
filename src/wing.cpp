@@ -22,7 +22,20 @@ Vec3 Wing::computeForce(
     vecs.e_c = orient.e_c;
 
     // Wing velocity at 2/3 span
-    Vec3 uw = ub + (2.0 / 3.0) * lb0_ * angles.phi_dot * orient.e_s;
+    // Contribution from flapping (phi_dot): velocity in stroke direction
+    Vec3 v_phi = (2.0 / 3.0) * lb0_ * angles.phi_dot * orient.e_s;
+
+    // Contribution from stroke plane rotation (gam_dot): omega_gam x r
+    // omega_gam = sign * gam_dot * ey (sign depends on wing side due to rotation convention)
+    // r = (2/3) * lb0 * e_r
+    // Note: v_gam is proportional to sin(phi) since e_r depends on phi
+    double gam_sign = (side_ == WingSide::Left) ? -1.0 : 1.0;
+    Vec3 ey(0, 1, 0);
+    Vec3 omega_gam = gam_sign * angles.gam_dot * ey;
+    Vec3 r = (2.0 / 3.0) * lb0_ * orient.e_r;
+    Vec3 v_gam = omega_gam.cross(r);
+
+    Vec3 uw = ub + v_phi + v_gam;
 
     // Wing velocity projected on plane normal to spanwise direction
     Vec3 u = uw - uw.dot(orient.e_r) * orient.e_r;

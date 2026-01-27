@@ -11,6 +11,7 @@ class Wing;
 // Wing angles at a given time
 struct WingAngles {
     double gam;      // Stroke plane angle
+    double gam_dot;  // Stroke plane angular velocity
     double phi;      // Stroke angle
     double phi_dot;  // Stroke angular velocity
     double psi;      // Pitch angle

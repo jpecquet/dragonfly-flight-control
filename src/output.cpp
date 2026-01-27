@@ -41,6 +41,8 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     file.createGroup("/parameters");
     H5Easy::dump(file, "/parameters/omg0", output.omg0);
     H5Easy::dump(file, "/parameters/gam0", output.gam0);
+    H5Easy::dump(file, "/parameters/dgam", output.dgam);
+    H5Easy::dump(file, "/parameters/dlt_gam", output.dlt_gam);
     H5Easy::dump(file, "/parameters/phi0", output.phi0);
     H5Easy::dump(file, "/parameters/psim", output.psim);
     H5Easy::dump(file, "/parameters/dpsi", output.dpsi);

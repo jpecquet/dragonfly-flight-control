@@ -18,12 +18,14 @@ struct KinematicParam {
 // All kinematic parameters for optimization
 // Note: Phase offsets are now per-wing in WingConfig, not global
 struct KinematicParams {
-    KinematicParam omg0;  // Wing beat frequency
-    KinematicParam gam0;  // Stroke plane angle
-    KinematicParam phi0;  // Stroke amplitude
-    KinematicParam psim;  // Mean pitch angle
-    KinematicParam dpsi;  // Pitch amplitude
-    KinematicParam dlt0;  // Pitch phase offset
+    KinematicParam omg0;    // Wing beat frequency
+    KinematicParam gam0;    // Mean stroke plane angle
+    KinematicParam dgam;    // Stroke plane oscillation amplitude
+    KinematicParam dlt_gam; // Stroke plane phase offset
+    KinematicParam phi0;    // Stroke amplitude
+    KinematicParam psim;    // Mean pitch angle
+    KinematicParam dpsi;    // Pitch amplitude
+    KinematicParam dlt0;    // Pitch phase offset
 
     // Get list of variable parameter names
     std::vector<std::string> variableNames() const;

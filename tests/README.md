@@ -94,7 +94,7 @@ rotZ(90°): X → Y,  Y → -X
 
 **What it tests:** Full wing force computation pipeline with no flapping motion.
 
-**Setup:** Wing with `phi_dot = 0` (stationary) and all angles = 0, subject to uniform flow.
+**Setup:** Wing with `phi_dot = 0` and `gam_dot = 0` (stationary) and all angles = 0, subject to uniform flow.
 
 **Analytical solution:** With zero angles for a left wing:
 - e_s = (1, 0, 0) — stroke direction

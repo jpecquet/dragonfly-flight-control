@@ -167,6 +167,14 @@ public:
         }
     }
 
+    bool getBool(const std::string& key, bool default_val) const {
+        if (!has(key)) return default_val;
+        std::string val = getString(key);
+        if (val == "true" || val == "1" || val == "yes") return true;
+        if (val == "false" || val == "0" || val == "no") return false;
+        throw std::runtime_error("Invalid value for '" + key + "': expected bool, got '" + val + "'");
+    }
+
 private:
     std::map<std::string, std::string> values_;
     std::vector<WingConfigEntry> wings_;

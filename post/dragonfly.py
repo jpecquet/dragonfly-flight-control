@@ -135,7 +135,7 @@ def plot_dragonfly(states, wing_vectors, params, outfile):
                 drag_lines.append((cp, cp + 0.05 * v[wname]['drag']))
 
         # Add all wings as single mesh
-        plotter.add_mesh(all_wings, color='k', opacity=1.0,
+        plotter.add_mesh(all_wings, color='lightgray', opacity=0.8,
                          smooth_shading=True, show_edges=True, edge_color='k')
 
         # Add force lines as batched meshes

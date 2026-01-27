@@ -35,10 +35,10 @@ bool testTerminalVelocity(double psi, const std::string& case_name) {
     double Cl0 = 1.2;
 
     // Create wing with fixed orientation (no flapping)
-    // gam = 0 (stroke plane), phi = 0 (stroke angle), phi_dot = 0, psi = pitch
+    // gam = 0, gam_dot = 0, phi = 0, phi_dot = 0, psi = pitch
     auto fixedAngles = [psi](double t) -> WingAngles {
         (void)t;
-        return {0.0, 0.0, 0.0, psi};
+        return {0.0, 0.0, 0.0, 0.0, psi};
     };
 
     Wing wing("test", mu0, lb0, WingSide::Left, Cd0, Cl0, fixedAngles);

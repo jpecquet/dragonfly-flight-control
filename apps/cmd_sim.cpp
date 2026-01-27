@@ -13,6 +13,8 @@ int runSim(const Config& cfg) {
     // Kinematic parameters
     double omg0 = cfg.getDouble("omg0");
     double gam0 = cfg.getDouble("gam0");
+    double dgam = cfg.getDouble("dgam", 0.0);
+    double dlt_gam = cfg.getDouble("dlt_gam", 0.0);
     double phi0 = cfg.getDouble("phi0");
     double psim = cfg.getDouble("psim");
     double dpsi = cfg.getDouble("dpsi");
@@ -29,6 +31,9 @@ int runSim(const Config& cfg) {
     // Time integration
     int n_wingbeats = cfg.getInt("n_wingbeats", 5);
     int steps_per_wingbeat = cfg.getInt("steps_per_wingbeat", 50);
+
+    // Tether mode: fix position/velocity (zero acceleration)
+    bool tether = cfg.getBool("tether", false);
 
     // Output
     std::string output_file = cfg.getString("output");
@@ -50,7 +55,7 @@ int runSim(const Config& cfg) {
     std::vector<Wing> wings;
     wings.reserve(wingConfigs.size());
     for (const auto& wc : wingConfigs) {
-        auto angleFunc = makeAngleFunc(gam0, phi0, psim, dpsi, dlt0, wc.phaseOffset, omg0);
+        auto angleFunc = makeAngleFunc(gam0, dgam, dlt_gam, phi0, psim, dpsi, dlt0, wc.phaseOffset, omg0);
         wings.emplace_back(wc.name, wc.mu0, wc.lb0, wc.side, wc.Cd0, wc.Cl0, angleFunc);
     }
 
@@ -68,6 +73,8 @@ int runSim(const Config& cfg) {
     output.wingConfigs = wingConfigs;
     output.omg0 = omg0;
     output.gam0 = gam0;
+    output.dgam = dgam;
+    output.dlt_gam = dlt_gam;
     output.phi0 = phi0;
     output.psim = psim;
     output.dpsi = dpsi;
@@ -88,9 +95,16 @@ int runSim(const Config& cfg) {
     output.wing_data.push_back(wing_data);
 
     // Time integration
-    std::cout << "Running simulation for " << n_wingbeats << " wingbeats..." << std::endl;
+    std::cout << "Running simulation for " << n_wingbeats << " wingbeats";
+    if (tether) {
+        std::cout << " (tethered)";
+    }
+    std::cout << "..." << std::endl;
+
     for (int i = 0; i < nsteps; ++i) {
-        state = stepRK4(t, dt, state, wings, scratch);
+        if (!tether) {
+            state = stepRK4(t, dt, state, wings, scratch);
+        }
         t += dt;
 
         equationOfMotion(t, state, wings, wing_data);

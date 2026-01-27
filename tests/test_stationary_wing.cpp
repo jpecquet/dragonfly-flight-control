@@ -21,10 +21,11 @@ int main() {
     double Cd0 = 0.4;
     double Cl0 = 1.2;
 
-    // Stationary wing: all angles constant, no stroke velocity
+    // Stationary wing: all angles constant, no angular velocities
     auto stationaryAngles = [](double t) -> WingAngles {
         return {
             0.0,  // gam: stroke plane angle
+            0.0,  // gam_dot: stroke plane angular velocity
             0.0,  // phi: stroke angle
             0.0,  // phi_dot: stroke angular velocity (key: no flapping!)
             0.0   // psi: pitch angle
