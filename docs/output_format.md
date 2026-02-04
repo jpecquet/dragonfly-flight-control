@@ -19,7 +19,7 @@ simulation_output.h5
 │   ├── psi_phase            (scalar) - Pitch phase offset
 │   └── /wings               (group)
 │       ├── count            (scalar) - Number of wings
-│       ├── names            (array)  - Wing names (e.g., "fore", "hind")
+│       ├── names            (array)  - Wing names with side (e.g., "fore_left", "hind_right")
 │       ├── sides            (array)  - Wing sides (0=left, 1=right)
 │       ├── mu0              (array)  - Mass parameters
 │       ├── lb0              (array)  - Span lengths

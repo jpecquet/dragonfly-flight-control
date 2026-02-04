@@ -54,6 +54,30 @@ Animate wing basis vectors through rotation phases.
 python -m post.plot_wing_rotation wingtest.h5 rotation.mp4
 ```
 
+### plot_stick.py
+
+Visualize wing stroke motion projected onto a sphere (equirectangular projection).
+
+```bash
+# Animate a specific wing
+python -m post.plot_stick output.h5 fore_left stroke.mp4
+
+# List available wings
+python -m post.plot_stick output.h5
+```
+
+### plot_terminal_velocity.py
+
+Visualize terminal velocity simulation results.
+
+```bash
+# Static plot
+python -m post.plot_terminal_velocity --psi 45 output.png
+
+# Animation
+python -m post.plot_terminal_velocity --psi 45 output.mp4
+```
+
 ### view_meshes.py
 
 View wing meshes from assets directory (for debugging mesh orientation).
@@ -70,13 +94,15 @@ python -m post.view_meshes meshes.png
 
 ```
 post/
-├── __init__.py           # Package init, matplotlib config
-├── io.py                 # HDF5 readers
-├── dragonfly.py          # 3D body/wing rendering
-├── view_meshes.py        # Wing mesh viewer
-├── plot_simulation.py    # CLI: simulation visualization
-├── plot_landscape.py     # CLI: optimizer landscape
-└── plot_wing_rotation.py # CLI: wing rotation animation
+├── __init__.py              # Package init, matplotlib config
+├── io.py                    # HDF5 readers
+├── dragonfly.py             # 3D body/wing rendering
+├── view_meshes.py           # Wing mesh viewer
+├── plot_simulation.py       # CLI: simulation visualization
+├── plot_landscape.py        # CLI: optimizer landscape
+├── plot_wing_rotation.py    # CLI: wing rotation animation
+├── plot_stick.py            # CLI: wing stroke sphere projection
+└── plot_terminal_velocity.py # CLI: terminal velocity visualization
 ```
 
 ## Library Usage
