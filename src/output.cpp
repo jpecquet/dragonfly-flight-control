@@ -39,14 +39,14 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
 
     // Write kinematic parameters
     file.createGroup("/parameters");
-    H5Easy::dump(file, "/parameters/omg0", output.omg0);
-    H5Easy::dump(file, "/parameters/gam0", output.gam0);
-    H5Easy::dump(file, "/parameters/dgam", output.dgam);
-    H5Easy::dump(file, "/parameters/dlt_gam", output.dlt_gam);
-    H5Easy::dump(file, "/parameters/phi0", output.phi0);
-    H5Easy::dump(file, "/parameters/psim", output.psim);
-    H5Easy::dump(file, "/parameters/dpsi", output.dpsi);
-    H5Easy::dump(file, "/parameters/dlt0", output.dlt0);
+    H5Easy::dump(file, "/parameters/omega", output.omega);
+    H5Easy::dump(file, "/parameters/gamma_mean", output.gamma_mean);
+    H5Easy::dump(file, "/parameters/gamma_amp", output.gamma_amp);
+    H5Easy::dump(file, "/parameters/gamma_phase", output.gamma_phase);
+    H5Easy::dump(file, "/parameters/phi_amp", output.phi_amp);
+    H5Easy::dump(file, "/parameters/psi_mean", output.psi_mean);
+    H5Easy::dump(file, "/parameters/psi_amp", output.psi_amp);
+    H5Easy::dump(file, "/parameters/psi_phase", output.psi_phase);
 
     // Write wing configurations
     size_t num_configs = output.wingConfigs.size();

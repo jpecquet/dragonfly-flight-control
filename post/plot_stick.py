@@ -6,10 +6,10 @@ Shows the wing chordline as a line with a hollow circle at the leading edge,
 projected onto a sphere of radius 2/3*lb0, viewed from the side.
 
 Usage:
-    python -m post.visual_wing_stroke <input.h5> <wing_name> <output.mp4|gif>
+    python -m post.plot_stick <input.h5> <wing_name> <output.mp4|gif>
 
 Example:
-    python -m post.visual_wing_stroke output.h5 fore_left stroke.mp4
+    python -m post.plot_stick output.h5 fore_left stroke.mp4
 """
 
 import sys
@@ -112,9 +112,9 @@ def animate_stroke(params, time, wings, wing_name, outfile):
         drag_dtheta, drag_dphi = vec_to_spherical(e_r, drag)
 
         ax.arrow(theta_deg, phi_deg, lift_dtheta * force_scale, lift_dphi * force_scale,
-                 head_width=1.2, head_length=2, fc='blue', ec='blue', linewidth=1.5)
+                 head_width=1, head_length=2, fc='blue', ec='blue', linewidth=1.5)
         ax.arrow(theta_deg, phi_deg, drag_dtheta * force_scale, drag_dphi * force_scale,
-                 head_width=1.2, head_length=2, fc='red', ec='red', linewidth=1.5)
+                 head_width=1, head_length=2, fc='red', ec='red', linewidth=1.5)
         
         # Plot trajectory over wingbeat
         ax.plot(np.degrees(traj_theta), np.degrees(traj_phi), '-', color='k', linewidth=0.5, zorder=-1)

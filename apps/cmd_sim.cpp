@@ -11,14 +11,14 @@
 
 int runSim(const Config& cfg) {
     // Kinematic parameters
-    double omg0 = cfg.getDouble("omg0");
-    double gam0 = cfg.getDouble("gam0");
-    double dgam = cfg.getDouble("dgam", 0.0);
-    double dlt_gam = cfg.getDouble("dlt_gam", 0.0);
-    double phi0 = cfg.getDouble("phi0");
-    double psim = cfg.getDouble("psim");
-    double dpsi = cfg.getDouble("dpsi");
-    double dlt0 = cfg.getDouble("dlt0");
+    double omega = cfg.getDouble("omega");
+    double gamma_mean = cfg.getDouble("gamma_mean");
+    double gamma_amp = cfg.getDouble("gamma_amp", 0.0);
+    double gamma_phase = cfg.getDouble("gamma_phase", 0.0);
+    double phi_amp = cfg.getDouble("phi_amp");
+    double psi_mean = cfg.getDouble("psi_mean");
+    double psi_amp = cfg.getDouble("psi_amp");
+    double psi_phase = cfg.getDouble("psi_phase");
 
     // Initial conditions
     double x0 = cfg.getDouble("x0", 0.0);
@@ -55,7 +55,7 @@ int runSim(const Config& cfg) {
     std::vector<Wing> wings;
     wings.reserve(wingConfigs.size());
     for (const auto& wc : wingConfigs) {
-        auto angleFunc = makeAngleFunc(gam0, dgam, dlt_gam, phi0, psim, dpsi, dlt0, wc.phaseOffset, omg0);
+        auto angleFunc = makeAngleFunc(gamma_mean, gamma_amp, gamma_phase, phi_amp, psi_mean, psi_amp, psi_phase, wc.phaseOffset, omega);
         wings.emplace_back(wc.name, wc.mu0, wc.lb0, wc.side, wc.Cd0, wc.Cl0, angleFunc);
     }
 
@@ -63,7 +63,7 @@ int runSim(const Config& cfg) {
     State state(x0, y0, z0, ux0, uy0, uz0);
 
     // Time setup
-    double Twb = 2.0 * M_PI / omg0;
+    double Twb = 2.0 * M_PI / omega;
     double dt = Twb / steps_per_wingbeat;
     double T = n_wingbeats * Twb;
     int nsteps = static_cast<int>(T / dt);
@@ -71,14 +71,14 @@ int runSim(const Config& cfg) {
     // Output storage
     SimulationOutput output;
     output.wingConfigs = wingConfigs;
-    output.omg0 = omg0;
-    output.gam0 = gam0;
-    output.dgam = dgam;
-    output.dlt_gam = dlt_gam;
-    output.phi0 = phi0;
-    output.psim = psim;
-    output.dpsi = dpsi;
-    output.dlt0 = dlt0;
+    output.omega = omega;
+    output.gamma_mean = gamma_mean;
+    output.gamma_amp = gamma_amp;
+    output.gamma_phase = gamma_phase;
+    output.phi_amp = phi_amp;
+    output.psi_mean = psi_mean;
+    output.psi_amp = psi_amp;
+    output.psi_phase = psi_phase;
     output.time.reserve(nsteps + 1);
     output.states.reserve(nsteps + 1);
     output.wing_data.reserve(nsteps + 1);

@@ -23,9 +23,10 @@ Vec3 BladeElement::computeForce(const Vec3& u, const Vec3& e_r, const Vec3& e_c,
 
     double U_inv = 1.0 / std::sqrt(U_sq);
 
-    // Angle of attack components (reuse U_inv instead of dividing by U twice)
+    // Angle of attack: alpha is angle between velocity u and chord e_c
+    // c_alpha = cos(alpha), s_alpha = sin(alpha)
     double c_alpha = u.dot(e_c) * U_inv;
-    double s_alpha = u.cross(e_c).dot(e_r);
+    double s_alpha = u.cross(e_c).dot(e_r) * U_inv;
 
     // Drag and lift coefficients (Cd0 + 2*sin^2(alpha), Cl0*sin(2*alpha))
     double Cd = (Cd0_ + 1.0) - (2.0 * c_alpha * c_alpha - 1.0);

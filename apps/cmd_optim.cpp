@@ -399,12 +399,12 @@ int runOptim(const Config& cfg) {
 
             if (i > 0) {
                 // Tighten bounds around previous solution for continuation
-                if (kin.omg0.is_variable) { kin.omg0.min_bound = kin.omg0.value - da; kin.omg0.max_bound = kin.omg0.value + da; }
-                if (kin.gam0.is_variable) { kin.gam0.min_bound = kin.gam0.value - da; kin.gam0.max_bound = kin.gam0.value + da; }
-                if (kin.phi0.is_variable) { kin.phi0.min_bound = kin.phi0.value - da; kin.phi0.max_bound = kin.phi0.value + da; }
-                if (kin.psim.is_variable) { kin.psim.min_bound = kin.psim.value - da; kin.psim.max_bound = kin.psim.value + da; }
-                if (kin.dpsi.is_variable) { kin.dpsi.min_bound = kin.dpsi.value - da; kin.dpsi.max_bound = kin.dpsi.value + da; }
-                if (kin.dlt0.is_variable) { kin.dlt0.min_bound = kin.dlt0.value - da; kin.dlt0.max_bound = kin.dlt0.value + da; }
+                if (kin.omega.is_variable) { kin.omega.min_bound = kin.omega.value - da; kin.omega.max_bound = kin.omega.value + da; }
+                if (kin.gamma_mean.is_variable) { kin.gamma_mean.min_bound = kin.gamma_mean.value - da; kin.gamma_mean.max_bound = kin.gamma_mean.value + da; }
+                if (kin.phi_amp.is_variable) { kin.phi_amp.min_bound = kin.phi_amp.value - da; kin.phi_amp.max_bound = kin.phi_amp.value + da; }
+                if (kin.psi_mean.is_variable) { kin.psi_mean.min_bound = kin.psi_mean.value - da; kin.psi_mean.max_bound = kin.psi_mean.value + da; }
+                if (kin.psi_amp.is_variable) { kin.psi_amp.min_bound = kin.psi_amp.value - da; kin.psi_amp.max_bound = kin.psi_amp.value + da; }
+                if (kin.psi_phase.is_variable) { kin.psi_phase.min_bound = kin.psi_phase.value - da; kin.psi_phase.max_bound = kin.psi_phase.value + da; }
 
                 runOptimization(kin, phys, branch_buffers, ux, 0.0, optim_config.max_eval);
             }

@@ -18,15 +18,17 @@ PhysicalParams defaultPhysicalParams() {
 }
 
 // Helper to create kinematic params with specific values
-KinematicParams makeKinematicParams(double omg0, double gam0, double phi0, double psim,
-                                     double dpsi, double dlt0) {
+KinematicParams makeKinematicParams(double omega, double gamma_mean, double phi_amp, double psi_mean,
+                                     double psi_amp, double psi_phase) {
     KinematicParams k;
-    k.omg0 = {"omg0", false, omg0, omg0, omg0};
-    k.gam0 = {"gam0", false, gam0, gam0, gam0};
-    k.phi0 = {"phi0", false, phi0, phi0, phi0};
-    k.psim = {"psim", false, psim, psim, psim};
-    k.dpsi = {"dpsi", false, dpsi, dpsi, dpsi};
-    k.dlt0 = {"dlt0", false, dlt0, dlt0, dlt0};
+    k.omega = {"omega", false, omega, omega, omega};
+    k.gamma_mean = {"gamma_mean", false, gamma_mean, gamma_mean, gamma_mean};
+    k.gamma_amp = {"gamma_amp", false, 0.0, 0.0, 0.0};
+    k.gamma_phase = {"gamma_phase", false, 0.0, 0.0, 0.0};
+    k.phi_amp = {"phi_amp", false, phi_amp, phi_amp, phi_amp};
+    k.psi_mean = {"psi_mean", false, psi_mean, psi_mean, psi_mean};
+    k.psi_amp = {"psi_amp", false, psi_amp, psi_amp, psi_amp};
+    k.psi_phase = {"psi_phase", false, psi_phase, psi_phase, psi_phase};
     return k;
 }
 
@@ -36,12 +38,12 @@ bool testWingBeatAccel() {
 
     PhysicalParams phys = defaultPhysicalParams();
     KinematicParams kin = makeKinematicParams(
-        8.0 * M_PI,   // omg0 (default)
-        M_PI / 2.0,   // gam0 = 90 deg
-        M_PI / 8.0,   // phi0 (default)
-        M_PI / 4.0,   // psim = 45 deg
-        M_PI / 6.0,   // dpsi = 30 deg
-        M_PI / 2.0    // dlt0 (default)
+        8.0 * M_PI,   // omega (default)
+        M_PI / 2.0,   // gamma_mean = 90 deg
+        M_PI / 8.0,   // phi_amp (default)
+        M_PI / 4.0,   // psi_mean = 45 deg
+        M_PI / 6.0,   // psi_amp = 30 deg
+        M_PI / 2.0    // psi_phase (default)
     );
 
     double accel_sq = wingBeatAccel(kin, phys, 0.0, 0.0);  // hover
@@ -115,12 +117,14 @@ bool testVariableParams() {
     std::cout << "Testing variable parameter handling..." << std::endl;
 
     KinematicParams kin;
-    kin.omg0 = {"omg0", false, 8.0 * M_PI, 8.0 * M_PI, 8.0 * M_PI};
-    kin.gam0 = {"gam0", false, M_PI / 2.0, M_PI / 2.0, M_PI / 2.0};
-    kin.phi0 = {"phi0", false, M_PI / 8.0, M_PI / 8.0, M_PI / 8.0};
-    kin.psim = {"psim", true, 0.5, 0.0, M_PI / 2.0};  // variable
-    kin.dpsi = {"dpsi", true, 0.3, -M_PI / 2.0, M_PI / 2.0};  // variable
-    kin.dlt0 = {"dlt0", false, M_PI / 2.0, M_PI / 2.0, M_PI / 2.0};
+    kin.omega = {"omega", false, 8.0 * M_PI, 8.0 * M_PI, 8.0 * M_PI};
+    kin.gamma_mean = {"gamma_mean", false, M_PI / 2.0, M_PI / 2.0, M_PI / 2.0};
+    kin.gamma_amp = {"gamma_amp", false, 0.0, 0.0, 0.0};
+    kin.gamma_phase = {"gamma_phase", false, 0.0, 0.0, 0.0};
+    kin.phi_amp = {"phi_amp", false, M_PI / 8.0, M_PI / 8.0, M_PI / 8.0};
+    kin.psi_mean = {"psi_mean", true, 0.5, 0.0, M_PI / 2.0};  // variable
+    kin.psi_amp = {"psi_amp", true, 0.3, -M_PI / 2.0, M_PI / 2.0};  // variable
+    kin.psi_phase = {"psi_phase", false, M_PI / 2.0, M_PI / 2.0, M_PI / 2.0};
 
     bool passed = true;
 
@@ -132,7 +136,7 @@ bool testVariableParams() {
 
     // Check variableNames
     auto names = kin.variableNames();
-    if (names.size() != 2 || names[0] != "psim" || names[1] != "dpsi") {
+    if (names.size() != 2 || names[0] != "psi_mean" || names[1] != "psi_amp") {
         std::cout << "  FAILED: unexpected variable names" << std::endl;
         passed = false;
     }

@@ -9,12 +9,14 @@ The dragonfly flight simulation outputs data in HDF5 format. This document speci
 ```
 simulation_output.h5
 ├── /parameters              (group)
-│   ├── omg0                 (scalar) - Wing beat frequency
-│   ├── gam0                 (scalar) - Stroke plane angle
-│   ├── phi0                 (scalar) - Stroke amplitude
-│   ├── psim                 (scalar) - Mean pitch angle
-│   ├── dpsi                 (scalar) - Pitch oscillation amplitude
-│   ├── dlt0                 (scalar) - Pitch phase offset
+│   ├── omega                (scalar) - Wing beat frequency
+│   ├── gamma_mean           (scalar) - Mean stroke plane angle
+│   ├── gamma_amp            (scalar) - Stroke plane oscillation amplitude
+│   ├── gamma_phase          (scalar) - Stroke plane phase offset
+│   ├── phi_amp              (scalar) - Stroke amplitude
+│   ├── psi_mean             (scalar) - Mean pitch angle
+│   ├── psi_amp              (scalar) - Pitch oscillation amplitude
+│   ├── psi_phase            (scalar) - Pitch phase offset
 │   └── /wings               (group)
 │       ├── count            (scalar) - Number of wings
 │       ├── names            (array)  - Wing names (e.g., "fore", "hind")
@@ -90,8 +92,8 @@ import h5py
 
 with h5py.File("output.h5", "r") as f:
     # Kinematic parameters
-    omg0 = f["/parameters/omg0"][()]
-    gam0 = f["/parameters/gam0"][()]
+    omega = f["/parameters/omega"][()]
+    gamma_mean = f["/parameters/gamma_mean"][()]
 
     # Wing configurations
     wing_count = f["/parameters/wings/count"][()]

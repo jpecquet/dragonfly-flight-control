@@ -154,8 +154,9 @@ int main() {
     //
     // At α = 45°:
     //   c_alpha = cos(45°) = 1/√2
+    //   s_alpha = sin(45°) = 1/√2
     //   Cd = Cd0 + 2*sin²(45°) = Cd0 + 1 = 1.4
-    //   Cl = Cl0*sin(90°) = Cl0 = 1.2  (but scaled by U in the code)
+    //   Cl = Cl0*sin(90°) = Cl0 = 1.2
     std::cout << "\nTest 4: Flow at 45° to chord (maximum lift)\n";
     {
         double U = 2.0;
@@ -166,11 +167,11 @@ int main() {
 
         double force_coef = 0.5 * mu0 / lb0;
 
-        // Analytical values
+        // Analytical values (both c_alpha and s_alpha are normalized)
         double c_alpha = s2;  // cos(45°)
-        double s_alpha = U * s2;  // U * sin(45°) - note: code doesn't normalize this
+        double s_alpha = s2;  // sin(45°)
         double Cd = Cd0 + 2.0 * (1.0 - c_alpha * c_alpha);  // Cd0 + 2*sin²(45°) = 1.4
-        double Cl = 2.0 * Cl0 * s_alpha * c_alpha;  // 2 * 1.2 * U/√2 * 1/√2 = 1.2*U
+        double Cl = 2.0 * Cl0 * s_alpha * c_alpha;  // 2 * 1.2 * 1/√2 * 1/√2 = 1.2
 
         // Drag direction: opposite to velocity
         Vec3 e_d = -ub.normalized();

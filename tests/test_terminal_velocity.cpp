@@ -1,28 +1,11 @@
 #include "eom.hpp"
 #include "integrator.hpp"
+#include "terminal_velocity.hpp"
 #include "wing.hpp"
 
 #include <cmath>
 #include <iostream>
 #include <vector>
-
-// Analytical terminal velocity for vertical fall with fixed wing orientation
-// For psi = pi/2 (horizontal chord): |u_z| = sqrt(2*lb0 / (mu0 * (Cd0 + 2)))
-// For psi = 0 (vertical chord):      |u_z| = sqrt(2*lb0 / (mu0 * Cd0))
-double analyticalTerminalVelocity(double mu0, double lb0, double Cd0, double psi) {
-    double Cd;
-    if (std::abs(psi - M_PI / 2.0) < 1e-10) {
-        // Horizontal chord: alpha = pi/2, Cd = Cd0 + 2
-        Cd = Cd0 + 2.0;
-    } else if (std::abs(psi) < 1e-10 || std::abs(psi - M_PI) < 1e-10) {
-        // Vertical chord: alpha = 0 or pi, Cd = Cd0
-        Cd = Cd0;
-    } else {
-        // General case not supported (would have horizontal drift)
-        return -1.0;
-    }
-    return std::sqrt(2.0 * lb0 / (mu0 * Cd));
-}
 
 // Test terminal velocity for a given wing pitch angle
 bool testTerminalVelocity(double psi, const std::string& case_name) {
@@ -34,11 +17,17 @@ bool testTerminalVelocity(double psi, const std::string& case_name) {
     double Cd0 = 0.4;
     double Cl0 = 1.2;
 
-    // Create wing with fixed orientation (no flapping)
-    // gam = 0, gam_dot = 0, phi = 0, phi_dot = 0, psi = pitch
+    // Compute analytical solution
+    TerminalVelocitySolution analytical = solveTerminalVelocity(psi, mu0, lb0, Cd0, Cl0);
+
+    if (!analytical.converged) {
+        std::cout << "  WARNING: Analytical solver did not converge\n";
+    }
+
+    // Create wing with fixed orientation (gam = 90° so psi = 0 means horizontal chord)
     auto fixedAngles = [psi](double t) -> WingAngles {
         (void)t;
-        return {0.0, 0.0, 0.0, 0.0, psi};
+        return {M_PI / 2.0, 0.0, 0.0, 0.0, psi};
     };
 
     Wing wing("test", mu0, lb0, WingSide::Left, Cd0, Cl0, fixedAngles);
@@ -46,7 +35,7 @@ bool testTerminalVelocity(double psi, const std::string& case_name) {
 
     // Integration parameters
     double dt = 0.001;
-    double t_max = 100.0;  // Long enough to reach terminal velocity
+    double t_max = 100.0;
     double t = 0.0;
 
     // Start from rest at origin
@@ -55,9 +44,9 @@ bool testTerminalVelocity(double psi, const std::string& case_name) {
     // Scratch buffer for integration
     std::vector<SingleWingVectors> scratch(1);
 
-    // Track velocity to detect steady state
-    double prev_uz = 0.0;
-    double steady_state_tol = 1e-8;
+    // Track speed magnitude for steady state detection
+    double prev_speed = 0.0;
+    double steady_state_tol = 1e-10;
     int steady_count = 0;
     int required_steady_steps = 100;
 
@@ -66,9 +55,10 @@ bool testTerminalVelocity(double psi, const std::string& case_name) {
         state = stepRK4(t, dt, state, wings, scratch);
         t += dt;
 
-        // Check for steady state (velocity not changing)
-        double uz_change = std::abs(state.vel.z() - prev_uz);
-        if (uz_change < steady_state_tol * dt) {
+        // Check for steady state (speed not changing)
+        double speed = std::sqrt(state.vel.x() * state.vel.x() + state.vel.z() * state.vel.z());
+        double speed_change = std::abs(speed - prev_speed);
+        if (speed_change < steady_state_tol * dt) {
             steady_count++;
             if (steady_count >= required_steady_steps) {
                 break;
@@ -76,41 +66,66 @@ bool testTerminalVelocity(double psi, const std::string& case_name) {
         } else {
             steady_count = 0;
         }
-        prev_uz = state.vel.z();
+        prev_speed = speed;
     }
 
-    // Get simulated terminal velocity (magnitude of z-velocity)
-    double uz_sim = std::abs(state.vel.z());
-    double ux_sim = std::abs(state.vel.x());
+    // Get simulated terminal velocity components
+    double ux_sim = state.vel.x();
+    double uz_sim = state.vel.z();
+    double speed_sim = std::sqrt(ux_sim * ux_sim + uz_sim * uz_sim);
+    double theta_sim = std::atan2(ux_sim, -uz_sim);
 
-    // Analytical terminal velocity
-    double uz_analytical = analyticalTerminalVelocity(mu0, lb0, Cd0, psi);
+    std::cout << "  Simulation time:      " << t << " s\n";
+    std::cout << "  Analytical solution:\n";
+    std::cout << "    Glide angle theta:  " << analytical.theta * 180.0 / M_PI << " deg\n";
+    std::cout << "    Angle of attack:    " << analytical.alpha * 180.0 / M_PI << " deg\n";
+    std::cout << "    Speed U:            " << analytical.speed << "\n";
+    std::cout << "    u_x:                " << analytical.ux << "\n";
+    std::cout << "    u_z:                " << analytical.uz << "\n";
+    std::cout << "  Simulated:\n";
+    std::cout << "    Glide angle theta:  " << theta_sim * 180.0 / M_PI << " deg\n";
+    std::cout << "    Speed U:            " << speed_sim << "\n";
+    std::cout << "    u_x:                " << ux_sim << "\n";
+    std::cout << "    u_z:                " << uz_sim << "\n";
 
-    std::cout << "  Simulation time: " << t << " s\n";
-    std::cout << "  Simulated u_z:   " << uz_sim << "\n";
-    std::cout << "  Simulated u_x:   " << ux_sim << " (should be ~0)\n";
-    std::cout << "  Analytical u_z:  " << uz_analytical << "\n";
+    // Compute errors
+    double speed_error = std::abs(speed_sim - analytical.speed) / analytical.speed;
+    double ux_error = (std::abs(analytical.ux) > 1e-6) ?
+        std::abs(ux_sim - analytical.ux) / std::abs(analytical.ux) :
+        std::abs(ux_sim - analytical.ux);
+    double uz_error = std::abs(uz_sim - analytical.uz) / std::abs(analytical.uz);
+    double theta_error = std::abs(theta_sim - analytical.theta);
 
-    // Check results
-    double rel_error = std::abs(uz_sim - uz_analytical) / uz_analytical;
-    std::cout << "  Relative error:  " << rel_error * 100.0 << "%\n";
+    std::cout << "  Errors:\n";
+    std::cout << "    Speed:              " << speed_error * 100.0 << "%\n";
+    std::cout << "    u_z:                " << uz_error * 100.0 << "%\n";
+    if (std::abs(analytical.ux) > 1e-6) {
+        std::cout << "    u_x:                " << ux_error * 100.0 << "%\n";
+        std::cout << "    Glide angle:        " << theta_error * 180.0 / M_PI << " deg\n";
+    }
 
     bool passed = true;
-
-    // Check vertical velocity matches analytical
     double tolerance = 1e-3;  // 0.1% tolerance
-    if (rel_error > tolerance) {
-        std::cout << "  FAILED: vertical velocity error exceeds " << tolerance * 100 << "%\n";
+
+    // Check speed
+    if (speed_error > tolerance) {
+        std::cout << "  FAILED: speed error exceeds " << tolerance * 100 << "%\n";
         passed = false;
     }
 
-    // Check horizontal velocity is negligible
-    if (ux_sim > 1e-6) {
-        std::cout << "  FAILED: unexpected horizontal drift (u_x = " << ux_sim << ")\n";
+    // Check vertical velocity
+    if (uz_error > tolerance) {
+        std::cout << "  FAILED: u_z error exceeds " << tolerance * 100 << "%\n";
         passed = false;
     }
 
-    // Check we actually reached steady state
+    // Check horizontal velocity (only if significant)
+    if (std::abs(analytical.ux) > 1e-6 && ux_error > tolerance) {
+        std::cout << "  FAILED: u_x error exceeds " << tolerance * 100 << "%\n";
+        passed = false;
+    }
+
+    // Check we reached steady state
     if (t >= t_max - dt) {
         std::cout << "  WARNING: may not have reached steady state (t_max reached)\n";
     }
@@ -128,19 +143,34 @@ int main() {
 
     bool all_passed = true;
 
-    // Test case 1: Horizontal chord (psi = pi/2)
-    // Cd = Cd0 + 2 = 2.4, maximum drag configuration
-    all_passed &= testTerminalVelocity(M_PI / 2.0, "horizontal chord");
+    // Test case 1: Horizontal chord (psi = 0)
+    // Cl = 0, so no drift
+    all_passed &= testTerminalVelocity(0.0, "horizontal chord");
     std::cout << "\n";
 
-    // Test case 2: Vertical chord (psi = 0)
-    // Cd = Cd0 = 0.4, minimum drag configuration
-    all_passed &= testTerminalVelocity(0.0, "vertical chord");
+    // Test case 2: Vertical chord (psi = pi/2)
+    // Cl = 0, so no drift
+    all_passed &= testTerminalVelocity(M_PI / 2.0, "vertical chord");
     std::cout << "\n";
 
-    // Test case 3: Vertical chord pointing up (psi = pi)
-    // Should give same result as psi = 0
-    all_passed &= testTerminalVelocity(M_PI, "vertical chord (inverted)");
+    // Test case 3: Vertical chord pointing down (psi = -pi/2)
+    // Same as psi = pi/2
+    all_passed &= testTerminalVelocity(-M_PI / 2.0, "vertical chord (inverted)");
+    std::cout << "\n";
+
+    // Test case 4: 45 degree pitch (psi = pi/4)
+    // Drifting case
+    all_passed &= testTerminalVelocity(M_PI / 4.0, "45 deg pitch");
+    std::cout << "\n";
+
+    // Test case 5: 30 degree pitch (psi = pi/6)
+    // Drifting case
+    all_passed &= testTerminalVelocity(M_PI / 6.0, "30 deg pitch");
+    std::cout << "\n";
+
+    // Test case 6: 60 degree pitch (psi = pi/3)
+    // Drifting case
+    all_passed &= testTerminalVelocity(M_PI / 3.0, "60 deg pitch");
     std::cout << "\n";
 
     std::cout << "====================================================================\n";

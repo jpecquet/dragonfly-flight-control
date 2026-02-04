@@ -2,6 +2,10 @@
 HDF5 I/O functions for postprocessing.
 """
 
+import subprocess
+import tempfile
+from pathlib import Path
+
 import h5py
 import numpy as np
 
@@ -117,4 +121,87 @@ def read_landscape(filename):
         }
         if 'param2_values' in f:
             data['param2_values'] = f['param2_values'][:]
+    return data
+
+
+def read_terminal_velocity(filename):
+    """
+    Read terminal velocity simulation data from HDF5 file.
+
+    Returns:
+        dict with keys: time, x, z, ux, uz, psi, psi_deg, mu0, lb0, Cd0, Cl0,
+                       dt, t_max, speed_analytical
+    """
+    with h5py.File(filename, 'r') as f:
+        data = {
+            'time': f['/time'][:],
+            'z': f['/z'][:],
+            'uz': f['/uz'][:],
+            'psi': f['/parameters/psi'][()],
+            'psi_deg': f['/parameters/psi_deg'][()],
+            'mu0': f['/parameters/mu0'][()],
+            'lb0': f['/parameters/lb0'][()],
+            'Cd0': f['/parameters/Cd0'][()],
+            'Cl0': f['/parameters/Cl0'][()],
+            'dt': f['/parameters/dt'][()],
+            't_max': f['/parameters/t_max'][()],
+        }
+        # New field (with backward compatibility)
+        if '/parameters/speed_analytical' in f:
+            data['speed_analytical'] = f['/parameters/speed_analytical'][()]
+        elif '/parameters/uz_analytical' in f:
+            data['speed_analytical'] = np.abs(f['/parameters/uz_analytical'][()])
+        else:
+            data['speed_analytical'] = 0.0
+        if '/x' in f:
+            data['x'] = f['/x'][:]
+        else:
+            data['x'] = np.zeros_like(data['z'])
+        if '/ux' in f:
+            data['ux'] = f['/ux'][:]
+        else:
+            data['ux'] = np.zeros_like(data['uz'])
+        # Lift/drag vectors (optional, for animation)
+        if '/lift_x' in f:
+            data['lift_x'] = f['/lift_x'][:]
+            data['lift_z'] = f['/lift_z'][:]
+            data['drag_x'] = f['/drag_x'][:]
+            data['drag_z'] = f['/drag_z'][:]
+    return data
+
+
+def run_termvel_simulation(psi_deg, dt=0.01, tmax=50.0):
+    """
+    Run terminal velocity simulation and return data.
+
+    Args:
+        psi_deg: Wing pitch angle in degrees
+        dt: Time step
+        tmax: Maximum simulation time
+
+    Returns:
+        dict: Simulation data (see read_terminal_velocity)
+    """
+    # Find the dragonfly binary
+    script_dir = Path(__file__).parent.parent
+    binary = script_dir / "build" / "bin" / "dragonfly"
+    if not binary.exists():
+        raise FileNotFoundError(f"Dragonfly binary not found at {binary}")
+
+    # Run simulation to temp file
+    with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as f:
+        output_path = f.name
+
+    cmd = [
+        str(binary), "termvel",
+        "--psi", str(psi_deg),
+        "--dt", str(dt),
+        "--tmax", str(tmax),
+        "-o", output_path
+    ]
+    subprocess.run(cmd, check=True, capture_output=True)
+
+    # Load and return data
+    data = read_terminal_velocity(output_path)
+    Path(output_path).unlink()  # Clean up temp file
     return data

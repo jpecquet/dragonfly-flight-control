@@ -76,6 +76,7 @@ add_executable(dragonfly_cli
     apps/cmd_sim.cpp
     apps/cmd_optim.cpp
     apps/cmd_plot.cpp
+    apps/cmd_termvel.cpp
     apps/cmd_wingtest.cpp
     src/output.cpp
 )

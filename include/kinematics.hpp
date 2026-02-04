@@ -8,29 +8,29 @@
 // Creates AngleFunc lambda with captured kinematic parameters
 //
 // Parameters:
-//   gam0        - Mean stroke plane angle
-//   dgam        - Stroke plane oscillation amplitude
-//   dlt_gam     - Stroke plane phase offset
-//   phi0        - Flapping amplitude
-//   psim        - Mean pitch angle
-//   dpsi        - Pitch oscillation amplitude
-//   dlt0        - Pitch phase offset
+//   gamma_mean  - Mean stroke plane angle
+//   gamma_amp   - Stroke plane oscillation amplitude
+//   gamma_phase - Stroke plane phase offset
+//   phi_amp     - Flapping amplitude
+//   psi_mean    - Mean pitch angle
+//   psi_amp     - Pitch oscillation amplitude
+//   psi_phase   - Pitch phase offset
 //   phaseOffset - Per-wing phase offset (e.g., 0 for forewing, pi for hindwing)
-//   omg0        - Wing beat frequency
+//   omega       - Wing beat frequency
 //
-inline AngleFunc makeAngleFunc(double gam0, double dgam, double dlt_gam,
-                               double phi0, double psim,
-                               double dpsi, double dlt0, double phaseOffset, double omg0) {
+inline AngleFunc makeAngleFunc(double gamma_mean, double gamma_amp, double gamma_phase,
+                               double phi_amp, double psi_mean,
+                               double psi_amp, double psi_phase, double phaseOffset, double omega) {
     return [=](double t) -> WingAngles {
-        double phase_gam = omg0 * t + dlt_gam + phaseOffset;
-        double phase_phi = omg0 * t + phaseOffset;
-        double phase_psi = omg0 * t + dlt0 + phaseOffset;
+        double phase_gam = omega * t + gamma_phase + phaseOffset;
+        double phase_phi = omega * t + phaseOffset;
+        double phase_psi = omega * t + psi_phase + phaseOffset;
         return {
-            gam0 + dgam * std::cos(phase_gam),
-            -dgam * omg0 * std::sin(phase_gam),
-            phi0 * std::cos(phase_phi),
-            -phi0 * omg0 * std::sin(phase_phi),
-            psim + dpsi * std::cos(phase_psi)
+            gamma_mean + gamma_amp * std::cos(phase_gam),
+            -gamma_amp * omega * std::sin(phase_gam),
+            phi_amp * std::cos(phase_phi),
+            -phi_amp * omega * std::sin(phase_phi),
+            psi_mean + psi_amp * std::cos(phase_psi)
         };
     };
 }

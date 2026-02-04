@@ -1,6 +1,7 @@
 #include "cmd_optim.hpp"
 #include "cmd_plot.hpp"
 #include "cmd_sim.hpp"
+#include "cmd_termvel.hpp"
 #include "cmd_wingtest.hpp"
 #include "config.hpp"
 
@@ -16,6 +17,7 @@ void printUsage(const char* prog) {
     std::cerr << "  optim    Find equilibrium flight conditions (-c <config>)\n";
     std::cerr << "  plot     Generate visualization (-c <config>)\n";
     std::cerr << "  wingtest Generate wing rotation test data (see options below)\n";
+    std::cerr << "  termvel  Generate terminal velocity data (see options below)\n";
     std::cerr << "\n";
     std::cerr << "Wingtest options:\n";
     std::cerr << "  --gam START:END    Stroke plane angle range (default: 0:90)\n";
@@ -25,10 +27,17 @@ void printUsage(const char* prog) {
     std::cerr << "  --right            Use right wing instead of left\n";
     std::cerr << "  -o <file>          Output file (default: wingtest.h5)\n";
     std::cerr << "\n";
+    std::cerr << "Termvel options:\n";
+    std::cerr << "  --psi DEG          Wing pitch angle in degrees (default: 90)\n";
+    std::cerr << "  --dt VALUE         Time step (default: 0.01)\n";
+    std::cerr << "  --tmax VALUE       Maximum simulation time (default: 50.0)\n";
+    std::cerr << "  -o <file>          Output file (default: termvel.h5)\n";
+    std::cerr << "\n";
     std::cerr << "Examples:\n";
     std::cerr << "  " << prog << " sim -c configs/sim_hover.cfg\n";
     std::cerr << "  " << prog << " optim -c configs/optim.cfg\n";
     std::cerr << "  " << prog << " wingtest --gam 0:90 --phi 0:25 -o out.h5\n";
+    std::cerr << "  " << prog << " termvel --psi 90 -o termvel.h5\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -43,6 +52,16 @@ int main(int argc, char* argv[]) {
     if (command == "wingtest") {
         try {
             return runWingtest(argc, argv);
+        } catch (const std::exception& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+            return 1;
+        }
+    }
+
+    // termvel command has its own argument parsing
+    if (command == "termvel") {
+        try {
+            return runTermvel(argc, argv);
         } catch (const std::exception& e) {
             std::cerr << "Error: " << e.what() << std::endl;
             return 1;
