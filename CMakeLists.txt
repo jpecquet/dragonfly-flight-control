@@ -53,6 +53,21 @@ target_include_directories(dragonfly_sampling PUBLIC
     ${CMAKE_SOURCE_DIR}/include
 )
 
+# Controller library
+add_library(dragonfly_controller STATIC
+    src/controller.cpp
+    src/trajectory.cpp
+    src/trajectory_controller.cpp
+)
+
+target_include_directories(dragonfly_controller PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(dragonfly_controller PUBLIC
+    dragonfly_physics
+)
+
 # Optimizer library
 add_library(dragonfly_optim STATIC
     src/optimize.cpp
@@ -74,6 +89,7 @@ target_link_libraries(dragonfly_optim PUBLIC
 add_executable(dragonfly_cli
     apps/dragonfly_cli.cpp
     apps/cmd_sim.cpp
+    apps/cmd_track.cpp
     apps/cmd_optim.cpp
     apps/cmd_plot.cpp
     apps/cmd_termvel.cpp
@@ -87,6 +103,7 @@ target_include_directories(dragonfly_cli PRIVATE
 )
 target_link_libraries(dragonfly_cli PRIVATE
     dragonfly_optim
+    dragonfly_controller
     NLopt::nlopt
     HighFive
     ${HDF5_LIBRARIES}
@@ -151,3 +168,11 @@ set_target_properties(test_terminal_velocity PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 add_test(NAME TerminalVelocity COMMAND test_terminal_velocity)
+
+# PID controller test
+add_executable(test_pid tests/test_pid.cpp)
+target_link_libraries(test_pid PRIVATE dragonfly_controller)
+set_target_properties(test_pid PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+add_test(NAME PID COMMAND test_pid)

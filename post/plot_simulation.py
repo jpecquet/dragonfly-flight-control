@@ -3,27 +3,40 @@
 Visualize dragonfly simulation output.
 
 Usage:
-    python -m post.plot_simulation <input.h5> [output.mp4]
+    python -m post.plot_simulation <input.h5> [output.mp4] [options]
+
+Options:
+    --renderer hybrid|pyvista  Rendering backend (default: hybrid)
+    --config <file.json>       Custom visualization config (hybrid only)
 """
+import argparse
 import sys
 from pathlib import Path
 
 from post.io import read_simulation
-from post.dragonfly import plot_dragonfly
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Visualize dragonfly simulation output"
+    )
+    parser.add_argument("input", help="Input HDF5 file")
+    parser.add_argument("output", nargs="?", help="Output video file (default: <input>.mp4)")
+    parser.add_argument(
+        "--renderer",
+        choices=["hybrid", "pyvista"],
+        default="hybrid",
+        help="Rendering backend (default: hybrid)"
+    )
+    parser.add_argument(
+        "--config",
+        help="Custom visualization config JSON (hybrid renderer only)"
+    )
 
-    input_file = sys.argv[1]
+    args = parser.parse_args()
 
-    # Default output name based on input
-    if len(sys.argv) >= 3:
-        output_file = sys.argv[2]
-    else:
-        output_file = Path(input_file).stem + ".mp4"
+    input_file = args.input
+    output_file = args.output or (Path(input_file).stem + ".mp4")
 
     print(f"Reading simulation data from {input_file}...")
     params, time, states, wings = read_simulation(input_file)
@@ -32,7 +45,34 @@ def main():
     print(f"Wings: {list(params['wing_lb0'].keys())}")
 
     print(f"Creating animation: {output_file}")
-    plot_dragonfly(states, wings, params, output_file)
+    print(f"Renderer: {args.renderer}")
+
+    if args.renderer == "hybrid":
+        from post.composite import (
+            check_blender_available,
+            render_hybrid_simulation,
+            render_mpl_only_simulation
+        )
+        from post.hybrid_config import HybridConfig
+
+        # Load custom config if provided
+        config = None
+        if args.config:
+            config = HybridConfig.load(args.config)
+
+        if check_blender_available():
+            render_hybrid_simulation(
+                states, wings, params, input_file, output_file, config
+            )
+        else:
+            print("Warning: Blender not available, using matplotlib-only fallback")
+            render_mpl_only_simulation(
+                states, wings, params, output_file, config
+            )
+    else:
+        # PyVista renderer
+        from post.dragonfly import plot_dragonfly
+        plot_dragonfly(states, wings, params, output_file)
 
     print("Done.")
 

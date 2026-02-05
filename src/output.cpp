@@ -108,4 +108,30 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
         file.createDataSet(group + "/lift", toMatrix(output.wing_data, i, &SingleWingVectors::lift));
         file.createDataSet(group + "/drag", toMatrix(output.wing_data, i, &SingleWingVectors::drag));
     }
+
+    // Write controller data if tracking was active
+    if (output.controller_active) {
+        file.createGroup("/controller");
+        H5Easy::dump(file, "/controller/active", 1);
+
+        // Target positions (Nx3 matrix)
+        size_t n_ctrl = output.target_positions.size();
+        Eigen::MatrixXd targets(n_ctrl, 3);
+        Eigen::MatrixXd errors(n_ctrl, 3);
+        for (size_t i = 0; i < n_ctrl; ++i) {
+            targets(i, 0) = output.target_positions[i].x();
+            targets(i, 1) = output.target_positions[i].y();
+            targets(i, 2) = output.target_positions[i].z();
+            errors(i, 0) = output.position_errors[i].x();
+            errors(i, 1) = output.position_errors[i].y();
+            errors(i, 2) = output.position_errors[i].z();
+        }
+        file.createDataSet("/controller/target_position", targets);
+        file.createDataSet("/controller/position_error", errors);
+
+        // Parameter time histories
+        file.createDataSet("/controller/gamma_mean", output.param_gamma_mean);
+        file.createDataSet("/controller/psi_mean", output.param_psi_mean);
+        file.createDataSet("/controller/phi_amp", output.param_phi_amp);
+    }
 }

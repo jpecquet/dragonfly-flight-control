@@ -69,6 +69,34 @@ def read_simulation(filename):
     return params, time, states, wings
 
 
+def read_tracking(filename):
+    """
+    Read trajectory tracking simulation output from HDF5 file.
+
+    Returns:
+        params: dict of simulation parameters
+        time: 1D array of time values
+        states: list of state arrays [x, y, z, ux, uy, uz]
+        wings: list of wing vector dicts (one per timestep)
+        controller: dict with target_position, position_error, gamma_mean, psi_mean, phi_amp
+                   (or None if not a tracking simulation)
+    """
+    params, time, states, wings = read_simulation(filename)
+
+    controller = None
+    with h5py.File(filename, "r") as f:
+        if "/controller" in f and f["/controller/active"][()] == 1:
+            controller = {
+                'target_position': f["/controller/target_position"][:],
+                'position_error': f["/controller/position_error"][:],
+                'gamma_mean': f["/controller/gamma_mean"][:],
+                'psi_mean': f["/controller/psi_mean"][:],
+                'phi_amp': f["/controller/phi_amp"][:],
+            }
+
+    return params, time, states, wings, controller
+
+
 def read_wing_rotation(filename):
     """
     Read wing rotation test data from HDF5 file.
