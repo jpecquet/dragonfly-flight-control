@@ -55,16 +55,24 @@ std::vector<WingConfig> buildWingConfigs(const Config& cfg) {
     return wingConfigs;
 }
 
-std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinematicParams& kin) {
+std::vector<Wing> createWings(const std::vector<WingConfig>& wc,
+                              double omega, double gamma_mean, double gamma_amp,
+                              double gamma_phase, double phi_amp, double psi_mean,
+                              double psi_amp, double psi_phase) {
     std::vector<Wing> wings;
     wings.reserve(wc.size());
     for (const auto& w : wc) {
-        auto angleFunc = makeAngleFunc(kin.gamma_mean, kin.gamma_amp, kin.gamma_phase,
-                                        kin.phi_amp, kin.psi_mean, kin.psi_amp,
-                                        kin.psi_phase, w.phaseOffset, kin.omega);
+        auto angleFunc = makeAngleFunc(gamma_mean, gamma_amp, gamma_phase,
+                                        phi_amp, psi_mean, psi_amp,
+                                        psi_phase, w.phaseOffset, omega);
         wings.emplace_back(w.name, w.mu0, w.lb0, w.side, w.Cd0, w.Cl0, angleFunc);
     }
     return wings;
+}
+
+std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinematicParams& kin) {
+    return createWings(wc, kin.omega, kin.gamma_mean, kin.gamma_amp, kin.gamma_phase,
+                       kin.phi_amp, kin.psi_mean, kin.psi_amp, kin.psi_phase);
 }
 
 SimulationOutput initOutput(const std::vector<WingConfig>& wc, const SimKinematicParams& kin, int nsteps) {

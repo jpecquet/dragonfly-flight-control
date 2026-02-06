@@ -33,6 +33,9 @@ add_library(dragonfly_physics STATIC
     src/wing.cpp
     src/eom.cpp
     src/integrator.cpp
+    src/config.cpp
+    src/terminal_velocity.cpp
+    src/sim_setup.cpp
 )
 
 target_include_directories(dragonfly_physics PUBLIC
@@ -97,7 +100,6 @@ add_executable(dragonfly_cli
     apps/cmd_termvel.cpp
     apps/cmd_wingtest.cpp
     src/output.cpp
-    src/sim_setup.cpp
 )
 target_include_directories(dragonfly_cli PRIVATE
     ${CMAKE_SOURCE_DIR}/include

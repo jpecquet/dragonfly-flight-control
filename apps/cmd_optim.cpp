@@ -78,6 +78,24 @@ bool isNewBranch(const std::vector<KinematicParams>& branches, const KinematicPa
     return true;
 }
 
+// Try optimizing from a starting point and collect if it's a new equilibrium
+void tryOptimizeAndCollect(
+    const std::vector<double>& x0,
+    const KinematicParams& kin_template,
+    const PhysicalParams& phys,
+    OptimBuffers& buffers,
+    double ux, const OptimConfig& config,
+    std::vector<KinematicParams>& branches)
+{
+    KinematicParams kin = kin_template;
+    kin.setVariableValues(x0);
+    runOptimization(kin, phys, buffers, ux, 0.0, config.max_eval);
+    double accel = std::sqrt(wingBeatAccel(kin, phys, buffers, ux, 0.0));
+    if (accel < config.equilibrium_tol && isNewBranch(branches, kin)) {
+        branches.push_back(kin);
+    }
+}
+
 // Write output file for a single branch
 void writeBranchOutput(const std::string& filename,
                        const std::vector<std::string>& col_names,
@@ -124,15 +142,7 @@ std::vector<KinematicParams> findBranchesMultistart(
     buffers.init(kin_template, phys);
 
     for (const auto& x0 : samples) {
-        KinematicParams kin = kin_template;
-        kin.setVariableValues(x0);
-
-        runOptimization(kin, phys, buffers, ux, 0.0, config.max_eval);
-        double accel = std::sqrt(wingBeatAccel(kin, phys, buffers, ux, 0.0));
-
-        if (accel < config.equilibrium_tol && isNewBranch(branches, kin)) {
-            branches.push_back(kin);
-        }
+        tryOptimizeAndCollect(x0, kin_template, phys, buffers, ux, config, branches);
     }
 
     return branches;
@@ -211,15 +221,7 @@ std::vector<KinematicParams> findBranchesGlobal(
     // Also sample the full space to find additional branches
     auto samples = generateSobolSamples(static_cast<size_t>(config.n_samples), lb, ub);
     for (const auto& x0 : samples) {
-        KinematicParams kin_local = kin_template;
-        kin_local.setVariableValues(x0);
-
-        runOptimization(kin_local, phys, buffers, ux, 0.0, config.max_eval);
-        double accel = std::sqrt(wingBeatAccel(kin_local, phys, buffers, ux, 0.0));
-
-        if (accel < config.equilibrium_tol && isNewBranch(branches, kin_local)) {
-            branches.push_back(kin_local);
-        }
+        tryOptimizeAndCollect(x0, kin_template, phys, buffers, ux, config, branches);
     }
 
     return branches;
@@ -252,15 +254,7 @@ std::vector<KinematicParams> findBranchesGrid(
     std::function<void(size_t, std::vector<double>&)> gridSearch =
         [&](size_t depth, std::vector<double>& init_vals) {
         if (depth == var_names.size()) {
-            KinematicParams kin = kin_template;
-            kin.setVariableValues(init_vals);
-
-            runOptimization(kin, phys, grid_buffers, ux, 0.0, config.max_eval);
-            double accel = std::sqrt(wingBeatAccel(kin, phys, grid_buffers, ux, 0.0));
-
-            if (accel < config.equilibrium_tol && isNewBranch(branches, kin)) {
-                branches.push_back(kin);
-            }
+            tryOptimizeAndCollect(init_vals, kin_template, phys, grid_buffers, ux, config, branches);
             return;
         }
         for (double val : grid_values[depth]) {

@@ -127,7 +127,12 @@ TrajectoryFunc parse(const std::string& spec) {
                 throw std::invalid_argument("waypoint format: x,y,z@time, got: " + token);
             }
             Vec3 pt = parseVec3(token.substr(0, at));
-            double t = std::stod(token.substr(at + 1));
+            double t;
+            try {
+                t = std::stod(token.substr(at + 1));
+            } catch (const std::exception&) {
+                throw std::invalid_argument("Invalid time in waypoint: " + token);
+            }
             pts.push_back(pt);
             times.push_back(t);
         }

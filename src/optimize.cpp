@@ -1,6 +1,6 @@
 #include "optimize.hpp"
 #include "eom.hpp"
-#include "kinematics.hpp"
+#include "sim_setup.hpp"
 #include "wing.hpp"
 
 #include <highfive/H5File.hpp>
@@ -92,7 +92,11 @@ static KinematicParam parseParam(const Config& cfg, const std::string& name,
         param.value = (param.min_bound + param.max_bound) / 2.0;
     } else {
         param.is_variable = false;
-        param.value = std::stod(val);
+        try {
+            param.value = std::stod(val);
+        } catch (const std::exception&) {
+            throw std::runtime_error("Invalid value for '" + name + "': expected number, got '" + val + "'");
+        }
         param.min_bound = param.value;
         param.max_bound = param.value;
     }
@@ -128,27 +132,18 @@ PhysicalParams PhysicalParams::fromConfig(const Config& cfg) {
     return params;
 }
 
-// Internal helper to create wings
-
-static std::vector<Wing> createWings(const KinematicParams& kin, const PhysicalParams& phys) {
-    std::vector<Wing> wings;
-    wings.reserve(phys.wings.size());
-
-    double omega = kin.omega.value;
-    for (const auto& wc : phys.wings) {
-        auto angleFunc = makeAngleFunc(
-            kin.gamma_mean.value, kin.gamma_amp.value, kin.gamma_phase.value,
-            kin.phi_amp.value, kin.psi_mean.value,
-            kin.psi_amp.value, kin.psi_phase.value, wc.phaseOffset, omega);
-        wings.emplace_back(wc.name, wc.mu0, wc.lb0, wc.side, wc.Cd0, wc.Cl0, angleFunc);
-    }
-    return wings;
+// Internal helper to create wings from optimizer params
+static std::vector<Wing> createOptimWings(const KinematicParams& kin, const PhysicalParams& phys) {
+    return createWings(phys.wings, kin.omega.value, kin.gamma_mean.value,
+                       kin.gamma_amp.value, kin.gamma_phase.value,
+                       kin.phi_amp.value, kin.psi_mean.value,
+                       kin.psi_amp.value, kin.psi_phase.value);
 }
 
 // OptimBuffers implementation
 
 void OptimBuffers::init(const KinematicParams& kin, const PhysicalParams& phys) {
-    wings = createWings(kin, phys);
+    wings = createOptimWings(kin, phys);
     scratch1.resize(wings.size());
     scratch2.resize(wings.size());
 }

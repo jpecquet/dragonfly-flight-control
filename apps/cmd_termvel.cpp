@@ -43,11 +43,26 @@ int runTermvel(int argc, char* argv[]) {
     // Parse arguments
     for (int i = 2; i < argc; ++i) {
         if (std::strcmp(argv[i], "--psi") == 0 && i + 1 < argc) {
-            psi_deg = std::stod(argv[++i]);
+            try {
+                psi_deg = std::stod(argv[++i]);
+            } catch (const std::exception&) {
+                std::cerr << "Invalid value for --psi: " << argv[i] << "\n";
+                return 1;
+            }
         } else if (std::strcmp(argv[i], "--dt") == 0 && i + 1 < argc) {
-            dt = std::stod(argv[++i]);
+            try {
+                dt = std::stod(argv[++i]);
+            } catch (const std::exception&) {
+                std::cerr << "Invalid value for --dt: " << argv[i] << "\n";
+                return 1;
+            }
         } else if (std::strcmp(argv[i], "--tmax") == 0 && i + 1 < argc) {
-            t_max = std::stod(argv[++i]);
+            try {
+                t_max = std::stod(argv[++i]);
+            } catch (const std::exception&) {
+                std::cerr << "Invalid value for --tmax: " << argv[i] << "\n";
+                return 1;
+            }
         } else if (std::strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
             output_file = argv[++i];
         } else if (std::strcmp(argv[i], "-h") == 0 || std::strcmp(argv[i], "--help") == 0) {
