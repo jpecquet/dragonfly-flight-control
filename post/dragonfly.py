@@ -7,6 +7,12 @@ from pathlib import Path
 import numpy as np
 import pyvista as pv
 
+from .constants import (
+    Lh, Lt, La, Rh, Rt, Ra, DW, FW_X0, HW_X0,
+    A_XC, T_XC, H_XC, FORCE_CENTER_FRACTION, FORCE_SCALE, FORCE_THRESHOLD,
+    DEFAULT_LB0, get_wing_info,
+)
+
 # Asset directory relative to this file
 ASSETS_DIR = Path(__file__).parent.parent / "assets"
 
@@ -49,47 +55,15 @@ def plot_dragonfly(states, wing_vectors, params, outfile):
     wing_names = list(wing_vectors[0].keys())
 
     # Calculate average lb0 for fore and hind wings
-    fore_lb0 = [wing_lb0.get(w, 0.75) for w in wing_names if 'fore' in w]
-    hind_lb0 = [wing_lb0.get(w, 0.75) for w in wing_names if 'hind' in w]
-    avg_fore = sum(fore_lb0) / len(fore_lb0) if fore_lb0 else 0.75
-    avg_hind = sum(hind_lb0) / len(hind_lb0) if hind_lb0 else 0.75
+    fore_lb0 = [wing_lb0.get(w, DEFAULT_LB0) for w in wing_names if 'fore' in w]
+    hind_lb0 = [wing_lb0.get(w, DEFAULT_LB0) for w in wing_names if 'hind' in w]
+    avg_fore = sum(fore_lb0) / len(fore_lb0) if fore_lb0 else DEFAULT_LB0
+    avg_hind = sum(hind_lb0) / len(hind_lb0) if hind_lb0 else DEFAULT_LB0
 
-    # Body segment lengths
-    Lh = 0.1
-    Lt = 0.25
-    La = 1 - Lh - Lt
-
-    # Body segment radii
-    Rh = 0.07
-    Rt = 0.05
-    Ra = 0.03
-
-    # Wing attachment positions
-    dw = 0.06
-    fw_x0 = dw / 2
-    hw_x0 = -dw / 2
-
-    # Body segment centers
-    a_xc = hw_x0 - La / 2
-    t_xc = a_xc + La / 2 + Lt / 2
-    h_xc = t_xc + Lt / 2 + Lh / 2
-
-    # Determine wing names and their properties
-    wing_info = []
-    for wname in wing_names:
-        lb0 = wing_lb0.get(wname, 0.75)
-        if 'fore' in wname:
-            xoffset = fw_x0
-        else:
-            xoffset = hw_x0
-        if 'right' in wname:
-            yoffset = -0.02
-        else:
-            yoffset = 0.02
-        wing_info.append((wname, xoffset, yoffset, lb0))
+    wing_info = get_wing_info(wing_vectors[0], wing_lb0)
 
     # Pre-create body mesh at origin (will be copied and translated each frame)
-    body_template = _make_body_template(h_xc, t_xc, a_xc, Lh, Lt, La, Rh, Rt, Ra)
+    body_template = _make_body_template(H_XC, T_XC, A_XC, Lh, Lt, La, Rh, Rt, Ra)
 
     # Load wing meshes
     wing_templates = _load_wing_meshes()
@@ -126,13 +100,13 @@ def plot_dragonfly(states, wing_vectors, params, outfile):
                 all_wings = all_wings + wing_mesh
 
             # Collect force vector endpoints
-            cp = origin + 0.67 * lb0 * v[wname]['e_r']
+            cp = origin + FORCE_CENTER_FRACTION * lb0 * v[wname]['e_r']
             lift_mag = np.linalg.norm(v[wname]['lift'])
             drag_mag = np.linalg.norm(v[wname]['drag'])
-            if lift_mag > 1e-10:
-                lift_lines.append((cp, cp + 0.05 * v[wname]['lift']))
-            if drag_mag > 1e-10:
-                drag_lines.append((cp, cp + 0.05 * v[wname]['drag']))
+            if lift_mag > FORCE_THRESHOLD:
+                lift_lines.append((cp, cp + FORCE_SCALE * v[wname]['lift']))
+            if drag_mag > FORCE_THRESHOLD:
+                drag_lines.append((cp, cp + FORCE_SCALE * v[wname]['drag']))
 
         # Add all wings as single mesh
         plotter.add_mesh(all_wings, color='lightgray', opacity=0.8,

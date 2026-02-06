@@ -14,7 +14,7 @@ include(FetchContent)
 FetchContent_Declare(
     HighFive
     GIT_REPOSITORY https://github.com/highfive-devs/highfive.git
-    GIT_TAG main
+    GIT_TAG v3.1.1
 )
 set(HIGHFIVE_USE_EIGEN ON CACHE BOOL "Enable Eigen support in HighFive")
 set(HIGHFIVE_EXAMPLES OFF CACHE BOOL "Disable HighFive examples")
@@ -95,6 +95,7 @@ add_executable(dragonfly_cli
     apps/cmd_termvel.cpp
     apps/cmd_wingtest.cpp
     src/output.cpp
+    src/sim_setup.cpp
 )
 target_include_directories(dragonfly_cli PRIVATE
     ${CMAKE_SOURCE_DIR}/include

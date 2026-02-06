@@ -4,111 +4,79 @@
 #include "wing.hpp"
 
 #include <highfive/H5File.hpp>
+#include <optional>
 #include <stdexcept>
 
 // KinematicParams implementation
 
 std::vector<std::string> KinematicParams::variableNames() const {
     std::vector<std::string> names;
-    if (omega.is_variable) names.push_back("omega");
-    if (gamma_mean.is_variable) names.push_back("gamma_mean");
-    if (gamma_amp.is_variable) names.push_back("gamma_amp");
-    if (gamma_phase.is_variable) names.push_back("gamma_phase");
-    if (phi_amp.is_variable) names.push_back("phi_amp");
-    if (psi_mean.is_variable) names.push_back("psi_mean");
-    if (psi_amp.is_variable) names.push_back("psi_amp");
-    if (psi_phase.is_variable) names.push_back("psi_phase");
+    forEachParam([&](const char* name, const KinematicParam& p) {
+        if (p.is_variable) names.push_back(name);
+    });
     return names;
 }
 
 std::vector<std::string> KinematicParams::allNames() const {
-    return {"omega", "gamma_mean", "gamma_amp", "gamma_phase", "phi_amp", "psi_mean", "psi_amp", "psi_phase"};
+    std::vector<std::string> names;
+    forEachParam([&](const char* name, const KinematicParam&) {
+        names.push_back(name);
+    });
+    return names;
 }
 
 std::vector<double> KinematicParams::allValues() const {
-    return {omega.value, gamma_mean.value, gamma_amp.value, gamma_phase.value, phi_amp.value, psi_mean.value, psi_amp.value, psi_phase.value};
+    std::vector<double> values;
+    forEachParam([&](const char*, const KinematicParam& p) {
+        values.push_back(p.value);
+    });
+    return values;
 }
 
 std::vector<double> KinematicParams::variableValues() const {
     std::vector<double> values;
-    if (omega.is_variable) values.push_back(omega.value);
-    if (gamma_mean.is_variable) values.push_back(gamma_mean.value);
-    if (gamma_amp.is_variable) values.push_back(gamma_amp.value);
-    if (gamma_phase.is_variable) values.push_back(gamma_phase.value);
-    if (phi_amp.is_variable) values.push_back(phi_amp.value);
-    if (psi_mean.is_variable) values.push_back(psi_mean.value);
-    if (psi_amp.is_variable) values.push_back(psi_amp.value);
-    if (psi_phase.is_variable) values.push_back(psi_phase.value);
+    forEachParam([&](const char*, const KinematicParam& p) {
+        if (p.is_variable) values.push_back(p.value);
+    });
     return values;
 }
 
 void KinematicParams::setVariableValues(const std::vector<double>& x) {
     size_t i = 0;
-    if (omega.is_variable) omega.value = x[i++];
-    if (gamma_mean.is_variable) gamma_mean.value = x[i++];
-    if (gamma_amp.is_variable) gamma_amp.value = x[i++];
-    if (gamma_phase.is_variable) gamma_phase.value = x[i++];
-    if (phi_amp.is_variable) phi_amp.value = x[i++];
-    if (psi_mean.is_variable) psi_mean.value = x[i++];
-    if (psi_amp.is_variable) psi_amp.value = x[i++];
-    if (psi_phase.is_variable) psi_phase.value = x[i++];
+    forEachParam([&](const char*, KinematicParam& p) {
+        if (p.is_variable) p.value = x[i++];
+    });
 }
 
 void KinematicParams::getVariableBounds(std::vector<double>& lb, std::vector<double>& ub) const {
     lb.clear();
     ub.clear();
-    if (omega.is_variable) { lb.push_back(omega.min_bound); ub.push_back(omega.max_bound); }
-    if (gamma_mean.is_variable) { lb.push_back(gamma_mean.min_bound); ub.push_back(gamma_mean.max_bound); }
-    if (gamma_amp.is_variable) { lb.push_back(gamma_amp.min_bound); ub.push_back(gamma_amp.max_bound); }
-    if (gamma_phase.is_variable) { lb.push_back(gamma_phase.min_bound); ub.push_back(gamma_phase.max_bound); }
-    if (phi_amp.is_variable) { lb.push_back(phi_amp.min_bound); ub.push_back(phi_amp.max_bound); }
-    if (psi_mean.is_variable) { lb.push_back(psi_mean.min_bound); ub.push_back(psi_mean.max_bound); }
-    if (psi_amp.is_variable) { lb.push_back(psi_amp.min_bound); ub.push_back(psi_amp.max_bound); }
-    if (psi_phase.is_variable) { lb.push_back(psi_phase.min_bound); ub.push_back(psi_phase.max_bound); }
+    forEachParam([&](const char*, const KinematicParam& p) {
+        if (p.is_variable) {
+            lb.push_back(p.min_bound);
+            ub.push_back(p.max_bound);
+        }
+    });
 }
 
 size_t KinematicParams::numVariable() const {
     size_t n = 0;
-    if (omega.is_variable) n++;
-    if (gamma_mean.is_variable) n++;
-    if (gamma_amp.is_variable) n++;
-    if (gamma_phase.is_variable) n++;
-    if (phi_amp.is_variable) n++;
-    if (psi_mean.is_variable) n++;
-    if (psi_amp.is_variable) n++;
-    if (psi_phase.is_variable) n++;
+    forEachParam([&](const char*, const KinematicParam& p) {
+        if (p.is_variable) n++;
+    });
     return n;
 }
 
-static KinematicParam parseParam(const Config& cfg, const std::string& name) {
+static KinematicParam parseParam(const Config& cfg, const std::string& name,
+                                  std::optional<double> default_val = std::nullopt) {
     KinematicParam param;
     param.name = name;
 
-    std::string val = cfg.getString(name);
-    if (val == "variable") {
-        param.is_variable = true;
-        param.min_bound = cfg.getDouble(name + "_min");
-        param.max_bound = cfg.getDouble(name + "_max");
-        // Initialize to midpoint
-        param.value = (param.min_bound + param.max_bound) / 2.0;
-    } else {
+    if (default_val.has_value() && !cfg.has(name)) {
         param.is_variable = false;
-        param.value = std::stod(val);
-        param.min_bound = param.value;
-        param.max_bound = param.value;
-    }
-    return param;
-}
-
-static KinematicParam parseParamWithDefault(const Config& cfg, const std::string& name, double default_val) {
-    KinematicParam param;
-    param.name = name;
-
-    if (!cfg.has(name)) {
-        param.is_variable = false;
-        param.value = default_val;
-        param.min_bound = default_val;
-        param.max_bound = default_val;
+        param.value = *default_val;
+        param.min_bound = *default_val;
+        param.max_bound = *default_val;
         return param;
     }
 
@@ -131,8 +99,8 @@ KinematicParams KinematicParams::fromConfig(const Config& cfg) {
     KinematicParams params;
     params.omega = parseParam(cfg, "omega");
     params.gamma_mean = parseParam(cfg, "gamma_mean");
-    params.gamma_amp = parseParamWithDefault(cfg, "gamma_amp", 0.0);
-    params.gamma_phase = parseParamWithDefault(cfg, "gamma_phase", 0.0);
+    params.gamma_amp = parseParam(cfg, "gamma_amp", 0.0);
+    params.gamma_phase = parseParam(cfg, "gamma_phase", 0.0);
     params.phi_amp = parseParam(cfg, "phi_amp");
     params.psi_mean = parseParam(cfg, "psi_mean");
     params.psi_amp = parseParam(cfg, "psi_amp");

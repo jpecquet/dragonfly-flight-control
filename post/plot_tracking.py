@@ -17,6 +17,12 @@ from pathlib import Path
 
 import numpy as np
 
+from post.constants import (
+    Lh, Lt, La, Rh, Rt, Ra,
+    H_XC, T_XC, A_XC,
+    FORCE_CENTER_FRACTION, FORCE_SCALE, FORCE_THRESHOLD,
+    DEFAULT_LB0, get_wing_info,
+)
 from post.io import read_tracking
 
 
@@ -57,26 +63,10 @@ def plot_tracking_pyvista(states, wing_vectors, params, controller, outfile,
 
     wing_names = list(wing_vectors[0].keys())
 
-    # Body geometry (same as dragonfly.py)
-    Lh, Lt = 0.1, 0.25
-    La = 1 - Lh - Lt
-    Rh, Rt, Ra = 0.07, 0.05, 0.03
-    dw = 0.06
-    fw_x0, hw_x0 = dw / 2, -dw / 2
-    a_xc = hw_x0 - La / 2
-    t_xc = a_xc + La / 2 + Lt / 2
-    h_xc = t_xc + Lt / 2 + Lh / 2
-
-    # Wing info
-    wing_info = []
-    for wname in wing_names:
-        lb0 = wing_lb0.get(wname, 0.75)
-        xoffset = fw_x0 if 'fore' in wname else hw_x0
-        yoffset = -0.02 if 'right' in wname else 0.02
-        wing_info.append((wname, xoffset, yoffset, lb0))
+    wing_info = get_wing_info(wing_vectors[0], wing_lb0)
 
     # Pre-create templates
-    body_template = _make_body_template(h_xc, t_xc, a_xc, Lh, Lt, La, Rh, Rt, Ra)
+    body_template = _make_body_template(H_XC, T_XC, A_XC, Lh, Lt, La, Rh, Rt, Ra)
     wing_templates = _load_wing_meshes()
 
     # Extract trajectory data
@@ -166,13 +156,13 @@ def plot_tracking_pyvista(states, wing_vectors, params, controller, outfile,
                 all_wings = all_wings + wing_mesh
 
             # Force vectors
-            cp = origin + 0.67 * lb0 * v[wname]['e_r']
+            cp = origin + FORCE_CENTER_FRACTION * lb0 * v[wname]['e_r']
             lift_mag = np.linalg.norm(v[wname]['lift'])
             drag_mag = np.linalg.norm(v[wname]['drag'])
-            if lift_mag > 1e-10:
-                lift_lines.append((cp, cp + 0.05 * v[wname]['lift']))
-            if drag_mag > 1e-10:
-                drag_lines.append((cp, cp + 0.05 * v[wname]['drag']))
+            if lift_mag > FORCE_THRESHOLD:
+                lift_lines.append((cp, cp + FORCE_SCALE * v[wname]['lift']))
+            if drag_mag > FORCE_THRESHOLD:
+                drag_lines.append((cp, cp + FORCE_SCALE * v[wname]['drag']))
 
         plotter.add_mesh(all_wings, color='lightgray', opacity=0.8,
                          smooth_shading=True, show_edges=True, edge_color='k')

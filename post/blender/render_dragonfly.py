@@ -34,6 +34,12 @@ import numpy as np
 script_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(script_dir))
 
+from post.constants import (
+    Lh, Lt, La, Rh, Rt, Ra, DW, FW_X0, HW_X0,
+    A_XC, T_XC, H_XC,
+    RIGHT_WING_Y_OFFSET, LEFT_WING_Y_OFFSET,
+)
+
 
 def setup_scene(width, height):
     """
@@ -256,33 +262,13 @@ def create_body_mesh():
     Returns:
         bpy.types.Object: The body mesh
     """
-    # Body segment lengths
-    Lh = 0.1
-    Lt = 0.25
-    La = 1 - Lh - Lt  # 0.65
-
-    # Body segment radii
-    Rh = 0.07
-    Rt = 0.05
-    Ra = 0.03
-
-    # Wing attachment positions
-    dw = 0.06
-    fw_x0 = dw / 2
-    hw_x0 = -dw / 2
-
-    # Body segment centers
-    a_xc = hw_x0 - La / 2
-    t_xc = a_xc + La / 2 + Lt / 2
-    h_xc = t_xc + Lt / 2 + Lh / 2
-
     # Create body parts
-    head = create_ellipsoid("Head", (Lh / 2, Rh, Lh / 2), (h_xc, 0, 0))
-    thorax = create_ellipsoid("Thorax", (Lt / 2, Rt, Rt * 1.5), (t_xc, 0, 0))
-    abdomen = create_ellipsoid("Abdomen", (La / 2, Ra, Ra), (a_xc, 0, 0))
+    head = create_ellipsoid("Head", (Lh / 2, Rh, Lh / 2), (H_XC, 0, 0))
+    thorax = create_ellipsoid("Thorax", (Lt / 2, Rt, Rt * 1.5), (T_XC, 0, 0))
+    abdomen = create_ellipsoid("Abdomen", (La / 2, Ra, Ra), (A_XC, 0, 0))
     connector = create_cylinder(
-        "Connector", Ra, t_xc - a_xc,
-        ((t_xc + a_xc) / 2, 0, 0)
+        "Connector", Ra, T_XC - A_XC,
+        ((T_XC + A_XC) / 2, 0, 0)
     )
 
     # Join all parts into single mesh
@@ -493,15 +479,11 @@ def main():
             print(f"Warning: Wing mesh not found: {filepath}")
 
     # Wing configuration
-    dw = 0.06
-    fw_x0 = dw / 2
-    hw_x0 = -dw / 2
-
     wing_info = {}
     for wname in wing_names:
         base = 'fore' if 'fore' in wname else 'hind'
-        xoffset = fw_x0 if 'fore' in wname else hw_x0
-        yoffset = -0.02 if 'right' in wname else 0.02
+        xoffset = FW_X0 if 'fore' in wname else HW_X0
+        yoffset = RIGHT_WING_Y_OFFSET if 'right' in wname else LEFT_WING_Y_OFFSET
         wing_info[wname] = {
             'base': base,
             'offset': np.array([xoffset, yoffset, 0]),

@@ -30,6 +30,7 @@ struct KinematicParams {
     // Get list of variable parameter names
     std::vector<std::string> variableNames() const;
 
+
     // Get list of all parameter names (for output header)
     std::vector<std::string> allNames() const;
 
@@ -50,6 +51,22 @@ struct KinematicParams {
 
     // Load from config file
     static KinematicParams fromConfig(const Config& cfg);
+
+private:
+    template<typename Func>
+    void forEachParam(Func&& f) {
+        f("omega", omega); f("gamma_mean", gamma_mean);
+        f("gamma_amp", gamma_amp); f("gamma_phase", gamma_phase);
+        f("phi_amp", phi_amp); f("psi_mean", psi_mean);
+        f("psi_amp", psi_amp); f("psi_phase", psi_phase);
+    }
+    template<typename Func>
+    void forEachParam(Func&& f) const {
+        f("omega", omega); f("gamma_mean", gamma_mean);
+        f("gamma_amp", gamma_amp); f("gamma_phase", gamma_phase);
+        f("phi_amp", phi_amp); f("psi_mean", psi_mean);
+        f("psi_amp", psi_amp); f("psi_phase", psi_phase);
+    }
 };
 
 // Fixed physical parameters (not optimized)

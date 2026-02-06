@@ -28,6 +28,11 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.proj3d import proj_transform
 import numpy as np
 
+from .constants import (
+    DW, FW_X0, HW_X0, DEFAULT_LB0,
+    FORCE_CENTER_FRACTION, FORCE_THRESHOLD,
+    RIGHT_WING_Y_OFFSET, LEFT_WING_Y_OFFSET,
+)
 from .hybrid_config import CameraConfig, StyleConfig, ViewportConfig, HybridConfig
 
 
@@ -211,28 +216,25 @@ def render_simulation_frame(
     # Draw force vectors
     if config.show_forces:
         wing_names = list(v.keys())
-        dw = 0.06
-        fw_x0 = dw / 2
-        hw_x0 = -dw / 2
 
         for wname in wing_names:
-            lb0 = wing_lb0.get(wname, 0.75)
-            xoffset = fw_x0 if 'fore' in wname else hw_x0
-            yoffset = -0.02 if 'right' in wname else 0.02
+            lb0 = wing_lb0.get(wname, DEFAULT_LB0)
+            xoffset = FW_X0 if 'fore' in wname else HW_X0
+            yoffset = RIGHT_WING_Y_OFFSET if 'right' in wname else LEFT_WING_Y_OFFSET
 
             origin = xb + np.array([xoffset, yoffset, 0])
-            cp = origin + 0.67 * lb0 * v[wname]['e_r']
+            cp = origin + FORCE_CENTER_FRACTION * lb0 * v[wname]['e_r']
 
             # Lift vector
             lift = v[wname]['lift']
-            if np.linalg.norm(lift) > 1e-10:
+            if np.linalg.norm(lift) > FORCE_THRESHOLD:
                 end = cp + config.force_scale * lift
                 ax.plot([cp[0], end[0]], [cp[1], end[1]], [cp[2], end[2]],
                         color=style.lift_color, linewidth=style.force_linewidth)
 
             # Drag vector
             drag = v[wname]['drag']
-            if np.linalg.norm(drag) > 1e-10:
+            if np.linalg.norm(drag) > FORCE_THRESHOLD:
                 end = cp + config.force_scale * drag
                 ax.plot([cp[0], end[0]], [cp[1], end[1]], [cp[2], end[2]],
                         color=style.drag_color, linewidth=style.force_linewidth)
@@ -315,28 +317,25 @@ def render_tracking_frame(
     # Draw force vectors
     if config.show_forces:
         wing_names = list(v.keys())
-        dw = 0.06
-        fw_x0 = dw / 2
-        hw_x0 = -dw / 2
 
         for wname in wing_names:
-            lb0 = wing_lb0.get(wname, 0.75)
-            xoffset = fw_x0 if 'fore' in wname else hw_x0
-            yoffset = -0.02 if 'right' in wname else 0.02
+            lb0 = wing_lb0.get(wname, DEFAULT_LB0)
+            xoffset = FW_X0 if 'fore' in wname else HW_X0
+            yoffset = RIGHT_WING_Y_OFFSET if 'right' in wname else LEFT_WING_Y_OFFSET
 
             origin = xb + np.array([xoffset, yoffset, 0])
-            cp = origin + 0.67 * lb0 * v[wname]['e_r']
+            cp = origin + FORCE_CENTER_FRACTION * lb0 * v[wname]['e_r']
 
             # Lift vector
             lift = v[wname]['lift']
-            if np.linalg.norm(lift) > 1e-10:
+            if np.linalg.norm(lift) > FORCE_THRESHOLD:
                 end = cp + config.force_scale * lift
                 ax.plot([cp[0], end[0]], [cp[1], end[1]], [cp[2], end[2]],
                         color=style.lift_color, linewidth=style.force_linewidth)
 
             # Drag vector
             drag = v[wname]['drag']
-            if np.linalg.norm(drag) > 1e-10:
+            if np.linalg.norm(drag) > FORCE_THRESHOLD:
                 end = cp + config.force_scale * drag
                 ax.plot([cp[0], end[0]], [cp[1], end[1]], [cp[2], end[2]],
                         color=style.drag_color, linewidth=style.force_linewidth)
