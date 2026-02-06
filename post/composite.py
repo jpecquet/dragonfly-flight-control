@@ -6,18 +6,36 @@ then assembles into final video.
 """
 
 import json
+import math
+import os
 import platform
 import shutil
 import subprocess
 import tempfile
+import time
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+
+# Optional tqdm support for progress bars
+try:
+    from tqdm import tqdm
+    from tqdm.contrib.concurrent import thread_map
+    TQDM_AVAILABLE = True
+except ImportError:
+    TQDM_AVAILABLE = False
 
 import numpy as np
 from PIL import Image
 
-from .hybrid_config import HybridConfig, compute_viewport
-from .mpl_overlay import render_all_simulation_frames, render_all_tracking_frames
+from .hybrid_config import HybridConfig, BlenderRenderConfig, compute_viewport
+from .mpl_overlay import (
+    compute_blender_ortho_scale,
+    render_all_simulation_frames,
+    render_all_tracking_frames,
+    render_all_simulation_frames_parallel,
+    render_all_tracking_frames_parallel,
+)
 
 # Common Blender installation paths by platform
 BLENDER_PATHS = {
@@ -121,6 +139,85 @@ def composite_frames(
             print(f"  Compositing: frame {i}/{n_frames}")
 
     return output_files
+
+
+def _composite_single_frame(args):
+    """
+    Worker for single frame compositing.
+
+    Args:
+        args: Tuple of (frame_idx, blender_dir, mpl_dir, output_dir)
+
+    Returns:
+        Path to composited PNG file
+    """
+    i, blender_dir, mpl_dir, output_dir = args
+    blender_path = Path(blender_dir) / f"frame_{i:06d}.png"
+    mpl_path = Path(mpl_dir) / f"mpl_{i:06d}.png"
+    output_path = Path(output_dir) / f"composite_{i:06d}.png"
+
+    if not blender_path.exists():
+        raise FileNotFoundError(f"Blender frame not found: {blender_path}")
+    if not mpl_path.exists():
+        raise FileNotFoundError(f"Matplotlib frame not found: {mpl_path}")
+
+    mpl_img = Image.open(mpl_path).convert('RGBA')
+    blender_img = Image.open(blender_path).convert('RGBA')
+
+    if mpl_img.size != blender_img.size:
+        blender_img = blender_img.resize(mpl_img.size, Image.Resampling.LANCZOS)
+
+    composite = Image.alpha_composite(mpl_img, blender_img)
+    composite.save(output_path)
+    return str(output_path)
+
+
+def composite_frames_parallel(
+    blender_dir: Path,
+    mpl_dir: Path,
+    output_dir: Path,
+    n_frames: int,
+    n_workers: Optional[int] = None
+) -> List[str]:
+    """
+    Composite Blender and matplotlib frames in parallel.
+
+    Uses ThreadPoolExecutor since this is I/O-bound work.
+
+    Args:
+        blender_dir: Directory containing Blender frames (frame_NNNNNN.png)
+        mpl_dir: Directory containing matplotlib frames (mpl_NNNNNN.png)
+        output_dir: Output directory for composited frames
+        n_frames: Number of frames to composite
+        n_workers: Number of parallel workers (None = auto, capped at 8)
+
+    Returns:
+        List of paths to composited PNG files
+    """
+    if n_workers is None or n_workers <= 0:
+        n_workers = min(os.cpu_count() or 4, 8)  # Cap at 8 for I/O
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    work = [
+        (i, str(blender_dir), str(mpl_dir), str(output_dir))
+        for i in range(n_frames)
+    ]
+
+    if TQDM_AVAILABLE:
+        results = thread_map(
+            _composite_single_frame, work,
+            max_workers=n_workers,
+            desc="Compositing  ", ncols=60
+        )
+    else:
+        print(f"  Compositing: {n_frames} frames with {n_workers} workers...")
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            results = list(executor.map(_composite_single_frame, work))
+        print(f"  Compositing: done ({n_frames} frames)")
+
+    return results
 
 
 def assemble_video(
@@ -246,6 +343,124 @@ def run_blender_render(
         raise RuntimeError(f"Blender rendering failed with code {result.returncode}")
 
 
+def _blender_worker(args):
+    """
+    Worker function for parallel Blender rendering.
+
+    Each worker renders a chunk of frames.
+
+    Args:
+        args: Tuple of (blender_path, script_path, data_file, output_dir, config_file, start_frame, end_frame)
+
+    Returns:
+        Tuple of (start_frame, end_frame) on success
+    """
+    blender_path, script_path, data_file, output_dir, config_file, start_frame, end_frame = args
+
+    cmd = [
+        blender_path, '--background',
+        '--python', str(script_path),
+        '--',
+        '--data', data_file,
+        '--output-dir', str(output_dir),
+        '--config', config_file,
+        '--start', str(start_frame),
+        '--end', str(end_frame),
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Blender worker failed (frames {start_frame}-{end_frame}): {result.stderr}"
+        )
+
+    return (start_frame, end_frame)
+
+
+def run_blender_render_parallel(
+    states: List,
+    wing_vectors: List,
+    output_dir: Path,
+    config_file: str,
+    data_file: str,
+    n_frames: int,
+    n_workers: Optional[int] = None
+):
+    """
+    Run Blender to render dragonfly frames in parallel.
+
+    Spawns multiple Blender processes, each rendering a chunk of frames.
+
+    Args:
+        states: List of state arrays
+        wing_vectors: List of wing vector dicts
+        output_dir: Output directory for frames
+        config_file: Configuration JSON file
+        data_file: Path to write frame data JSON
+        n_frames: Total number of frames
+        n_workers: Number of parallel workers (None = auto)
+    """
+    blender_path = find_blender()
+    if blender_path is None:
+        raise RuntimeError("Blender not found")
+
+    if n_workers is None or n_workers <= 0:
+        n_workers = os.cpu_count() or 4
+
+    # Extract and save frame data (shared by all workers)
+    frame_data = extract_frame_data(states, wing_vectors)
+    with open(data_file, 'w') as f:
+        json.dump(frame_data, f)
+
+    script_path = Path(__file__).parent / "blender" / "render_dragonfly.py"
+
+    # Split frame range into chunks
+    chunk_size = math.ceil(n_frames / n_workers)
+    ranges = [
+        (i * chunk_size, min((i + 1) * chunk_size, n_frames))
+        for i in range(n_workers)
+    ]
+    # Filter empty ranges
+    ranges = [(s, e) for s, e in ranges if s < e]
+
+    # Prepare work items
+    work = [
+        (blender_path, str(script_path), data_file, str(output_dir), config_file, start, end)
+        for start, end in ranges
+    ]
+
+    output_dir = Path(output_dir)
+
+    with ProcessPoolExecutor(max_workers=len(ranges)) as executor:
+        futures = [executor.submit(_blender_worker, w) for w in work]
+
+        # Poll output directory for rendered frames instead of waiting per-batch
+        if TQDM_AVAILABLE:
+            pbar = tqdm(total=n_frames, desc="Blender      ", ncols=60)
+            while not all(f.done() for f in futures):
+                rendered = len(list(output_dir.glob("frame_*.png")))
+                pbar.n = rendered
+                pbar.refresh()
+                time.sleep(0.5)
+            pbar.n = n_frames
+            pbar.refresh()
+            pbar.close()
+        else:
+            last_printed = 0
+            while not all(f.done() for f in futures):
+                rendered = len(list(output_dir.glob("frame_*.png")))
+                if rendered >= last_printed + 50:
+                    print(f"  Blender: {rendered}/{n_frames} frames")
+                    last_printed = rendered
+                time.sleep(0.5)
+            print(f"  Blender: done ({n_frames} frames)")
+
+        # Raise any worker exceptions
+        for future in futures:
+            future.result()
+
+
 def check_blender_available() -> bool:
     """Check if Blender is available on the system."""
     return find_blender() is not None
@@ -261,6 +476,10 @@ def render_hybrid_simulation(
 ):
     """
     Render simulation using hybrid Blender + matplotlib pipeline.
+
+    Blender renders the 3D dragonfly mesh at full resolution with camera
+    following the body position. Matplotlib renders axes, trails, and forces.
+    Simple alpha compositing combines them.
 
     Args:
         states: List of state arrays
@@ -283,7 +502,16 @@ def render_hybrid_simulation(
     if config.viewport is None:
         config.viewport = compute_viewport(states)
 
+    # Compute exact ortho_scale and center offset from matplotlib projection
+    ortho_scale, (offset_x, offset_y) = compute_blender_ortho_scale(
+        config.camera, config.viewport
+    )
+    config.blender.computed_ortho_scale = ortho_scale
+    config.blender.center_offset_x = offset_x
+    config.blender.center_offset_y = offset_y
+
     n_frames = len(states)
+    n_workers = config.n_workers if config.n_workers > 0 else (os.cpu_count() or 4)
 
     # Create temp directory for all intermediate files
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -294,25 +522,33 @@ def render_hybrid_simulation(
         config_file = tmpdir / "config.json"
         data_file = tmpdir / "frame_data.json"
 
+        # Create output directories upfront
+        blender_dir.mkdir(parents=True, exist_ok=True)
+        mpl_dir.mkdir(parents=True, exist_ok=True)
+
         # Save config for Blender
         config.save(str(config_file))
 
-        # Render Blender frames
-        print("Rendering Blender frames...")
-        run_blender_render(states, wing_vectors, blender_dir, str(config_file),
-                          str(data_file), 0, n_frames)
-
-        # Render matplotlib overlays
-        print("Rendering matplotlib overlays...")
-        render_all_simulation_frames(
-            states, wing_vectors, params, config, mpl_dir
+        # Stage 1: Matplotlib overlays
+        print(f"Rendering matplotlib frames ({n_workers} workers)...")
+        render_all_simulation_frames_parallel(
+            states, wing_vectors, params, config, mpl_dir, n_workers
         )
 
-        # Composite frames
-        print("Compositing frames...")
-        composite_frames(blender_dir, mpl_dir, composite_dir, n_frames)
+        # Stage 2: Blender mesh renders
+        print(f"Rendering Blender frames ({n_workers} workers)...")
+        run_blender_render_parallel(
+            states, wing_vectors, blender_dir, str(config_file),
+            str(data_file), n_frames, n_workers
+        )
 
-        # Assemble video
+        # Stage 3: Composite frames
+        print("Compositing frames...")
+        composite_frames_parallel(
+            blender_dir, mpl_dir, composite_dir, n_frames, n_workers
+        )
+
+        # Stage 4: Assemble video
         print("Assembling video...")
         assemble_video(composite_dir, output_file, config.framerate)
 
@@ -330,6 +566,10 @@ def render_hybrid_tracking(
 ):
     """
     Render tracking simulation using hybrid Blender + matplotlib pipeline.
+
+    Blender renders the 3D dragonfly mesh at full resolution with camera
+    following the body position. Matplotlib renders axes, trails, targets,
+    and forces. Simple alpha compositing combines them.
 
     Args:
         states: List of state arrays
@@ -356,7 +596,16 @@ def render_hybrid_tracking(
             targets=controller['target_position']
         )
 
+    # Compute exact ortho_scale and center offset from matplotlib projection
+    ortho_scale, (offset_x, offset_y) = compute_blender_ortho_scale(
+        config.camera, config.viewport
+    )
+    config.blender.computed_ortho_scale = ortho_scale
+    config.blender.center_offset_x = offset_x
+    config.blender.center_offset_y = offset_y
+
     n_frames = len(states)
+    n_workers = config.n_workers if config.n_workers > 0 else (os.cpu_count() or 4)
 
     # Create temp directory for all intermediate files
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -367,25 +616,33 @@ def render_hybrid_tracking(
         config_file = tmpdir / "config.json"
         data_file = tmpdir / "frame_data.json"
 
+        # Create output directories upfront
+        blender_dir.mkdir(parents=True, exist_ok=True)
+        mpl_dir.mkdir(parents=True, exist_ok=True)
+
         # Save config for Blender
         config.save(str(config_file))
 
-        # Render Blender frames
-        print("Rendering Blender frames...")
-        run_blender_render(states, wing_vectors, blender_dir, str(config_file),
-                          str(data_file), 0, n_frames)
-
-        # Render matplotlib overlays
-        print("Rendering matplotlib overlays...")
-        render_all_tracking_frames(
-            states, wing_vectors, params, controller, config, mpl_dir
+        # Stage 1: Matplotlib overlays
+        print(f"Rendering matplotlib frames ({n_workers} workers)...")
+        render_all_tracking_frames_parallel(
+            states, wing_vectors, params, controller, config, mpl_dir, n_workers
         )
 
-        # Composite frames
-        print("Compositing frames...")
-        composite_frames(blender_dir, mpl_dir, composite_dir, n_frames)
+        # Stage 2: Blender mesh renders
+        print(f"Rendering Blender frames ({n_workers} workers)...")
+        run_blender_render_parallel(
+            states, wing_vectors, blender_dir, str(config_file),
+            str(data_file), n_frames, n_workers
+        )
 
-        # Assemble video
+        # Stage 3: Composite frames
+        print("Compositing frames...")
+        composite_frames_parallel(
+            blender_dir, mpl_dir, composite_dir, n_frames, n_workers
+        )
+
+        # Stage 4: Assemble video
         print("Assembling video...")
         assemble_video(composite_dir, output_file, config.framerate)
 

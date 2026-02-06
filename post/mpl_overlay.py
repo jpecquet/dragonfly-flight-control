@@ -9,16 +9,89 @@ Renders transparent PNG overlays with:
 - Force vectors (lift/drag)
 """
 
+import os
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+# Optional tqdm support for progress bars
+try:
+    from tqdm.contrib.concurrent import process_map
+    TQDM_AVAILABLE = True
+except ImportError:
+    TQDM_AVAILABLE = False
 
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.proj3d import proj_transform
 import numpy as np
 
 from .hybrid_config import CameraConfig, StyleConfig, ViewportConfig, HybridConfig
+
+
+def compute_blender_ortho_scale(
+    camera: CameraConfig,
+    viewport: ViewportConfig
+) -> Tuple[float, Tuple[float, float]]:
+    """
+    Compute the exact ortho_scale for Blender to match matplotlib projection.
+
+    Creates a reference matplotlib figure and measures the projection
+    to determine the effective ortho_scale and center offset.
+
+    Args:
+        camera: Camera configuration
+        viewport: Viewport configuration
+
+    Returns:
+        Tuple of (ortho_scale, (center_offset_x, center_offset_y)):
+        - ortho_scale: World units visible in Blender's horizontal direction
+        - center_offset: Pixel offset from render center to where viewport center
+          appears in matplotlib (used to adjust Blender camera position)
+    """
+    import math
+
+    fig, ax = create_overlay_figure(camera)
+    setup_axes(ax, viewport, camera)
+    fig.canvas.draw()  # Force projection matrix update
+
+    proj = ax.get_proj()
+    render_width, render_height = camera.resolution
+
+    # Compute camera's horizontal direction in world space
+    # The camera right vector lies in the XY plane, perpendicular to view direction
+    azim_rad = math.radians(camera.azimuth)
+    cam_right = np.array([
+        math.sin(azim_rad),
+        -math.cos(azim_rad),
+        0.0
+    ])
+
+    # Project viewport center to display coordinates
+    c = viewport.center
+    cx, cy, _ = proj_transform(c[0], c[1], c[2], proj)
+    center_disp = ax.transData.transform([(cx, cy)])[0]
+
+    # Project a point 1 unit in camera-right direction
+    p1 = c + cam_right
+    px, py, _ = proj_transform(p1[0], p1[1], p1[2], proj)
+    p1_disp = ax.transData.transform([(px, py)])[0]
+
+    # Pixels per world unit in camera horizontal direction
+    pixels_per_world = np.linalg.norm(p1_disp - center_disp)
+
+    # Blender ortho_scale = render_width / pixels_per_world_unit
+    ortho_scale = render_width / pixels_per_world
+
+    # Compute center offset: where viewport center appears vs render center
+    # Positive offset means matplotlib renders it to the right/up of center
+    center_offset_x = center_disp[0] - render_width / 2
+    center_offset_y = center_disp[1] - render_height / 2
+
+    plt.close(fig)
+    return ortho_scale, (center_offset_x, center_offset_y)
 
 
 def apply_style(style: StyleConfig):
@@ -129,13 +202,11 @@ def render_simulation_frame(
     xb = states[frame_idx][0:3]
     v = wing_vectors[frame_idx]
 
-    # Draw trajectory trail
-    trail_start = max(0, frame_idx - config.trail_length)
-    if frame_idx > trail_start:
-        trail_points = np.array([s[0:3] for s in states[trail_start:frame_idx + 1]])
+    # Draw trajectory trail (full history)
+    if frame_idx > 0:
+        trail_points = np.array([s[0:3] for s in states[0:frame_idx + 1]])
         ax.plot(trail_points[:, 0], trail_points[:, 1], trail_points[:, 2],
-                color=style.trajectory_color, linewidth=style.trajectory_linewidth,
-                alpha=0.7)
+                color='black', linewidth=0.5, alpha=0.7)
 
     # Draw force vectors
     if config.show_forces:
@@ -226,13 +297,11 @@ def render_tracking_frame(
         ax.plot(target_positions[:, 0], target_positions[:, 1], target_positions[:, 2],
                 color=style.target_color, linewidth=1.0, alpha=0.3, linestyle='--')
 
-    # Draw actual trajectory trail
-    trail_start = max(0, frame_idx - config.trail_length)
-    if frame_idx > trail_start:
-        trail_points = np.array([s[0:3] for s in states[trail_start:frame_idx + 1]])
+    # Draw actual trajectory trail (full history)
+    if frame_idx > 0:
+        trail_points = np.array([s[0:3] for s in states[0:frame_idx + 1]])
         ax.plot(trail_points[:, 0], trail_points[:, 1], trail_points[:, 2],
-                color=style.trajectory_color, linewidth=style.trajectory_linewidth,
-                alpha=0.7)
+                color='black', linewidth=0.5, alpha=0.7)
 
     # Draw current target marker
     ax.scatter([target[0]], [target[1]], [target[2]],
@@ -387,3 +456,143 @@ def render_all_tracking_frames(
             print(f"  Matplotlib: frame {i}/{n_frames}")
 
     return output_files
+
+
+def _simulation_frame_worker(args):
+    """
+    Worker function for parallel simulation frame rendering.
+
+    Args:
+        args: Tuple of (frame_idx, states, wing_vectors, params, config_dict, output_path_str)
+
+    Returns:
+        Path to rendered PNG file
+    """
+    frame_idx, states, wing_vectors, params, config_dict, output_path_str = args
+    config = HybridConfig.from_dict(config_dict)
+    output_path = Path(output_path_str)
+    return render_simulation_frame(frame_idx, states, wing_vectors, params, config, output_path)
+
+
+def _tracking_frame_worker(args):
+    """
+    Worker function for parallel tracking frame rendering.
+
+    Args:
+        args: Tuple of (frame_idx, states, wing_vectors, params, controller, config_dict, output_path_str)
+
+    Returns:
+        Path to rendered PNG file
+    """
+    frame_idx, states, wing_vectors, params, controller, config_dict, output_path_str = args
+    config = HybridConfig.from_dict(config_dict)
+    output_path = Path(output_path_str)
+    return render_tracking_frame(frame_idx, states, wing_vectors, params, controller, config, output_path)
+
+
+def render_all_simulation_frames_parallel(
+    states: List[np.ndarray],
+    wing_vectors: List[Dict],
+    params: Dict,
+    config: HybridConfig,
+    output_path: Path,
+    n_workers: Optional[int] = None
+) -> List[str]:
+    """
+    Render all matplotlib overlay frames for simulation in parallel.
+
+    Args:
+        states: List of state arrays
+        wing_vectors: List of wing vector dicts
+        params: Simulation parameters
+        config: Hybrid configuration
+        output_path: Output directory
+        n_workers: Number of parallel workers (None = auto)
+
+    Returns:
+        List of paths to rendered PNG files
+    """
+    if n_workers is None or n_workers <= 0:
+        n_workers = os.cpu_count() or 4
+
+    output_path = Path(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    n_frames = len(states)
+    config_dict = config.to_dict()
+    output_path_str = str(output_path)
+
+    # Prepare work items
+    work = [
+        (i, states, wing_vectors, params, config_dict, output_path_str)
+        for i in range(n_frames)
+    ]
+
+    if TQDM_AVAILABLE:
+        results = process_map(
+            _simulation_frame_worker, work,
+            max_workers=n_workers, chunksize=10,
+            desc="Matplotlib   ", ncols=60
+        )
+    else:
+        print(f"  Matplotlib: rendering {n_frames} frames with {n_workers} workers...")
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            results = list(executor.map(_simulation_frame_worker, work, chunksize=10))
+        print(f"  Matplotlib: done ({n_frames} frames)")
+
+    return results
+
+
+def render_all_tracking_frames_parallel(
+    states: List[np.ndarray],
+    wing_vectors: List[Dict],
+    params: Dict,
+    controller: Dict,
+    config: HybridConfig,
+    output_path: Path,
+    n_workers: Optional[int] = None
+) -> List[str]:
+    """
+    Render all matplotlib overlay frames for tracking in parallel.
+
+    Args:
+        states: List of state arrays
+        wing_vectors: List of wing vector dicts
+        params: Simulation parameters
+        controller: Controller data dict
+        config: Hybrid configuration
+        output_path: Output directory
+        n_workers: Number of parallel workers (None = auto)
+
+    Returns:
+        List of paths to rendered PNG files
+    """
+    if n_workers is None or n_workers <= 0:
+        n_workers = os.cpu_count() or 4
+
+    output_path = Path(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    n_frames = len(states)
+    config_dict = config.to_dict()
+    output_path_str = str(output_path)
+
+    # Prepare work items
+    work = [
+        (i, states, wing_vectors, params, controller, config_dict, output_path_str)
+        for i in range(n_frames)
+    ]
+
+    if TQDM_AVAILABLE:
+        results = process_map(
+            _tracking_frame_worker, work,
+            max_workers=n_workers, chunksize=10,
+            desc="Matplotlib   ", ncols=60
+        )
+    else:
+        print(f"  Matplotlib: rendering {n_frames} frames with {n_workers} workers...")
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            results = list(executor.map(_tracking_frame_worker, work, chunksize=10))
+        print(f"  Matplotlib: done ({n_frames} frames)")
+
+    return results

@@ -15,6 +15,9 @@ pip install pyvista imageio imageio-ffmpeg
 
 # For animations:
 brew install ffmpeg  # macOS
+
+# Optional, for progress bars:
+pip install tqdm
 ```
 
 ## Rendering Backends

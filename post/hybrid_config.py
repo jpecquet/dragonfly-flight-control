@@ -95,6 +95,41 @@ class StyleConfig:
 
 
 @dataclass
+class BlenderRenderConfig:
+    """Configuration for Blender render.
+
+    The scale_factor adjusts the apparent size of the dragonfly relative to
+    the matplotlib axes. Increase to make dragonfly smaller, decrease to make larger.
+
+    If computed_ortho_scale is set (by compute_blender_ortho_scale()), it will be
+    used directly instead of computing ortho_scale = viewport_extent * scale_factor.
+
+    center_offset is the pixel offset from render center to where the viewport
+    center appears in matplotlib's projection. This is used to adjust the Blender
+    camera position so that the same 3D point appears at the same pixel location
+    in both renders.
+    """
+    scale_factor: float = 1.8    # Fallback multiplier if computed_ortho_scale not set
+    computed_ortho_scale: Optional[float] = None  # Exact value from matplotlib projection
+    center_offset_x: float = 0.0  # Pixel offset in X
+    center_offset_y: float = 0.0  # Pixel offset in Y
+
+    def to_dict(self) -> dict:
+        d = {
+            'scale_factor': self.scale_factor,
+            'center_offset_x': self.center_offset_x,
+            'center_offset_y': self.center_offset_y,
+        }
+        if self.computed_ortho_scale is not None:
+            d['computed_ortho_scale'] = self.computed_ortho_scale
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict) -> 'BlenderRenderConfig':
+        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+
+
+@dataclass
 class ViewportConfig:
     """Computed viewport bounds for consistent rendering."""
     center: np.ndarray = field(default_factory=lambda: np.zeros(3))
@@ -120,6 +155,7 @@ class HybridConfig:
     camera: CameraConfig = field(default_factory=CameraConfig)
     style: StyleConfig = field(default_factory=StyleConfig)
     viewport: Optional[ViewportConfig] = None
+    blender: BlenderRenderConfig = field(default_factory=BlenderRenderConfig)
 
     # Rendering options
     framerate: int = 30
@@ -127,15 +163,20 @@ class HybridConfig:
     show_forces: bool = True
     force_scale: float = 0.05
 
+    # Parallelization
+    n_workers: int = 0  # 0 = auto (cpu_count)
+
     def to_dict(self) -> dict:
         return {
             'camera': self.camera.to_dict(),
             'style': self.style.to_dict(),
             'viewport': self.viewport.to_dict() if self.viewport else None,
+            'blender': self.blender.to_dict(),
             'framerate': self.framerate,
             'trail_length': self.trail_length,
             'show_forces': self.show_forces,
             'force_scale': self.force_scale,
+            'n_workers': self.n_workers,
         }
 
     @classmethod
@@ -143,14 +184,17 @@ class HybridConfig:
         camera = CameraConfig.from_dict(d.get('camera', {}))
         style = StyleConfig.from_dict(d.get('style', {}))
         viewport = ViewportConfig.from_dict(d['viewport']) if d.get('viewport') else None
+        blender = BlenderRenderConfig.from_dict(d.get('blender', {}))
         return cls(
             camera=camera,
             style=style,
             viewport=viewport,
+            blender=blender,
             framerate=d.get('framerate', 30),
             trail_length=d.get('trail_length', 100),
             show_forces=d.get('show_forces', True),
             force_scale=d.get('force_scale', 0.05),
+            n_workers=d.get('n_workers', 0),
         )
 
     def save(self, path: str) -> None:
