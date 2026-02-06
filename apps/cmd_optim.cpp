@@ -52,7 +52,7 @@ double runOptimization(KinematicParams& kin, const PhysicalParams& phys,
     opt.set_ftol_rel(1e-10);
 
     std::vector<double> x = kin.variableValues();
-    double minf;
+    double minf = HUGE_VAL;
 
     try {
         opt.optimize(x, minf);
@@ -191,7 +191,7 @@ std::vector<KinematicParams> findBranchesGlobal(
     }
 
     std::vector<double> x = kin.variableValues();
-    double minf;
+    double minf = HUGE_VAL;
 
     try {
         opt.optimize(x, minf);

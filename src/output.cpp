@@ -111,6 +111,10 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
 
     // Write controller data if tracking was active
     if (output.controller_active) {
+        if (output.target_positions.size() != output.position_errors.size()) {
+            throw std::runtime_error("writeHDF5: target_positions and position_errors size mismatch");
+        }
+
         file.createGroup("/controller");
         H5Easy::dump(file, "/controller/active", 1);
 

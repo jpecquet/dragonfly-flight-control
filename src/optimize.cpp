@@ -42,6 +42,10 @@ std::vector<double> KinematicParams::variableValues() const {
 }
 
 void KinematicParams::setVariableValues(const std::vector<double>& x) {
+    if (x.size() != numVariable()) {
+        throw std::invalid_argument("setVariableValues: expected " +
+            std::to_string(numVariable()) + " values, got " + std::to_string(x.size()));
+    }
     size_t i = 0;
     forEachParam([&](const char*, KinematicParam& p) {
         if (p.is_variable) p.value = x[i++];

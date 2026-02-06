@@ -22,7 +22,7 @@ int main() {
     double Cl0 = 1.2;
 
     // Stationary wing: all angles constant, no angular velocities
-    auto stationaryAngles = [](double t) -> WingAngles {
+    auto stationaryAngles = [](double /*t*/) -> WingAngles {
         return {
             0.0,  // gam: stroke plane angle
             0.0,  // gam_dot: stroke plane angular velocity
@@ -203,7 +203,7 @@ int main() {
         double U = 2.0;
         Vec3 ub(U, 3.0, 0);  // X + Y components; Y should be projected out
         SingleWingVectors vecs;
-        Vec3 force = wing.computeForce(0.0, ub, vecs);
+        wing.computeForce(0.0, ub, vecs);
 
         // After projection: u = (U, 0, 0) (Y removed)
         // Same as Test 2

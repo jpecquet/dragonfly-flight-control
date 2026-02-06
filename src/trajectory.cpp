@@ -43,6 +43,11 @@ TrajectoryFunc waypoints(const std::vector<Vec3>& pts, const std::vector<double>
     if (pts.size() != times.size()) {
         throw std::invalid_argument("waypoints: pts and times must have same length");
     }
+    for (size_t i = 0; i + 1 < times.size(); ++i) {
+        if (times[i + 1] <= times[i]) {
+            throw std::invalid_argument("waypoints: times must be strictly increasing");
+        }
+    }
 
     // Capture by value for lambda
     return [pts, times](double t) -> TrajectoryPoint {

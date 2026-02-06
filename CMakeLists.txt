@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+add_compile_options(-Wall -Wextra -Wpedantic)
+
 # Find dependencies
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(HDF5 REQUIRED COMPONENTS C CXX)
