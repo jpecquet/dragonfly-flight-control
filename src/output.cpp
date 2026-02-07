@@ -5,8 +5,16 @@
 
 namespace {
 
-// Helper to extract Vec3 data into a pre-allocated contiguous Eigen matrix
-// Returns Nx3 matrix for efficient HDF5 writing
+// Convert a vector of Vec3 to an Nx3 Eigen matrix for HDF5 writing
+Eigen::MatrixXd vec3sToMatrix(const std::vector<Vec3>& vecs) {
+    Eigen::MatrixXd mat(vecs.size(), 3);
+    for (size_t i = 0; i < vecs.size(); ++i) {
+        mat.row(i) = vecs[i].transpose();
+    }
+    return mat;
+}
+
+// Extract a specific Vec3 member from per-timestep wing data into an Nx3 matrix
 Eigen::MatrixXd toMatrix(
     const std::vector<std::vector<SingleWingVectors>>& wing_data,
     size_t wing_index,
@@ -17,10 +25,7 @@ Eigen::MatrixXd toMatrix(
 
     for (size_t i = 0; i < n; ++i) {
         if (wing_index < wing_data[i].size()) {
-            const Vec3& v = wing_data[i][wing_index].*vec_member;
-            result(i, 0) = v.x();
-            result(i, 1) = v.y();
-            result(i, 2) = v.z();
+            result.row(i) = (wing_data[i][wing_index].*vec_member).transpose();
         }
     }
     return result;
@@ -39,14 +44,15 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
 
     // Write kinematic parameters
     file.createGroup("/parameters");
-    H5Easy::dump(file, "/parameters/omega", output.omega);
-    H5Easy::dump(file, "/parameters/gamma_mean", output.gamma_mean);
-    H5Easy::dump(file, "/parameters/gamma_amp", output.gamma_amp);
-    H5Easy::dump(file, "/parameters/gamma_phase", output.gamma_phase);
-    H5Easy::dump(file, "/parameters/phi_amp", output.phi_amp);
-    H5Easy::dump(file, "/parameters/psi_mean", output.psi_mean);
-    H5Easy::dump(file, "/parameters/psi_amp", output.psi_amp);
-    H5Easy::dump(file, "/parameters/psi_phase", output.psi_phase);
+    const std::pair<const char*, double> kin_params[] = {
+        {"omega", output.omega}, {"gamma_mean", output.gamma_mean},
+        {"gamma_amp", output.gamma_amp}, {"gamma_phase", output.gamma_phase},
+        {"phi_amp", output.phi_amp}, {"psi_mean", output.psi_mean},
+        {"psi_amp", output.psi_amp}, {"psi_phase", output.psi_phase},
+    };
+    for (auto& [name, val] : kin_params) {
+        H5Easy::dump(file, std::string("/parameters/") + name, val);
+    }
 
     // Write wing configurations
     size_t num_configs = output.wingConfigs.size();
@@ -79,17 +85,12 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     // Write time
     file.createDataSet("/time", output.time);
 
-    // Write states as contiguous Nx6 matrix
+    // Write states as contiguous Nx6 matrix [pos, vel]
     size_t n_states = output.states.size();
     Eigen::MatrixXd states_matrix(n_states, 6);
     for (size_t i = 0; i < n_states; ++i) {
-        const State& s = output.states[i];
-        states_matrix(i, 0) = s.pos.x();
-        states_matrix(i, 1) = s.pos.y();
-        states_matrix(i, 2) = s.pos.z();
-        states_matrix(i, 3) = s.vel.x();
-        states_matrix(i, 4) = s.vel.y();
-        states_matrix(i, 5) = s.vel.z();
+        states_matrix.row(i) << output.states[i].pos.transpose(),
+                                output.states[i].vel.transpose();
     }
     file.createDataSet("/state", states_matrix);
 
@@ -118,20 +119,9 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
         file.createGroup("/controller");
         H5Easy::dump(file, "/controller/active", 1);
 
-        // Target positions (Nx3 matrix)
-        size_t n_ctrl = output.target_positions.size();
-        Eigen::MatrixXd targets(n_ctrl, 3);
-        Eigen::MatrixXd errors(n_ctrl, 3);
-        for (size_t i = 0; i < n_ctrl; ++i) {
-            targets(i, 0) = output.target_positions[i].x();
-            targets(i, 1) = output.target_positions[i].y();
-            targets(i, 2) = output.target_positions[i].z();
-            errors(i, 0) = output.position_errors[i].x();
-            errors(i, 1) = output.position_errors[i].y();
-            errors(i, 2) = output.position_errors[i].z();
-        }
-        file.createDataSet("/controller/target_position", targets);
-        file.createDataSet("/controller/position_error", errors);
+        // Target positions and tracking errors (Nx3 matrices)
+        file.createDataSet("/controller/target_position", vec3sToMatrix(output.target_positions));
+        file.createDataSet("/controller/position_error", vec3sToMatrix(output.position_errors));
 
         // Parameter time histories
         file.createDataSet("/controller/gamma_mean", output.param_gamma_mean);

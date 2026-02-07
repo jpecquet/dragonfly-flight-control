@@ -10,6 +10,11 @@ import h5py
 import numpy as np
 
 
+def decode_string_array(arr):
+    """Decode an array of bytes/strings from HDF5 to a list of Python strings."""
+    return [s.decode() if isinstance(s, bytes) else s for s in arr]
+
+
 def read_simulation(filename):
     """
     Read simulation output from HDF5 file.
@@ -30,7 +35,7 @@ def read_simulation(filename):
 
         # Extract per-wing parameters for visualization
         wing_names_raw = f["/parameters/wings/names"][:]
-        wing_names_param = [n.decode() if isinstance(n, bytes) else n for n in wing_names_raw]
+        wing_names_param = decode_string_array(wing_names_raw)
         wing_lb0 = f["/parameters/wings/lb0"][:]
         params['wing_lb0'] = dict(zip(wing_names_param, wing_lb0))
 
@@ -122,7 +127,7 @@ def read_wing_rotation(filename):
         # Read sequence (with fallback for older files)
         if '/parameters/sequence' in f:
             seq_raw = f['/parameters/sequence'][:]
-            data['sequence'] = [s.decode() if isinstance(s, bytes) else s for s in seq_raw]
+            data['sequence'] = decode_string_array(seq_raw)
         else:
             data['sequence'] = ['gam', 'phi', 'psi']  # default for backward compat
     return data
@@ -139,8 +144,7 @@ def read_landscape(filename):
     with h5py.File(filename, 'r') as f:
         data = {
             'ux': f['ux'][()],
-            'param_names': [s.decode() if isinstance(s, bytes) else s
-                          for s in f['param_names'][:]],
+            'param_names': decode_string_array(f['param_names'][:]),
             'param1_values': f['param1_values'][:],
             'objective': f['objective'][:],
         }

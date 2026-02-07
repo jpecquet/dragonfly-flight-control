@@ -86,98 +86,48 @@ int main() {
     all_passed &= testDeterminant("rotY", rotY, angles, tol);
     all_passed &= testDeterminant("rotZ", rotZ, angles, tol);
 
-    // ========== 90° rotation tests ==========
-    std::cout << "\n90° rotation tests (exact known values):\n";
+    // ========== Known-value rotation tests ==========
 
     Vec3 ex(1, 0, 0);
     Vec3 ey(0, 1, 0);
     Vec3 ez(0, 0, 1);
-    double pi2 = M_PI / 2;
 
-    // rotX(90°): Y -> Z, Z -> -Y, X unchanged
-    std::cout << "  rotX(90°):\n";
-    {
-        Mat3 Rx = rotX(pi2);
+    struct VecTest {
+        const char* label;
+        Mat3 (*func)(double);
+        double angle;
+        Vec3 input, expected;
+    };
 
-        bool t1 = vecEqual(Rx * ex, ex, tol);
-        std::cout << "    X -> X:  " << (t1 ? "PASS" : "FAIL") << "\n";
-        all_passed &= t1;
+    VecTest vec_tests[] = {
+        // 90° rotations
+        {"rotX(90°): X->X ",  rotX, M_PI/2, ex,  ex},
+        {"rotX(90°): Y->Z ",  rotX, M_PI/2, ey,  ez},
+        {"rotX(90°): Z->-Y",  rotX, M_PI/2, ez, -ey},
+        {"rotY(90°): Y->Y ",  rotY, M_PI/2, ey,  ey},
+        {"rotY(90°): Z->X ",  rotY, M_PI/2, ez,  ex},
+        {"rotY(90°): X->-Z",  rotY, M_PI/2, ex, -ez},
+        {"rotZ(90°): Z->Z ",  rotZ, M_PI/2, ez,  ez},
+        {"rotZ(90°): X->Y ",  rotZ, M_PI/2, ex,  ey},
+        {"rotZ(90°): Y->-X",  rotZ, M_PI/2, ey, -ex},
+        // 180° rotations
+        {"rotX(180°): X->X ",  rotX, M_PI, ex,  ex},
+        {"rotX(180°): Y->-Y",  rotX, M_PI, ey, -ey},
+        {"rotX(180°): Z->-Z",  rotX, M_PI, ez, -ez},
+        {"rotY(180°): Y->Y ",  rotY, M_PI, ey,  ey},
+        {"rotY(180°): X->-X",  rotY, M_PI, ex, -ex},
+        {"rotY(180°): Z->-Z",  rotY, M_PI, ez, -ez},
+        {"rotZ(180°): Z->Z ",  rotZ, M_PI, ez,  ez},
+        {"rotZ(180°): X->-X",  rotZ, M_PI, ex, -ex},
+        {"rotZ(180°): Y->-Y",  rotZ, M_PI, ey, -ey},
+    };
 
-        bool t2 = vecEqual(Rx * ey, ez, tol);
-        std::cout << "    Y -> Z:  " << (t2 ? "PASS" : "FAIL") << "\n";
-        all_passed &= t2;
-
-        bool t3 = vecEqual(Rx * ez, -ey, tol);
-        std::cout << "    Z -> -Y: " << (t3 ? "PASS" : "FAIL") << "\n";
-        all_passed &= t3;
-    }
-
-    // rotY(90°): Z -> X, X -> -Z, Y unchanged
-    std::cout << "  rotY(90°):\n";
-    {
-        Mat3 Ry = rotY(pi2);
-
-        bool t1 = vecEqual(Ry * ey, ey, tol);
-        std::cout << "    Y -> Y:  " << (t1 ? "PASS" : "FAIL") << "\n";
-        all_passed &= t1;
-
-        bool t2 = vecEqual(Ry * ez, ex, tol);
-        std::cout << "    Z -> X:  " << (t2 ? "PASS" : "FAIL") << "\n";
-        all_passed &= t2;
-
-        bool t3 = vecEqual(Ry * ex, -ez, tol);
-        std::cout << "    X -> -Z: " << (t3 ? "PASS" : "FAIL") << "\n";
-        all_passed &= t3;
-    }
-
-    // rotZ(90°): X -> Y, Y -> -X, Z unchanged
-    std::cout << "  rotZ(90°):\n";
-    {
-        Mat3 Rz = rotZ(pi2);
-
-        bool t1 = vecEqual(Rz * ez, ez, tol);
-        std::cout << "    Z -> Z:  " << (t1 ? "PASS" : "FAIL") << "\n";
-        all_passed &= t1;
-
-        bool t2 = vecEqual(Rz * ex, ey, tol);
-        std::cout << "    X -> Y:  " << (t2 ? "PASS" : "FAIL") << "\n";
-        all_passed &= t2;
-
-        bool t3 = vecEqual(Rz * ey, -ex, tol);
-        std::cout << "    Y -> -X: " << (t3 ? "PASS" : "FAIL") << "\n";
-        all_passed &= t3;
-    }
-
-    // ========== 180° rotation tests ==========
-    std::cout << "\n180° rotation tests:\n";
-    double pi = M_PI;
-
-    {
-        Mat3 Rx = rotX(pi);
-        bool t1 = vecEqual(Rx * ex, ex, tol);
-        bool t2 = vecEqual(Rx * ey, -ey, tol);
-        bool t3 = vecEqual(Rx * ez, -ez, tol);
-        std::cout << "  rotX(180°): X->X, Y->-Y, Z->-Z: "
-                  << ((t1 && t2 && t3) ? "PASS" : "FAIL") << "\n";
-        all_passed &= t1 && t2 && t3;
-    }
-    {
-        Mat3 Ry = rotY(pi);
-        bool t1 = vecEqual(Ry * ey, ey, tol);
-        bool t2 = vecEqual(Ry * ex, -ex, tol);
-        bool t3 = vecEqual(Ry * ez, -ez, tol);
-        std::cout << "  rotY(180°): Y->Y, X->-X, Z->-Z: "
-                  << ((t1 && t2 && t3) ? "PASS" : "FAIL") << "\n";
-        all_passed &= t1 && t2 && t3;
-    }
-    {
-        Mat3 Rz = rotZ(pi);
-        bool t1 = vecEqual(Rz * ez, ez, tol);
-        bool t2 = vecEqual(Rz * ex, -ex, tol);
-        bool t3 = vecEqual(Rz * ey, -ey, tol);
-        std::cout << "  rotZ(180°): Z->Z, X->-X, Y->-Y: "
-                  << ((t1 && t2 && t3) ? "PASS" : "FAIL") << "\n";
-        all_passed &= t1 && t2 && t3;
+    std::cout << "\nKnown-value rotation tests (90° and 180°):\n";
+    for (const auto& t : vec_tests) {
+        Mat3 R = t.func(t.angle);
+        bool ok = vecEqual(R * t.input, t.expected, tol);
+        std::cout << "  " << t.label << ": " << (ok ? "PASS" : "FAIL") << "\n";
+        all_passed &= ok;
     }
 
     // ========== Summary ==========

@@ -22,14 +22,14 @@
 // We solve: tan(θ) = Cl(α) / Cd(α) for θ.
 
 struct TerminalVelocitySolution {
-    double theta;      // Glide angle from vertical (radians)
-    double alpha;      // Angle of attack (radians)
-    double speed;      // Total speed U
-    double ux;         // Horizontal velocity component
-    double uz;         // Vertical velocity component (negative = falling)
-    double Cd;         // Drag coefficient at equilibrium
-    double Cl;         // Lift coefficient at equilibrium
-    bool converged;    // Whether the solver converged
+    double theta = 0.0;      // Glide angle from vertical (radians)
+    double alpha = 0.0;      // Angle of attack (radians)
+    double speed = 0.0;      // Total speed U
+    double ux = 0.0;         // Horizontal velocity component
+    double uz = 0.0;         // Vertical velocity component (negative = falling)
+    double Cd = 0.0;         // Drag coefficient at equilibrium
+    double Cl = 0.0;         // Lift coefficient at equilibrium
+    bool converged = false;  // Whether the solver converged
 };
 
 // Compute Cd and Cl for given angle of attack

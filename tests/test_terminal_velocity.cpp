@@ -39,7 +39,7 @@ bool testTerminalVelocity(double psi, const std::string& case_name) {
     double t = 0.0;
 
     // Start from rest at origin
-    State state(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    State state;
 
     // Scratch buffer for integration
     std::vector<SingleWingVectors> scratch(1);

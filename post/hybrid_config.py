@@ -5,7 +5,7 @@ This module defines camera and style settings that are shared between
 the Blender renderer and the matplotlib overlay.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Optional, Tuple
 import json
 import numpy as np
@@ -37,14 +37,7 @@ class CameraConfig:
                 int(self.figsize_height * self.dpi))
 
     def to_dict(self) -> dict:
-        return {
-            'elevation': self.elevation,
-            'azimuth': self.azimuth,
-            'ortho_scale': self.ortho_scale,
-            'figsize_width': self.figsize_width,
-            'figsize_height': self.figsize_height,
-            'dpi': self.dpi,
-        }
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict) -> 'CameraConfig':
@@ -74,20 +67,7 @@ class StyleConfig:
     marker_size: float = 50
 
     def to_dict(self) -> dict:
-        return {
-            'font_family': self.font_family,
-            'font_serif': self.font_serif,
-            'mathtext_fontset': self.mathtext_fontset,
-            'font_size': self.font_size,
-            'trajectory_color': self.trajectory_color,
-            'target_color': self.target_color,
-            'error_color': self.error_color,
-            'lift_color': self.lift_color,
-            'drag_color': self.drag_color,
-            'trajectory_linewidth': self.trajectory_linewidth,
-            'force_linewidth': self.force_linewidth,
-            'marker_size': self.marker_size,
-        }
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict) -> 'StyleConfig':

@@ -40,7 +40,7 @@ def plot_1d_landscape(data, output_file=None):
     plt.tight_layout()
 
     if output_file:
-        plt.savefig(output_file, dpi=150)
+        plt.savefig(output_file, dpi=300)
         print(f'Saved to {output_file}')
     else:
         plt.show()
@@ -84,7 +84,7 @@ def plot_2d_landscape(data, output_file=None):
     plt.tight_layout()
 
     if output_file:
-        plt.savefig(output_file, dpi=150)
+        plt.savefig(output_file, dpi=300)
         print(f'Saved to {output_file}')
     else:
         plt.show()

@@ -10,13 +10,13 @@
 
 // Kinematic values read from config (plain doubles, distinct from optimizer's KinematicParam)
 struct SimKinematicParams {
-    double omega, gamma_mean, gamma_amp, gamma_phase;
-    double phi_amp, psi_mean, psi_amp, psi_phase;
+    double omega = 0.0, gamma_mean = 0.0, gamma_amp = 0.0, gamma_phase = 0.0;
+    double phi_amp = 0.0, psi_mean = 0.0, psi_amp = 0.0, psi_phase = 0.0;
 };
 
 struct TimeParams {
-    double Twb, dt, T;
-    int nsteps;
+    double Twb = 0.0, dt = 0.0, T = 0.0;
+    int nsteps = 0;
 };
 
 SimKinematicParams readKinematicParams(const Config& cfg);

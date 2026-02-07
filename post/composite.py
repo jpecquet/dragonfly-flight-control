@@ -31,10 +31,8 @@ from PIL import Image
 from .hybrid_config import HybridConfig, BlenderRenderConfig, compute_viewport
 from .mpl_overlay import (
     compute_blender_ortho_scale,
-    render_all_simulation_frames,
-    render_all_tracking_frames,
-    render_all_simulation_frames_parallel,
-    render_all_tracking_frames_parallel,
+    render_all_frames,
+    render_all_frames_parallel,
 )
 
 # Common Blender installation paths by platform
@@ -476,20 +474,21 @@ def check_blender_available() -> bool:
     return find_blender() is not None
 
 
-def render_hybrid_simulation(
+def render_hybrid(
     states: List[np.ndarray],
     wing_vectors: List[Dict],
     params: Dict,
     input_file: str,
     output_file: str,
+    controller: Optional[Dict] = None,
     config: Optional[HybridConfig] = None
 ):
     """
-    Render simulation using hybrid Blender + matplotlib pipeline.
+    Render using hybrid Blender + matplotlib pipeline.
 
     Blender renders the 3D dragonfly mesh at full resolution with camera
-    following the body position. Matplotlib renders axes, trails, and forces.
-    Simple alpha compositing combines them.
+    following the body position. Matplotlib renders axes, trails, and forces
+    (plus targets/errors in tracking mode).
 
     Args:
         states: List of state arrays
@@ -497,6 +496,7 @@ def render_hybrid_simulation(
         params: Simulation parameters
         input_file: Path to input HDF5 file (for Blender)
         output_file: Output video file path
+        controller: Controller data dict (None for simulation mode)
         config: Optional HybridConfig (uses defaults if None)
     """
     if not check_blender_available():
@@ -504,13 +504,12 @@ def render_hybrid_simulation(
             "Blender is not available. Install Blender or use --renderer pyvista"
         )
 
-    # Setup configuration
     if config is None:
         config = HybridConfig()
 
-    # Compute viewport if not set
     if config.viewport is None:
-        config.viewport = compute_viewport(states)
+        targets = controller['target_position'] if controller else None
+        config.viewport = compute_viewport(states, targets=targets)
 
     # Compute exact ortho_scale and center offset from matplotlib projection
     ortho_scale, (offset_x, offset_y) = compute_blender_ortho_scale(
@@ -523,7 +522,6 @@ def render_hybrid_simulation(
     n_frames = len(states)
     n_workers = config.n_workers if config.n_workers > 0 else (os.cpu_count() or 4)
 
-    # Create temp directory for all intermediate files
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         blender_dir = tmpdir / "blender"
@@ -532,157 +530,60 @@ def render_hybrid_simulation(
         config_file = tmpdir / "config.json"
         data_file = tmpdir / "frame_data.json"
 
-        # Create output directories upfront
         blender_dir.mkdir(parents=True, exist_ok=True)
         mpl_dir.mkdir(parents=True, exist_ok=True)
-
-        # Save config for Blender
         config.save(str(config_file))
 
-        # Stage 1: Matplotlib overlays
         print(f"Rendering matplotlib frames ({n_workers} workers)...")
-        render_all_simulation_frames_parallel(
-            states, wing_vectors, params, config, mpl_dir, n_workers
+        render_all_frames_parallel(
+            states, wing_vectors, params, config, mpl_dir,
+            controller=controller, n_workers=n_workers
         )
 
-        # Stage 2: Blender mesh renders
         print(f"Rendering Blender frames ({n_workers} workers)...")
         run_blender_render_parallel(
             states, wing_vectors, blender_dir, str(config_file),
             str(data_file), n_frames, n_workers
         )
 
-        # Stage 3: Composite frames
         print("Compositing frames...")
         composite_frames_parallel(
             blender_dir, mpl_dir, composite_dir, n_frames, n_workers
         )
 
-        # Stage 4: Assemble video
         print("Assembling video...")
         assemble_video(composite_dir, output_file, config.framerate)
 
     print(f"Done: {output_file}")
 
 
-def render_hybrid_tracking(
-    states: List[np.ndarray],
-    wing_vectors: List[Dict],
-    params: Dict,
-    controller: Dict,
-    input_file: str,
-    output_file: str,
-    config: Optional[HybridConfig] = None
-):
-    """
-    Render tracking simulation using hybrid Blender + matplotlib pipeline.
-
-    Blender renders the 3D dragonfly mesh at full resolution with camera
-    following the body position. Matplotlib renders axes, trails, targets,
-    and forces. Simple alpha compositing combines them.
-
-    Args:
-        states: List of state arrays
-        wing_vectors: List of wing vector dicts
-        params: Simulation parameters
-        controller: Controller data dict
-        input_file: Path to input HDF5 file (for Blender)
-        output_file: Output video file path
-        config: Optional HybridConfig (uses defaults if None)
-    """
-    if not check_blender_available():
-        raise RuntimeError(
-            "Blender is not available. Install Blender or use --renderer pyvista"
-        )
-
-    # Setup configuration
-    if config is None:
-        config = HybridConfig()
-
-    # Compute viewport if not set (include targets)
-    if config.viewport is None:
-        config.viewport = compute_viewport(
-            states,
-            targets=controller['target_position']
-        )
-
-    # Compute exact ortho_scale and center offset from matplotlib projection
-    ortho_scale, (offset_x, offset_y) = compute_blender_ortho_scale(
-        config.camera, config.viewport
-    )
-    config.blender.computed_ortho_scale = ortho_scale
-    config.blender.center_offset_x = offset_x
-    config.blender.center_offset_y = offset_y
-
-    n_frames = len(states)
-    n_workers = config.n_workers if config.n_workers > 0 else (os.cpu_count() or 4)
-
-    # Create temp directory for all intermediate files
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
-        blender_dir = tmpdir / "blender"
-        mpl_dir = tmpdir / "mpl"
-        composite_dir = tmpdir / "composite"
-        config_file = tmpdir / "config.json"
-        data_file = tmpdir / "frame_data.json"
-
-        # Create output directories upfront
-        blender_dir.mkdir(parents=True, exist_ok=True)
-        mpl_dir.mkdir(parents=True, exist_ok=True)
-
-        # Save config for Blender
-        config.save(str(config_file))
-
-        # Stage 1: Matplotlib overlays
-        print(f"Rendering matplotlib frames ({n_workers} workers)...")
-        render_all_tracking_frames_parallel(
-            states, wing_vectors, params, controller, config, mpl_dir, n_workers
-        )
-
-        # Stage 2: Blender mesh renders
-        print(f"Rendering Blender frames ({n_workers} workers)...")
-        run_blender_render_parallel(
-            states, wing_vectors, blender_dir, str(config_file),
-            str(data_file), n_frames, n_workers
-        )
-
-        # Stage 3: Composite frames
-        print("Compositing frames...")
-        composite_frames_parallel(
-            blender_dir, mpl_dir, composite_dir, n_frames, n_workers
-        )
-
-        # Stage 4: Assemble video
-        print("Assembling video...")
-        assemble_video(composite_dir, output_file, config.framerate)
-
-    print(f"Done: {output_file}")
-
-
-def render_mpl_only_simulation(
+def render_mpl_only(
     states: List[np.ndarray],
     wing_vectors: List[Dict],
     params: Dict,
     output_file: str,
+    controller: Optional[Dict] = None,
     config: Optional[HybridConfig] = None
 ):
     """
-    Render simulation using matplotlib only (fallback when Blender unavailable).
+    Render using matplotlib only (fallback when Blender unavailable).
 
-    This renders the axes/trail/forces but without the 3D mesh.
+    Renders axes/trail/forces but without the 3D mesh.
 
     Args:
         states: List of state arrays
         wing_vectors: List of wing vector dicts
         params: Simulation parameters
         output_file: Output video file path
+        controller: Controller data dict (None for simulation mode)
         config: Optional HybridConfig
     """
     if config is None:
         config = HybridConfig()
 
     if config.viewport is None:
-        config.viewport = compute_viewport(states)
+        targets = controller['target_position'] if controller else None
+        config.viewport = compute_viewport(states, targets=targets)
 
     n_frames = len(states)
 
@@ -690,61 +591,11 @@ def render_mpl_only_simulation(
         tmpdir = Path(tmpdir)
 
         print("Rendering matplotlib frames...")
-        render_all_simulation_frames(
-            states, wing_vectors, params, config, tmpdir
+        render_all_frames(
+            states, wing_vectors, params, config, tmpdir, controller=controller
         )
 
         # Rename files to match expected pattern for ffmpeg
-        for i in range(n_frames):
-            src = tmpdir / f"mpl_{i:06d}.png"
-            dst = tmpdir / f"composite_{i:06d}.png"
-            shutil.move(str(src), str(dst))
-
-        print("Assembling video...")
-        assemble_video(tmpdir, output_file, config.framerate)
-
-    print(f"Done: {output_file}")
-
-
-def render_mpl_only_tracking(
-    states: List[np.ndarray],
-    wing_vectors: List[Dict],
-    params: Dict,
-    controller: Dict,
-    output_file: str,
-    config: Optional[HybridConfig] = None
-):
-    """
-    Render tracking using matplotlib only (fallback when Blender unavailable).
-
-    Args:
-        states: List of state arrays
-        wing_vectors: List of wing vector dicts
-        params: Simulation parameters
-        controller: Controller data dict
-        output_file: Output video file path
-        config: Optional HybridConfig
-    """
-    if config is None:
-        config = HybridConfig()
-
-    if config.viewport is None:
-        config.viewport = compute_viewport(
-            states,
-            targets=controller['target_position']
-        )
-
-    n_frames = len(states)
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
-
-        print("Rendering matplotlib frames...")
-        render_all_tracking_frames(
-            states, wing_vectors, params, controller, config, tmpdir
-        )
-
-        # Rename files
         for i in range(n_frames):
             src = tmpdir / f"mpl_{i:06d}.png"
             dst = tmpdir / f"composite_{i:06d}.png"

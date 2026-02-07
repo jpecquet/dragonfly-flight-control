@@ -31,6 +31,31 @@ void printUsage(const char* prog) {
     std::cerr << "  " << prog << " termvel --psi 90 -o vertical.h5\n";
 }
 
+struct TimeSeries {
+    std::vector<double> time, x, z, ux, uz, lift_x, lift_z, drag_x, drag_z;
+
+    void reserve(size_t n) {
+        for (auto* v : {&time, &x, &z, &ux, &uz, &lift_x, &lift_z, &drag_x, &drag_z})
+            v->reserve(n);
+    }
+
+    void store(double t, const State& state, const Vec3& lift, const Vec3& drag) {
+        time.push_back(t);
+        x.push_back(state.pos.x());   z.push_back(state.pos.z());
+        ux.push_back(state.vel.x());   uz.push_back(state.vel.z());
+        lift_x.push_back(lift.x());    lift_z.push_back(lift.z());
+        drag_x.push_back(drag.x());    drag_z.push_back(drag.z());
+    }
+};
+
+double parseDouble(const char* str, const char* flag) {
+    try {
+        return std::stod(str);
+    } catch (const std::exception&) {
+        throw std::runtime_error(std::string("Invalid value for ") + flag + ": " + str);
+    }
+}
+
 } // namespace
 
 int runTermvel(int argc, char* argv[]) {
@@ -41,38 +66,28 @@ int runTermvel(int argc, char* argv[]) {
     std::string output_file = "termvel.h5";
 
     // Parse arguments
-    for (int i = 2; i < argc; ++i) {
-        if (std::strcmp(argv[i], "--psi") == 0 && i + 1 < argc) {
-            try {
-                psi_deg = std::stod(argv[++i]);
-            } catch (const std::exception&) {
-                std::cerr << "Invalid value for --psi: " << argv[i] << "\n";
+    try {
+        for (int i = 2; i < argc; ++i) {
+            if (std::strcmp(argv[i], "--psi") == 0 && i + 1 < argc) {
+                psi_deg = parseDouble(argv[++i], "--psi");
+            } else if (std::strcmp(argv[i], "--dt") == 0 && i + 1 < argc) {
+                dt = parseDouble(argv[++i], "--dt");
+            } else if (std::strcmp(argv[i], "--tmax") == 0 && i + 1 < argc) {
+                t_max = parseDouble(argv[++i], "--tmax");
+            } else if (std::strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
+                output_file = argv[++i];
+            } else if (std::strcmp(argv[i], "-h") == 0 || std::strcmp(argv[i], "--help") == 0) {
+                printUsage(argv[0]);
+                return 0;
+            } else {
+                std::cerr << "Unknown option: " << argv[i] << "\n";
+                printUsage(argv[0]);
                 return 1;
             }
-        } else if (std::strcmp(argv[i], "--dt") == 0 && i + 1 < argc) {
-            try {
-                dt = std::stod(argv[++i]);
-            } catch (const std::exception&) {
-                std::cerr << "Invalid value for --dt: " << argv[i] << "\n";
-                return 1;
-            }
-        } else if (std::strcmp(argv[i], "--tmax") == 0 && i + 1 < argc) {
-            try {
-                t_max = std::stod(argv[++i]);
-            } catch (const std::exception&) {
-                std::cerr << "Invalid value for --tmax: " << argv[i] << "\n";
-                return 1;
-            }
-        } else if (std::strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
-            output_file = argv[++i];
-        } else if (std::strcmp(argv[i], "-h") == 0 || std::strcmp(argv[i], "--help") == 0) {
-            printUsage(argv[0]);
-            return 0;
-        } else {
-            std::cerr << "Unknown option: " << argv[i] << "\n";
-            printUsage(argv[0]);
-            return 1;
         }
+    } catch (const std::runtime_error& e) {
+        std::cerr << e.what() << "\n";
+        return 1;
     }
 
     double psi = psi_deg * M_PI / 180.0;
@@ -101,45 +116,17 @@ int runTermvel(int argc, char* argv[]) {
     std::vector<Wing> wings = {wing};
 
     // Storage for time series
-    std::vector<double> time_vec;
-    std::vector<double> x_vec;
-    std::vector<double> z_vec;
-    std::vector<double> ux_vec;
-    std::vector<double> uz_vec;
-    std::vector<double> lift_x_vec;
-    std::vector<double> lift_z_vec;
-    std::vector<double> drag_x_vec;
-    std::vector<double> drag_z_vec;
-
-    // Estimate capacity
-    size_t est_steps = static_cast<size_t>(t_max / dt) + 1;
-    time_vec.reserve(est_steps);
-    x_vec.reserve(est_steps);
-    z_vec.reserve(est_steps);
-    ux_vec.reserve(est_steps);
-    uz_vec.reserve(est_steps);
-    lift_x_vec.reserve(est_steps);
-    lift_z_vec.reserve(est_steps);
-    drag_x_vec.reserve(est_steps);
-    drag_z_vec.reserve(est_steps);
+    TimeSeries ts;
+    ts.reserve(static_cast<size_t>(t_max / dt) + 1);
 
     // Initial state: at rest at origin
-    State state(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    State state;
     double t = 0.0;
 
     // Scratch buffer for integration
     std::vector<SingleWingVectors> scratch(1);
 
-    // Store initial state (zero forces at rest)
-    time_vec.push_back(t);
-    x_vec.push_back(state.pos.x());
-    z_vec.push_back(state.pos.z());
-    ux_vec.push_back(state.vel.x());
-    uz_vec.push_back(state.vel.z());
-    lift_x_vec.push_back(0.0);
-    lift_z_vec.push_back(0.0);
-    drag_x_vec.push_back(0.0);
-    drag_z_vec.push_back(0.0);
+    ts.store(t, state, Vec3::Zero(), Vec3::Zero());
 
     // Integrate
     std::cout << "Running simulation..." << std::endl;
@@ -150,15 +137,7 @@ int runTermvel(int argc, char* argv[]) {
         // Compute forces at current state
         equationOfMotion(t, state, wings, scratch);
 
-        time_vec.push_back(t);
-        x_vec.push_back(state.pos.x());
-        z_vec.push_back(state.pos.z());
-        ux_vec.push_back(state.vel.x());
-        uz_vec.push_back(state.vel.z());
-        lift_x_vec.push_back(scratch[0].lift.x());
-        lift_z_vec.push_back(scratch[0].lift.z());
-        drag_x_vec.push_back(scratch[0].drag.x());
-        drag_z_vec.push_back(scratch[0].drag.z());
+        ts.store(t, state, scratch[0].lift, scratch[0].drag);
     }
 
     // Analytical steady-state speed
@@ -190,17 +169,17 @@ int runTermvel(int argc, char* argv[]) {
     H5Easy::dump(file, "/parameters/speed_analytical", speed_analytical);
 
     // Time series data
-    file.createDataSet("/time", time_vec);
-    file.createDataSet("/x", x_vec);
-    file.createDataSet("/z", z_vec);
-    file.createDataSet("/ux", ux_vec);
-    file.createDataSet("/uz", uz_vec);
-    file.createDataSet("/lift_x", lift_x_vec);
-    file.createDataSet("/lift_z", lift_z_vec);
-    file.createDataSet("/drag_x", drag_x_vec);
-    file.createDataSet("/drag_z", drag_z_vec);
+    file.createDataSet("/time", ts.time);
+    file.createDataSet("/x", ts.x);
+    file.createDataSet("/z", ts.z);
+    file.createDataSet("/ux", ts.ux);
+    file.createDataSet("/uz", ts.uz);
+    file.createDataSet("/lift_x", ts.lift_x);
+    file.createDataSet("/lift_z", ts.lift_z);
+    file.createDataSet("/drag_x", ts.drag_x);
+    file.createDataSet("/drag_z", ts.drag_z);
 
-    std::cout << "Done. " << time_vec.size() << " timesteps written.\n";
+    std::cout << "Done. " << ts.time.size() << " timesteps written.\n";
 
     return 0;
 }

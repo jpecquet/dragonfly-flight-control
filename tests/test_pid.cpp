@@ -193,19 +193,17 @@ int main() {
     std::cout << "PID Controller Tests\n";
     std::cout << "====================\n\n";
 
-    int passed = 0;
-    int total = 8;
+    bool (*tests[])() = {
+        testZeroError, testProportional, testDerivative, testIntegral,
+        testAntiWindup, testAntiWindupNegative, testReset, testCombined
+    };
 
-    if (testZeroError()) passed++;
-    if (testProportional()) passed++;
-    if (testDerivative()) passed++;
-    if (testIntegral()) passed++;
-    if (testAntiWindup()) passed++;
-    if (testAntiWindupNegative()) passed++;
-    if (testReset()) passed++;
-    if (testCombined()) passed++;
+    int passed = 0;
+    int total = sizeof(tests) / sizeof(tests[0]);
+    for (auto test : tests) {
+        if (test()) passed++;
+    }
 
     std::cout << "Summary: " << passed << "/" << total << " tests passed\n";
-
     return (passed == total) ? 0 : 1;
 }

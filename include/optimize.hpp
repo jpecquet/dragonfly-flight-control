@@ -9,10 +9,10 @@
 // Kinematic parameter that can be fixed or variable
 struct KinematicParam {
     std::string name;
-    bool is_variable;
-    double value;      // Current/fixed value
-    double min_bound;  // Only used if variable
-    double max_bound;  // Only used if variable
+    bool is_variable = false;
+    double value = 0.0;      // Current/fixed value
+    double min_bound = 0.0;  // Only used if variable
+    double max_bound = 0.0;  // Only used if variable
 };
 
 // All kinematic parameters for optimization
@@ -29,7 +29,6 @@ struct KinematicParams {
 
     // Get list of variable parameter names
     std::vector<std::string> variableNames() const;
-
 
     // Get list of all parameter names (for output header)
     std::vector<std::string> allNames() const;
@@ -56,20 +55,18 @@ struct KinematicParams {
     static KinematicParams fromConfig(const Config& cfg);
 
 private:
-    template<typename Func>
-    void forEachParam(Func&& f) {
-        f("omega", omega); f("gamma_mean", gamma_mean);
-        f("gamma_amp", gamma_amp); f("gamma_phase", gamma_phase);
-        f("phi_amp", phi_amp); f("psi_mean", psi_mean);
-        f("psi_amp", psi_amp); f("psi_phase", psi_phase);
+    template<typename Self, typename Func>
+    static void forEachParamImpl(Self& self, Func&& f) {
+        f("omega", self.omega); f("gamma_mean", self.gamma_mean);
+        f("gamma_amp", self.gamma_amp); f("gamma_phase", self.gamma_phase);
+        f("phi_amp", self.phi_amp); f("psi_mean", self.psi_mean);
+        f("psi_amp", self.psi_amp); f("psi_phase", self.psi_phase);
     }
+
     template<typename Func>
-    void forEachParam(Func&& f) const {
-        f("omega", omega); f("gamma_mean", gamma_mean);
-        f("gamma_amp", gamma_amp); f("gamma_phase", gamma_phase);
-        f("phi_amp", phi_amp); f("psi_mean", psi_mean);
-        f("psi_amp", psi_amp); f("psi_phase", psi_phase);
-    }
+    void forEachParam(Func&& f) { forEachParamImpl(*this, std::forward<Func>(f)); }
+    template<typename Func>
+    void forEachParam(Func&& f) const { forEachParamImpl(*this, std::forward<Func>(f)); }
 };
 
 // Fixed physical parameters (not optimized)
@@ -128,7 +125,7 @@ struct LandscapeData {
     std::vector<double> param1_values;     // First parameter values
     std::vector<double> param2_values;     // Second parameter values (if 2D)
     std::vector<std::vector<double>> objective_values;  // Objective at each point
-    double ux;  // Forward velocity
+    double ux = 0.0;  // Forward velocity
 
     void writeHDF5(const std::string& filename) const;
 };

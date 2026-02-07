@@ -9,11 +9,11 @@
 struct WingConfigEntry {
     std::string name;
     std::string side;  // "left" or "right"
-    double mu0;
-    double lb0;
-    double Cd0;
-    double Cl0;
-    double phase;
+    double mu0 = 0.0;
+    double lb0 = 0.0;
+    double Cd0 = 0.0;
+    double Cl0 = 0.0;
+    double phase = 0.0;
 };
 
 // Simple key=value config file parser with [[wing]] section support
@@ -58,13 +58,7 @@ public:
     }
 
     double getDouble(const std::string& key, double default_val) const {
-        if (!has(key)) return default_val;
-        std::string val = getString(key);
-        try {
-            return std::stod(val);
-        } catch (const std::exception&) {
-            throw std::runtime_error("Invalid value for '" + key + "': expected number, got '" + val + "'");
-        }
+        return has(key) ? getDouble(key) : default_val;
     }
 
     int getInt(const std::string& key) const {
@@ -77,13 +71,7 @@ public:
     }
 
     int getInt(const std::string& key, int default_val) const {
-        if (!has(key)) return default_val;
-        std::string val = getString(key);
-        try {
-            return std::stoi(val);
-        } catch (const std::exception&) {
-            throw std::runtime_error("Invalid value for '" + key + "': expected integer, got '" + val + "'");
-        }
+        return has(key) ? getInt(key) : default_val;
     }
 
     bool getBool(const std::string& key, bool default_val) const {
@@ -99,7 +87,4 @@ private:
     std::vector<WingConfigEntry> wings_;
 
     static std::string trim(const std::string& s);
-
-    // Allow load() implementation to access private members
-    friend Config;
 };

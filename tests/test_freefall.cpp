@@ -30,7 +30,7 @@ int main() {
     std::vector<Wing> wings;
 
     // Initial state with non-zero velocity to make test more interesting
-    State initial(0.0, 0.0, 10.0, 1.0, 0.5, 2.0);
+    State initial(Vec3(0.0, 0.0, 10.0), Vec3(1.0, 0.5, 2.0));
 
     std::cout << "Initial state:\n";
     std::cout << "  Position: (" << initial.pos.x() << ", " << initial.pos.y() << ", " << initial.pos.z() << ")\n";

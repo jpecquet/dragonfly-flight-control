@@ -208,7 +208,7 @@ post/
 ```python
 from post.io import read_simulation, read_tracking
 from post.hybrid_config import HybridConfig, compute_viewport
-from post.composite import render_hybrid_simulation
+from post.composite import render_hybrid
 
 # Read simulation data
 params, time, states, wings = read_simulation("output.h5")
@@ -219,5 +219,5 @@ config.camera.elevation = 45.0
 config.viewport = compute_viewport(states)
 
 # Render with hybrid pipeline
-render_hybrid_simulation(states, wings, params, "output.h5", "output.mp4", config)
+render_hybrid(states, wings, params, "output.h5", "output.mp4", config=config)
 ```

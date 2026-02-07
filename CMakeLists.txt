@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 project(dragonfly_flight_control LANGUAGES CXX)
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -118,66 +122,20 @@ set_target_properties(dragonfly_cli PROPERTIES
     OUTPUT_NAME dragonfly
 )
 
-# Free fall test
-add_executable(test_freefall tests/test_freefall.cpp)
-target_link_libraries(test_freefall PRIVATE dragonfly_physics)
-set_target_properties(test_freefall PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
-add_test(NAME FreeFall COMMAND test_freefall)
+function(add_dragonfly_test target test_name library)
+    add_executable(${target} tests/${target}.cpp)
+    target_link_libraries(${target} PRIVATE ${library})
+    set_target_properties(${target} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+    add_test(NAME ${test_name} COMMAND ${target})
+endfunction()
 
-# Blade element coefficient test
-add_executable(test_blade_element tests/test_blade_element.cpp)
-target_link_libraries(test_blade_element PRIVATE dragonfly_physics)
-set_target_properties(test_blade_element PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
-add_test(NAME BladeElement COMMAND test_blade_element)
-
-# Rotation matrix test
-add_executable(test_rotation tests/test_rotation.cpp)
-target_link_libraries(test_rotation PRIVATE dragonfly_physics)
-set_target_properties(test_rotation PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
-add_test(NAME Rotation COMMAND test_rotation)
-
-# Stationary wing test
-add_executable(test_stationary_wing tests/test_stationary_wing.cpp)
-target_link_libraries(test_stationary_wing PRIVATE dragonfly_physics)
-set_target_properties(test_stationary_wing PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
-add_test(NAME StationaryWing COMMAND test_stationary_wing)
-
-# Optimizer test
-add_executable(test_optimizer tests/test_optimizer.cpp)
-target_link_libraries(test_optimizer PRIVATE dragonfly_optim)
-set_target_properties(test_optimizer PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
-add_test(NAME Optimizer COMMAND test_optimizer)
-
-# Sampling test (Sobol sequence)
-add_executable(test_sampling tests/test_sampling.cpp)
-target_link_libraries(test_sampling PRIVATE dragonfly_sampling)
-set_target_properties(test_sampling PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
-add_test(NAME Sampling COMMAND test_sampling)
-
-# Terminal velocity test
-add_executable(test_terminal_velocity tests/test_terminal_velocity.cpp)
-target_link_libraries(test_terminal_velocity PRIVATE dragonfly_physics)
-set_target_properties(test_terminal_velocity PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
-add_test(NAME TerminalVelocity COMMAND test_terminal_velocity)
-
-# PID controller test
-add_executable(test_pid tests/test_pid.cpp)
-target_link_libraries(test_pid PRIVATE dragonfly_controller)
-set_target_properties(test_pid PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
-add_test(NAME PID COMMAND test_pid)
+add_dragonfly_test(test_freefall          FreeFall         dragonfly_physics)
+add_dragonfly_test(test_blade_element     BladeElement     dragonfly_physics)
+add_dragonfly_test(test_rotation          Rotation         dragonfly_physics)
+add_dragonfly_test(test_stationary_wing   StationaryWing   dragonfly_physics)
+add_dragonfly_test(test_optimizer         Optimizer        dragonfly_optim)
+add_dragonfly_test(test_sampling          Sampling         dragonfly_sampling)
+add_dragonfly_test(test_terminal_velocity TerminalVelocity dragonfly_physics)
+add_dragonfly_test(test_pid              PID              dragonfly_controller)

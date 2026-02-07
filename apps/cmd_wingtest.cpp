@@ -93,8 +93,6 @@ constexpr double deg2rad(double deg) {
     return deg * M_PI / 180.0;
 }
 
-}  // namespace
-
 // Helper to get angle name for display
 std::string angleName(const std::string& key) {
     if (key == "gam") return "Stroke plane (gam)";
@@ -109,6 +107,8 @@ const AngleRange& getRange(const TestConfig& cfg, const std::string& key) {
     if (key == "phi") return cfg.phi;
     return cfg.psi;
 }
+
+}  // namespace
 
 int runWingtest(int argc, char* argv[]) {
     TestConfig cfg = parseTestArgs(argc, argv);
@@ -180,11 +180,6 @@ int runWingtest(int argc, char* argv[]) {
                 std::cout << "  " << sweep_key << "=" << sweep_val << " deg\n";
             }
         }
-
-        // Fix the swept angle at its end value for subsequent phases
-        if (sweep_key == "gam") gam_deg = range.end;
-        else if (sweep_key == "phi") phi_deg = range.end;
-        else if (sweep_key == "psi") psi_deg = range.end;
 
         std::cout << "\n";
     }

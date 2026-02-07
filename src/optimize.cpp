@@ -192,7 +192,7 @@ double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
 
     Vec3 a_mean = Vec3::Zero();
     double t = 0.0;
-    State state(0.0, 0.0, 0.0, ux, 0.0, uz);
+    State state(Vec3::Zero(), Vec3(ux, 0.0, uz));
 
     while (t < T) {
         StateDerivative d1 = equationOfMotion(t, state, buf.wings, buf.scratch1);

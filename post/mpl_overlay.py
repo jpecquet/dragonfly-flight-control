@@ -174,6 +174,25 @@ def setup_axes(ax: Axes3D, viewport: ViewportConfig, camera: CameraConfig):
     ax.zaxis._axinfo['grid']['color'] = (0.8, 0.8, 0.8, 0.5)
 
 
+def _draw_forces(ax, xb, wing_vectors, wing_lb0, config):
+    """Draw lift/drag force vectors for all wings."""
+    style = config.style
+    for wname, wdata in wing_vectors.items():
+        lb0 = wing_lb0.get(wname, DEFAULT_LB0)
+        xoffset = FW_X0 if 'fore' in wname else HW_X0
+        yoffset = RIGHT_WING_Y_OFFSET if 'right' in wname else LEFT_WING_Y_OFFSET
+
+        origin = xb + np.array([xoffset, yoffset, 0])
+        cp = origin + FORCE_CENTER_FRACTION * lb0 * wdata['e_r']
+
+        for force, color in [(wdata['lift'], style.lift_color),
+                             (wdata['drag'], style.drag_color)]:
+            if np.linalg.norm(force) > FORCE_THRESHOLD:
+                end = cp + config.force_scale * force
+                ax.plot([cp[0], end[0]], [cp[1], end[1]], [cp[2], end[2]],
+                        color=color, linewidth=style.force_linewidth)
+
+
 def render_simulation_frame(
     frame_idx: int,
     states: List[np.ndarray],
@@ -200,7 +219,6 @@ def render_simulation_frame(
     fig, ax = create_overlay_figure(config.camera)
     setup_axes(ax, config.viewport, config.camera)
 
-    style = config.style
     wing_lb0 = params.get('wing_lb0', {})
 
     # Current position
@@ -213,31 +231,8 @@ def render_simulation_frame(
         ax.plot(trail_points[:, 0], trail_points[:, 1], trail_points[:, 2],
                 color='black', linewidth=0.5, alpha=0.7)
 
-    # Draw force vectors
     if config.show_forces:
-        wing_names = list(v.keys())
-
-        for wname in wing_names:
-            lb0 = wing_lb0.get(wname, DEFAULT_LB0)
-            xoffset = FW_X0 if 'fore' in wname else HW_X0
-            yoffset = RIGHT_WING_Y_OFFSET if 'right' in wname else LEFT_WING_Y_OFFSET
-
-            origin = xb + np.array([xoffset, yoffset, 0])
-            cp = origin + FORCE_CENTER_FRACTION * lb0 * v[wname]['e_r']
-
-            # Lift vector
-            lift = v[wname]['lift']
-            if np.linalg.norm(lift) > FORCE_THRESHOLD:
-                end = cp + config.force_scale * lift
-                ax.plot([cp[0], end[0]], [cp[1], end[1]], [cp[2], end[2]],
-                        color=style.lift_color, linewidth=style.force_linewidth)
-
-            # Drag vector
-            drag = v[wname]['drag']
-            if np.linalg.norm(drag) > FORCE_THRESHOLD:
-                end = cp + config.force_scale * drag
-                ax.plot([cp[0], end[0]], [cp[1], end[1]], [cp[2], end[2]],
-                        color=style.drag_color, linewidth=style.force_linewidth)
+        _draw_forces(ax, xb, v, wing_lb0, config)
 
     # Add velocity text
     ux, uz = states[frame_idx][3], states[frame_idx][5]
@@ -314,31 +309,8 @@ def render_tracking_frame(
         ax.plot([xb[0], target[0]], [xb[1], target[1]], [xb[2], target[2]],
                 color=style.error_color, linewidth=1.5, linestyle='--', alpha=0.7)
 
-    # Draw force vectors
     if config.show_forces:
-        wing_names = list(v.keys())
-
-        for wname in wing_names:
-            lb0 = wing_lb0.get(wname, DEFAULT_LB0)
-            xoffset = FW_X0 if 'fore' in wname else HW_X0
-            yoffset = RIGHT_WING_Y_OFFSET if 'right' in wname else LEFT_WING_Y_OFFSET
-
-            origin = xb + np.array([xoffset, yoffset, 0])
-            cp = origin + FORCE_CENTER_FRACTION * lb0 * v[wname]['e_r']
-
-            # Lift vector
-            lift = v[wname]['lift']
-            if np.linalg.norm(lift) > FORCE_THRESHOLD:
-                end = cp + config.force_scale * lift
-                ax.plot([cp[0], end[0]], [cp[1], end[1]], [cp[2], end[2]],
-                        color=style.lift_color, linewidth=style.force_linewidth)
-
-            # Drag vector
-            drag = v[wname]['drag']
-            if np.linalg.norm(drag) > FORCE_THRESHOLD:
-                end = cp + config.force_scale * drag
-                ax.plot([cp[0], end[0]], [cp[1], end[1]], [cp[2], end[2]],
-                        color=style.drag_color, linewidth=style.force_linewidth)
+        _draw_forces(ax, xb, v, wing_lb0, config)
 
     # Add info text
     ux, uz = states[frame_idx][3], states[frame_idx][5]
@@ -371,16 +343,17 @@ def render_tracking_frame(
     return str(output_file)
 
 
-def render_all_simulation_frames(
+def render_all_frames(
     states: List[np.ndarray],
     wing_vectors: List[Dict],
     params: Dict,
     config: HybridConfig,
     output_path: Path,
+    controller: Optional[Dict] = None,
     progress_callback=None
 ) -> List[str]:
     """
-    Render all matplotlib overlay frames for simulation.
+    Render all matplotlib overlay frames (simulation or tracking).
 
     Args:
         states: List of state arrays
@@ -388,6 +361,7 @@ def render_all_simulation_frames(
         params: Simulation parameters
         config: Hybrid configuration
         output_path: Output directory
+        controller: Controller data dict (None for simulation mode)
         progress_callback: Optional callback(frame_idx, total) for progress
 
     Returns:
@@ -400,9 +374,14 @@ def render_all_simulation_frames(
     output_files = []
 
     for i in range(n_frames):
-        filepath = render_simulation_frame(
-            i, states, wing_vectors, params, config, output_path
-        )
+        if controller is not None:
+            filepath = render_tracking_frame(
+                i, states, wing_vectors, params, controller, config, output_path
+            )
+        else:
+            filepath = render_simulation_frame(
+                i, states, wing_vectors, params, config, output_path
+            )
         output_files.append(filepath)
 
         if progress_callback:
@@ -413,92 +392,27 @@ def render_all_simulation_frames(
     return output_files
 
 
-def render_all_tracking_frames(
-    states: List[np.ndarray],
-    wing_vectors: List[Dict],
-    params: Dict,
-    controller: Dict,
-    config: HybridConfig,
-    output_path: Path,
-    progress_callback=None
-) -> List[str]:
-    """
-    Render all matplotlib overlay frames for tracking.
-
-    Args:
-        states: List of state arrays
-        wing_vectors: List of wing vector dicts
-        params: Simulation parameters
-        controller: Controller data dict
-        config: Hybrid configuration
-        output_path: Output directory
-        progress_callback: Optional callback(frame_idx, total) for progress
-
-    Returns:
-        List of paths to rendered PNG files
-    """
-    output_path = Path(output_path)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    n_frames = len(states)
-    output_files = []
-
-    for i in range(n_frames):
-        filepath = render_tracking_frame(
-            i, states, wing_vectors, params, controller, config, output_path
-        )
-        output_files.append(filepath)
-
-        if progress_callback:
-            progress_callback(i, n_frames)
-        elif i % 100 == 0:
-            print(f"  Matplotlib: frame {i}/{n_frames}")
-
-    return output_files
-
-
-def _simulation_frame_worker(args):
-    """
-    Worker function for parallel simulation frame rendering.
-
-    Args:
-        args: Tuple of (frame_idx, states, wing_vectors, params, config_dict, output_path_str)
-
-    Returns:
-        Path to rendered PNG file
-    """
-    frame_idx, states, wing_vectors, params, config_dict, output_path_str = args
-    config = HybridConfig.from_dict(config_dict)
-    output_path = Path(output_path_str)
-    return render_simulation_frame(frame_idx, states, wing_vectors, params, config, output_path)
-
-
-def _tracking_frame_worker(args):
-    """
-    Worker function for parallel tracking frame rendering.
-
-    Args:
-        args: Tuple of (frame_idx, states, wing_vectors, params, controller, config_dict, output_path_str)
-
-    Returns:
-        Path to rendered PNG file
-    """
+def _frame_worker(args):
+    """Worker for parallel frame rendering."""
     frame_idx, states, wing_vectors, params, controller, config_dict, output_path_str = args
     config = HybridConfig.from_dict(config_dict)
     output_path = Path(output_path_str)
-    return render_tracking_frame(frame_idx, states, wing_vectors, params, controller, config, output_path)
+    if controller is not None:
+        return render_tracking_frame(frame_idx, states, wing_vectors, params, controller, config, output_path)
+    return render_simulation_frame(frame_idx, states, wing_vectors, params, config, output_path)
 
 
-def render_all_simulation_frames_parallel(
+def render_all_frames_parallel(
     states: List[np.ndarray],
     wing_vectors: List[Dict],
     params: Dict,
     config: HybridConfig,
     output_path: Path,
+    controller: Optional[Dict] = None,
     n_workers: Optional[int] = None
 ) -> List[str]:
     """
-    Render all matplotlib overlay frames for simulation in parallel.
+    Render all matplotlib overlay frames in parallel.
 
     Args:
         states: List of state arrays
@@ -506,6 +420,7 @@ def render_all_simulation_frames_parallel(
         params: Simulation parameters
         config: Hybrid configuration
         output_path: Output directory
+        controller: Controller data dict (None for simulation mode)
         n_workers: Number of parallel workers (None = auto)
 
     Returns:
@@ -521,62 +436,6 @@ def render_all_simulation_frames_parallel(
     config_dict = config.to_dict()
     output_path_str = str(output_path)
 
-    # Prepare work items
-    work = [
-        (i, states, wing_vectors, params, config_dict, output_path_str)
-        for i in range(n_frames)
-    ]
-
-    if TQDM_AVAILABLE:
-        results = process_map(
-            _simulation_frame_worker, work,
-            max_workers=n_workers, chunksize=10,
-            desc="Matplotlib   ", ncols=60
-        )
-    else:
-        print(f"  Matplotlib: rendering {n_frames} frames with {n_workers} workers...")
-        with ProcessPoolExecutor(max_workers=n_workers) as executor:
-            results = list(executor.map(_simulation_frame_worker, work, chunksize=10))
-        print(f"  Matplotlib: done ({n_frames} frames)")
-
-    return results
-
-
-def render_all_tracking_frames_parallel(
-    states: List[np.ndarray],
-    wing_vectors: List[Dict],
-    params: Dict,
-    controller: Dict,
-    config: HybridConfig,
-    output_path: Path,
-    n_workers: Optional[int] = None
-) -> List[str]:
-    """
-    Render all matplotlib overlay frames for tracking in parallel.
-
-    Args:
-        states: List of state arrays
-        wing_vectors: List of wing vector dicts
-        params: Simulation parameters
-        controller: Controller data dict
-        config: Hybrid configuration
-        output_path: Output directory
-        n_workers: Number of parallel workers (None = auto)
-
-    Returns:
-        List of paths to rendered PNG files
-    """
-    if n_workers is None or n_workers <= 0:
-        n_workers = os.cpu_count() or 4
-
-    output_path = Path(output_path)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    n_frames = len(states)
-    config_dict = config.to_dict()
-    output_path_str = str(output_path)
-
-    # Prepare work items
     work = [
         (i, states, wing_vectors, params, controller, config_dict, output_path_str)
         for i in range(n_frames)
@@ -584,14 +443,14 @@ def render_all_tracking_frames_parallel(
 
     if TQDM_AVAILABLE:
         results = process_map(
-            _tracking_frame_worker, work,
+            _frame_worker, work,
             max_workers=n_workers, chunksize=10,
             desc="Matplotlib   ", ncols=60
         )
     else:
         print(f"  Matplotlib: rendering {n_frames} frames with {n_workers} workers...")
         with ProcessPoolExecutor(max_workers=n_workers) as executor:
-            results = list(executor.map(_tracking_frame_worker, work, chunksize=10))
+            results = list(executor.map(_frame_worker, work, chunksize=10))
         print(f"  Matplotlib: done ({n_frames} frames)")
 
     return results

@@ -102,26 +102,19 @@ ParameterBounds readParameterBounds(const Config& cfg) {
 
 MixingMatrix readMixingMatrix(const Config& cfg) {
     MixingMatrix mixing;
-    if (cfg.has("mix_gamma_x")) {
-        mixing.gamma_mean_mix = Vec3(
-            cfg.getDouble("mix_gamma_x"),
-            cfg.getDouble("mix_gamma_y", 0.0),
-            cfg.getDouble("mix_gamma_z")
-        );
-    }
-    if (cfg.has("mix_psi_x")) {
-        mixing.psi_mean_mix = Vec3(
-            cfg.getDouble("mix_psi_x"),
-            cfg.getDouble("mix_psi_y", 0.0),
-            cfg.getDouble("mix_psi_z")
-        );
-    }
-    if (cfg.has("mix_phi_x")) {
-        mixing.phi_amp_mix = Vec3(
-            cfg.getDouble("mix_phi_x"),
-            cfg.getDouble("mix_phi_y", 0.0),
-            cfg.getDouble("mix_phi_z")
-        );
-    }
+
+    auto readVec3 = [&](const std::string& prefix, Vec3& target) {
+        if (cfg.has(prefix + "_x")) {
+            target = Vec3(
+                cfg.getDouble(prefix + "_x"),
+                cfg.getDouble(prefix + "_y", 0.0),
+                cfg.getDouble(prefix + "_z")
+            );
+        }
+    };
+
+    readVec3("mix_gamma", mixing.gamma_mean_mix);
+    readVec3("mix_psi", mixing.psi_mean_mix);
+    readVec3("mix_phi", mixing.phi_amp_mix);
     return mixing;
 }

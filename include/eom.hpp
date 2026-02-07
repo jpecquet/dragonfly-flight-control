@@ -10,11 +10,11 @@ class Wing;
 
 // Wing angles at a given time
 struct WingAngles {
-    double gam;      // Stroke plane angle
-    double gam_dot;  // Stroke plane angular velocity
-    double phi;      // Stroke angle
-    double phi_dot;  // Stroke angular velocity
-    double psi;      // Pitch angle
+    double gam = 0.0;      // Stroke plane angle
+    double gam_dot = 0.0;  // Stroke plane angular velocity
+    double phi = 0.0;      // Stroke angle
+    double phi_dot = 0.0;  // Stroke angular velocity
+    double psi = 0.0;      // Pitch angle
 };
 
 // Function type for computing wing angles from time
@@ -30,10 +30,6 @@ struct State {
 
     // Construct from components
     State(const Vec3& p, const Vec3& v) : pos(p), vel(v) {}
-
-    // Construct from 6 doubles for backward compatibility
-    State(double x, double y, double z, double ux, double uy, double uz)
-        : pos(x, y, z), vel(ux, uy, uz) {}
 };
 
 // State derivative: [ux, uy, uz, ax, ay, az]

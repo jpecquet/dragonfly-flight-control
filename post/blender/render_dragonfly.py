@@ -79,10 +79,7 @@ def setup_scene(width, height):
 def setup_camera(elevation, azimuth, center, ortho_scale, width, height,
                  shift_x=0.0, shift_y=0.0):
     """
-    Create orthographic camera following the dragonfly position.
-
-    The camera is positioned to look at the specified center point,
-    with the ortho_scale determining visible world extent.
+    Create orthographic camera looking at the specified center point.
 
     Args:
         elevation: Camera elevation in degrees
@@ -97,61 +94,36 @@ def setup_camera(elevation, azimuth, center, ortho_scale, width, height,
     Returns:
         bpy.types.Object: The camera object
     """
-    # Create camera
     cam_data = bpy.data.cameras.new("Camera")
     cam_data.type = 'ORTHO'
     cam_data.ortho_scale = ortho_scale
-
-    # Apply sensor shift to match matplotlib's projection offset
     cam_data.shift_x = shift_x
     cam_data.shift_y = shift_y
+    cam_data.clip_start = 0.1
+    cam_data.clip_end = ortho_scale * 9  # dist * 3
 
     cam_obj = bpy.data.objects.new("Camera", cam_data)
     bpy.context.scene.collection.objects.link(cam_obj)
     bpy.context.scene.camera = cam_obj
 
-    # Convert angles to radians
-    elev = math.radians(elevation)
-    azim = math.radians(azimuth)
-
-    # Distance (for positioning, affects clipping)
-    dist = ortho_scale * 3
-
-    # Compute camera position (spherical coordinates) relative to center
-    x = dist * math.cos(elev) * math.cos(azim)
-    y = dist * math.cos(elev) * math.sin(azim)
-    z = dist * math.sin(elev)
-
-    center_vec = Vector(center)
-    cam_pos = center_vec + Vector((x, y, z))
-    cam_obj.location = cam_pos
-
-    # Point at center
-    direction = center_vec - cam_pos
-    rot_quat = direction.to_track_quat('-Z', 'Y')
-    cam_obj.rotation_euler = rot_quat.to_euler()
-
-    # Clip planes
-    cam_data.clip_start = 0.1
-    cam_data.clip_end = dist * 3
+    update_camera_position(cam_obj, elevation, azimuth, center, ortho_scale)
 
     return cam_obj
 
 
 def update_camera_position(cam_obj, elevation, azimuth, center, ortho_scale):
     """
-    Update camera position to follow a new center point.
+    Position camera at spherical coordinates around center, pointing at it.
 
     Args:
         cam_obj: Camera object to update
         elevation: Camera elevation in degrees
         azimuth: Camera azimuth in degrees
-        center: New 3D center point
+        center: 3D center point
         ortho_scale: World units visible
     """
     elev = math.radians(elevation)
     azim = math.radians(azimuth)
-
     dist = ortho_scale * 3
 
     x = dist * math.cos(elev) * math.cos(azim)
@@ -162,7 +134,6 @@ def update_camera_position(cam_obj, elevation, azimuth, center, ortho_scale):
     cam_pos = center_vec + Vector((x, y, z))
     cam_obj.location = cam_pos
 
-    # Point at center
     direction = center_vec - cam_pos
     rot_quat = direction.to_track_quat('-Z', 'Y')
     cam_obj.rotation_euler = rot_quat.to_euler()

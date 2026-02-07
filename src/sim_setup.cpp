@@ -19,12 +19,8 @@ SimKinematicParams readKinematicParams(const Config& cfg) {
 
 State readInitialState(const Config& cfg) {
     return State(
-        cfg.getDouble("x0", 0.0),
-        cfg.getDouble("y0", 0.0),
-        cfg.getDouble("z0", 0.0),
-        cfg.getDouble("ux0", 0.0),
-        cfg.getDouble("uy0", 0.0),
-        cfg.getDouble("uz0", 0.0)
+        Vec3(cfg.getDouble("x0", 0.0), cfg.getDouble("y0", 0.0), cfg.getDouble("z0", 0.0)),
+        Vec3(cfg.getDouble("ux0", 0.0), cfg.getDouble("uy0", 0.0), cfg.getDouble("uz0", 0.0))
     );
 }
 

@@ -10,14 +10,14 @@
 
 // Control output: kinematic parameters to apply
 struct ControlOutput {
-    double gamma_mean;  // Stroke plane angle
-    double psi_mean;    // Mean pitch angle
-    double phi_amp;     // Stroke amplitude
+    double gamma_mean = 0.0;  // Stroke plane angle
+    double psi_mean = 0.0;    // Mean pitch angle
+    double phi_amp = 0.0;     // Stroke amplitude
 
     // Baseline values (for output/logging)
-    double gamma_mean_base;
-    double psi_mean_base;
-    double phi_amp_base;
+    double gamma_mean_base = 0.0;
+    double psi_mean_base = 0.0;
+    double phi_amp_base = 0.0;
 };
 
 // Mixing matrix: maps axis commands to parameter deltas

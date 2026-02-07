@@ -50,8 +50,8 @@ def main():
     if args.renderer == "hybrid":
         from post.composite import (
             check_blender_available,
-            render_hybrid_simulation,
-            render_mpl_only_simulation
+            render_hybrid,
+            render_mpl_only
         )
         from post.hybrid_config import HybridConfig
 
@@ -61,13 +61,13 @@ def main():
             config = HybridConfig.load(args.config)
 
         if check_blender_available():
-            render_hybrid_simulation(
-                states, wings, params, input_file, output_file, config
+            render_hybrid(
+                states, wings, params, input_file, output_file, config=config
             )
         else:
             print("Warning: Blender not available, using matplotlib-only fallback")
-            render_mpl_only_simulation(
-                states, wings, params, output_file, config
+            render_mpl_only(
+                states, wings, params, output_file, config=config
             )
     else:
         # PyVista renderer

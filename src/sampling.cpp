@@ -6,6 +6,25 @@
 static constexpr size_t MAX_BITS = 32;
 static constexpr double SOBOL_SCALE = 1.0 / static_cast<double>(1ULL << MAX_BITS);
 
+// Initialize direction numbers from initial m-values and a recurrence relation.
+// Each Sobol dimension beyond 2 is defined by a primitive polynomial whose degree
+// determines the number of initial m-values, and a recurrence that generates the rest.
+template <size_t N, typename Recurrence>
+static void initDimFromRecurrence(std::vector<uint32_t>& dirs,
+                                  const uint32_t (&init_m)[N],
+                                  Recurrence recurrence) {
+    uint32_t m[MAX_BITS];
+    for (size_t i = 0; i < N; ++i) m[i] = init_m[i];
+    for (size_t i = N; i < MAX_BITS; ++i) {
+        m[i] = recurrence(m, i);
+        m[i] &= (1U << (i + 1)) - 1;  // keep only i+1 bits
+        m[i] |= 1;                      // ensure odd
+    }
+    for (size_t i = 0; i < MAX_BITS; ++i) {
+        dirs[i] = m[i] << (31 - i);
+    }
+}
+
 SobolSequence::SobolSequence(size_t dim) : dim_(dim), index_(0), x_(dim, 0) {
     if (dim < 1 || dim > 6) {
         throw std::runtime_error("SobolSequence: dimension must be 1-6, got " + std::to_string(dim));
@@ -45,81 +64,27 @@ void SobolSequence::initDirections() {
         }
     }
 
-    if (dim_ < 3) return;
-
-    // Dimension 3: polynomial x^2 + x + 1 (s=2, a=1)
-    // Initial m values: 1, 1
-    // Recurrence: m_i = 2*m_{i-1} XOR m_{i-2} XOR (m_{i-2} >> 2) (adjusted for scaling)
-    {
-        uint32_t m[MAX_BITS];
-        m[0] = 1;
-        m[1] = 1;
-        for (size_t i = 2; i < MAX_BITS; ++i) {
-            m[i] = (m[i-1] << 1) ^ m[i-2] ^ (m[i-2] >> 2);
-            m[i] &= (1U << (i + 1)) - 1;
-            m[i] |= 1;
-        }
-        for (size_t i = 0; i < MAX_BITS; ++i) {
-            directions_[2][i] = m[i] << (31 - i);
-        }
+    // Dimensions 3-6: each defined by a primitive polynomial with initial m-values
+    // and a recurrence relation that generates direction numbers.
+    if (dim_ >= 3) {  // x^2 + x + 1
+        uint32_t init[] = {1, 1};
+        initDimFromRecurrence(directions_[2], init,
+            [](const uint32_t* m, size_t i) { return (m[i-1]<<1) ^ m[i-2] ^ (m[i-2]>>2); });
     }
-
-    if (dim_ < 4) return;
-
-    // Dimension 4: polynomial x^3 + x + 1 (s=3, a=1)
-    // Initial m values: 1, 3, 1
-    {
-        uint32_t m[MAX_BITS];
-        m[0] = 1;
-        m[1] = 3;
-        m[2] = 1;
-        for (size_t i = 3; i < MAX_BITS; ++i) {
-            m[i] = (m[i-1] << 1) ^ m[i-3] ^ (m[i-3] >> 3);
-            m[i] &= (1U << (i + 1)) - 1;
-            m[i] |= 1;
-        }
-        for (size_t i = 0; i < MAX_BITS; ++i) {
-            directions_[3][i] = m[i] << (31 - i);
-        }
+    if (dim_ >= 4) {  // x^3 + x + 1
+        uint32_t init[] = {1, 3, 1};
+        initDimFromRecurrence(directions_[3], init,
+            [](const uint32_t* m, size_t i) { return (m[i-1]<<1) ^ m[i-3] ^ (m[i-3]>>3); });
     }
-
-    if (dim_ < 5) return;
-
-    // Dimension 5: polynomial x^3 + x^2 + 1 (s=3, a=2)
-    // Initial m values: 1, 1, 1
-    {
-        uint32_t m[MAX_BITS];
-        m[0] = 1;
-        m[1] = 1;
-        m[2] = 1;
-        for (size_t i = 3; i < MAX_BITS; ++i) {
-            m[i] = (m[i-2] << 1) ^ m[i-3] ^ (m[i-3] >> 3);
-            m[i] &= (1U << (i + 1)) - 1;
-            m[i] |= 1;
-        }
-        for (size_t i = 0; i < MAX_BITS; ++i) {
-            directions_[4][i] = m[i] << (31 - i);
-        }
+    if (dim_ >= 5) {  // x^3 + x^2 + 1
+        uint32_t init[] = {1, 1, 1};
+        initDimFromRecurrence(directions_[4], init,
+            [](const uint32_t* m, size_t i) { return (m[i-2]<<1) ^ m[i-3] ^ (m[i-3]>>3); });
     }
-
-    if (dim_ < 6) return;
-
-    // Dimension 6: polynomial x^4 + x + 1 (s=4, a=1)
-    // Initial m values: 1, 1, 3, 3
-    {
-        uint32_t m[MAX_BITS];
-        m[0] = 1;
-        m[1] = 1;
-        m[2] = 3;
-        m[3] = 3;
-        for (size_t i = 4; i < MAX_BITS; ++i) {
-            m[i] = (m[i-1] << 1) ^ m[i-4] ^ (m[i-4] >> 4);
-            m[i] &= (1U << (i + 1)) - 1;
-            m[i] |= 1;
-        }
-        for (size_t i = 0; i < MAX_BITS; ++i) {
-            directions_[5][i] = m[i] << (31 - i);
-        }
+    if (dim_ >= 6) {  // x^4 + x + 1
+        uint32_t init[] = {1, 1, 3, 3};
+        initDimFromRecurrence(directions_[5], init,
+            [](const uint32_t* m, size_t i) { return (m[i-1]<<1) ^ m[i-4] ^ (m[i-4]>>4); });
     }
 }
 
