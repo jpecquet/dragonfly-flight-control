@@ -74,7 +74,7 @@ def plot_tracking_pyvista(states, wing_vectors, params, controller, outfile,
     position_errors = controller['position_error']
 
     # Compute actual positions from states
-    actual_positions = np.array([s[0:3] for s in states])
+    actual_positions = states[:, 0:3]
 
     # Create full target trajectory line (if showing)
     target_trajectory = None
@@ -215,7 +215,7 @@ def plot_tracking_summary(states, controller, time, outfile):
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
 
-    actual_pos = np.array([s[0:3] for s in states])
+    actual_pos = states[:, 0:3]
     target_pos = controller['target_position']
     errors = controller['position_error']
     error_mag = np.linalg.norm(errors, axis=1)
@@ -329,10 +329,7 @@ def main():
     print(f"Final position error: {np.linalg.norm(controller['position_error'][-1]):.4f}")
     print(f"Renderer: {args.renderer}")
 
-    # Generate both animation and summary plot
-    if output_file.endswith('.mp4'):
-        print(f"Creating animation: {output_file}")
-
+    def _render_tracking(out):
         if args.renderer == "hybrid":
             from post.composite import (
                 check_blender_available,
@@ -348,15 +345,20 @@ def main():
             if check_blender_available():
                 render_hybrid_tracking(
                     states, wings, params, controller,
-                    input_file, output_file, config
+                    input_file, out, config
                 )
             else:
                 print("Warning: Blender not available, using matplotlib-only fallback")
                 render_mpl_only_tracking(
-                    states, wings, params, controller, output_file, config
+                    states, wings, params, controller, out, config
                 )
         else:
-            plot_tracking_pyvista(states, wings, params, controller, output_file)
+            plot_tracking_pyvista(states, wings, params, controller, out)
+
+    # Generate both animation and summary plot
+    if output_file.endswith('.mp4'):
+        print(f"Creating animation: {output_file}")
+        _render_tracking(output_file)
 
         # Also create summary plot
         summary_file = output_file.replace('.mp4', '_summary.png')
@@ -368,30 +370,7 @@ def main():
         plot_tracking_summary(states, controller, time, output_file)
     else:
         print(f"Unknown output format. Creating animation: {output_file}")
-        if args.renderer == "hybrid":
-            from post.composite import (
-                check_blender_available,
-                render_hybrid_tracking,
-                render_mpl_only_tracking
-            )
-            from post.hybrid_config import HybridConfig
-
-            config = None
-            if args.config:
-                config = HybridConfig.load(args.config)
-
-            if check_blender_available():
-                render_hybrid_tracking(
-                    states, wings, params, controller,
-                    input_file, output_file, config
-                )
-            else:
-                print("Warning: Blender not available, using matplotlib-only fallback")
-                render_mpl_only_tracking(
-                    states, wings, params, controller, output_file, config
-                )
-        else:
-            plot_tracking_pyvista(states, wings, params, controller, output_file)
+        _render_tracking(output_file)
 
     print("Done.")
 

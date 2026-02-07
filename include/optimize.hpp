@@ -49,6 +49,9 @@ struct KinematicParams {
     // Number of variable parameters
     size_t numVariable() const;
 
+    // Tighten bounds around current values by ±da, clamped to original bounds
+    void tightenBounds(double da, const KinematicParams& original);
+
     // Load from config file
     static KinematicParams fromConfig(const Config& cfg);
 

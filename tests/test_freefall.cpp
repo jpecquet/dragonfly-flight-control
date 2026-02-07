@@ -44,13 +44,16 @@ int main() {
     State state = initial;
     double t = 0.0;
 
+    // Pre-allocate scratch buffer
+    std::vector<SingleWingVectors> scratch(wings.size());
+
     // Track maximum errors
     double max_pos_error = 0.0;
     double max_vel_error = 0.0;
 
     // Integrate and compare at each step
     for (int i = 0; i < nsteps; ++i) {
-        state = stepRK4(t, dt, state, wings);
+        state = stepRK4(t, dt, state, wings, scratch);
         t += dt;
 
         // Analytical solution at current time

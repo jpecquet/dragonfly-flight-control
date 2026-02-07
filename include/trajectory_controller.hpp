@@ -1,8 +1,12 @@
 #pragma once
 
+#include "config.hpp"
 #include "controller.hpp"
 #include "eom.hpp"
 #include "trajectory.hpp"
+
+#include <cmath>
+#include <string>
 
 // Control output: kinematic parameters to apply
 struct ControlOutput {
@@ -34,7 +38,7 @@ struct ParameterBounds {
     double gamma_mean_min = 0.5;
     double gamma_mean_max = 2.5;
     double psi_mean_min = 0.0;
-    double psi_mean_max = 1.5708;  // pi/2
+    double psi_mean_max = M_PI / 2.0;
     double phi_amp_min = 0.1;
     double phi_amp_max = 0.8;
 };
@@ -93,9 +97,14 @@ private:
     ParameterBounds bounds_;
 
     // Baseline parameters
-    double gamma_mean_base_ = 1.5708;  // pi/2
-    double psi_mean_base_ = 0.7854;    // pi/4
-    double phi_amp_base_ = 0.3927;     // pi/8
+    double gamma_mean_base_ = M_PI / 2.0;
+    double psi_mean_base_ = M_PI / 4.0;
+    double phi_amp_base_ = M_PI / 8.0;
 
     ControllerState last_state_;
 };
+
+// Config loading helpers
+PIDGains readPIDGains(const Config& cfg, const std::string& prefix, const PIDGains& defaults);
+ParameterBounds readParameterBounds(const Config& cfg);
+MixingMatrix readMixingMatrix(const Config& cfg);

@@ -4,6 +4,7 @@
 
 // Maximum number of bits for Sobol sequence
 static constexpr size_t MAX_BITS = 32;
+static constexpr double SOBOL_SCALE = 1.0 / static_cast<double>(1ULL << MAX_BITS);
 
 SobolSequence::SobolSequence(size_t dim) : dim_(dim), index_(0), x_(dim, 0) {
     if (dim < 1 || dim > 6) {
@@ -144,7 +145,7 @@ std::vector<double> SobolSequence::next() {
         for (size_t d = 0; d < dim_; ++d) {
             x_[d] ^= directions_[d][c];
             // Convert to [0,1) by dividing by 2^32
-            result[d] = static_cast<double>(x_[d]) * (1.0 / 4294967296.0);
+            result[d] = static_cast<double>(x_[d]) * SOBOL_SCALE;
         }
     }
 

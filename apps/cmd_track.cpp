@@ -15,61 +15,17 @@ int runTrack(const Config& cfg) {
     std::string output_file = cfg.getString("output");
 
     // PID gains
-    PIDGains x_gains(
-        cfg.getDouble("pid_x_kp", 2.0),
-        cfg.getDouble("pid_x_ki", 0.5),
-        cfg.getDouble("pid_x_kd", 0.8),
-        cfg.getDouble("pid_x_imax", 1.0)
-    );
-    PIDGains y_gains(
-        cfg.getDouble("pid_y_kp", 2.0),
-        cfg.getDouble("pid_y_ki", 0.5),
-        cfg.getDouble("pid_y_kd", 0.8),
-        cfg.getDouble("pid_y_imax", 1.0)
-    );
-    PIDGains z_gains(
-        cfg.getDouble("pid_z_kp", 4.0),
-        cfg.getDouble("pid_z_ki", 1.0),
-        cfg.getDouble("pid_z_kd", 1.2),
-        cfg.getDouble("pid_z_imax", 2.0)
-    );
+    PIDGains x_gains = readPIDGains(cfg, "pid_x_", {2.0, 0.5, 0.8, 1.0});
+    PIDGains y_gains = readPIDGains(cfg, "pid_y_", {2.0, 0.5, 0.8, 1.0});
+    PIDGains z_gains = readPIDGains(cfg, "pid_z_", {4.0, 1.0, 1.2, 2.0});
 
     // Trajectory
     std::string traj_spec = cfg.getString("trajectory", "hover 0.0 0.0 0.0");
     TrajectoryFunc trajectory = trajectories::parse(traj_spec);
 
-    // Parameter bounds
-    ParameterBounds bounds;
-    bounds.gamma_mean_min = cfg.getDouble("gamma_mean_min", 0.5);
-    bounds.gamma_mean_max = cfg.getDouble("gamma_mean_max", 2.5);
-    bounds.psi_mean_min = cfg.getDouble("psi_mean_min", 0.0);
-    bounds.psi_mean_max = cfg.getDouble("psi_mean_max", 1.5708);
-    bounds.phi_amp_min = cfg.getDouble("phi_amp_min", 0.1);
-    bounds.phi_amp_max = cfg.getDouble("phi_amp_max", 0.8);
-
-    // Mixing matrix (optional override)
-    MixingMatrix mixing;
-    if (cfg.has("mix_gamma_x")) {
-        mixing.gamma_mean_mix = Vec3(
-            cfg.getDouble("mix_gamma_x"),
-            cfg.getDouble("mix_gamma_y", 0.0),
-            cfg.getDouble("mix_gamma_z")
-        );
-    }
-    if (cfg.has("mix_psi_x")) {
-        mixing.psi_mean_mix = Vec3(
-            cfg.getDouble("mix_psi_x"),
-            cfg.getDouble("mix_psi_y", 0.0),
-            cfg.getDouble("mix_psi_z")
-        );
-    }
-    if (cfg.has("mix_phi_x")) {
-        mixing.phi_amp_mix = Vec3(
-            cfg.getDouble("mix_phi_x"),
-            cfg.getDouble("mix_phi_y", 0.0),
-            cfg.getDouble("mix_phi_z")
-        );
-    }
+    // Parameter bounds and mixing matrix
+    ParameterBounds bounds = readParameterBounds(cfg);
+    MixingMatrix mixing = readMixingMatrix(cfg);
 
     auto wingConfigs = buildWingConfigs(cfg);
     auto wings = createWings(wingConfigs, kin);

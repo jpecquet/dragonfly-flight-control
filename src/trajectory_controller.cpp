@@ -77,3 +77,51 @@ void TrajectoryController::reset() {
     pid_y_.reset();
     pid_z_.reset();
 }
+
+// Config loading helpers
+
+PIDGains readPIDGains(const Config& cfg, const std::string& prefix, const PIDGains& defaults) {
+    return PIDGains(
+        cfg.getDouble(prefix + "kp", defaults.Kp),
+        cfg.getDouble(prefix + "ki", defaults.Ki),
+        cfg.getDouble(prefix + "kd", defaults.Kd),
+        cfg.getDouble(prefix + "imax", defaults.i_max)
+    );
+}
+
+ParameterBounds readParameterBounds(const Config& cfg) {
+    ParameterBounds bounds;
+    bounds.gamma_mean_min = cfg.getDouble("gamma_mean_min", bounds.gamma_mean_min);
+    bounds.gamma_mean_max = cfg.getDouble("gamma_mean_max", bounds.gamma_mean_max);
+    bounds.psi_mean_min = cfg.getDouble("psi_mean_min", bounds.psi_mean_min);
+    bounds.psi_mean_max = cfg.getDouble("psi_mean_max", bounds.psi_mean_max);
+    bounds.phi_amp_min = cfg.getDouble("phi_amp_min", bounds.phi_amp_min);
+    bounds.phi_amp_max = cfg.getDouble("phi_amp_max", bounds.phi_amp_max);
+    return bounds;
+}
+
+MixingMatrix readMixingMatrix(const Config& cfg) {
+    MixingMatrix mixing;
+    if (cfg.has("mix_gamma_x")) {
+        mixing.gamma_mean_mix = Vec3(
+            cfg.getDouble("mix_gamma_x"),
+            cfg.getDouble("mix_gamma_y", 0.0),
+            cfg.getDouble("mix_gamma_z")
+        );
+    }
+    if (cfg.has("mix_psi_x")) {
+        mixing.psi_mean_mix = Vec3(
+            cfg.getDouble("mix_psi_x"),
+            cfg.getDouble("mix_psi_y", 0.0),
+            cfg.getDouble("mix_psi_z")
+        );
+    }
+    if (cfg.has("mix_phi_x")) {
+        mixing.phi_amp_mix = Vec3(
+            cfg.getDouble("mix_phi_x"),
+            cfg.getDouble("mix_phi_y", 0.0),
+            cfg.getDouble("mix_phi_z")
+        );
+    }
+    return mixing;
+}

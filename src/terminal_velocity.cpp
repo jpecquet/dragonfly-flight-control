@@ -1,9 +1,21 @@
 #include "terminal_velocity.hpp"
 
+namespace {
+constexpr double PSI_DEGENERATE_TOL = 1e-6;
+constexpr double NEWTON_CONVERGENCE_TOL = 1e-12;
+constexpr int NEWTON_MAX_ITER = 50;
+constexpr double NEWTON_MAX_STEP = 0.1;
+}  // namespace
+
 TerminalVelocitySolution solveTerminalVelocity(double psi, double mu0, double lb0,
                                                 double Cd0, double Cl0) {
     TerminalVelocitySolution sol;
     sol.converged = false;
+
+    // Guard against invalid geometry
+    if (mu0 <= 0.0 || lb0 <= 0.0) {
+        return sol;
+    }
 
     // Normalize psi to [0, pi/2]
     // With gam = 90°, psi = 0 means horizontal chord, psi = π/2 means vertical chord
@@ -14,7 +26,7 @@ TerminalVelocitySolution solveTerminalVelocity(double psi, double mu0, double lb
 
     // Special case: psi ≈ 0 (horizontal chord)
     // At α = π/2, Cl = Cl0·sin(π) = 0, so no drift, θ = 0
-    if (psi_norm < 1e-6) {
+    if (psi_norm < PSI_DEGENERATE_TOL) {
         sol.converged = true;
         sol.theta = 0.0;
         sol.alpha = M_PI / 2.0;
@@ -28,12 +40,16 @@ TerminalVelocitySolution solveTerminalVelocity(double psi, double mu0, double lb
 
     // Special case: psi ≈ π/2 (vertical chord)
     // At α = 0, Cl = Cl0·sin(0) = 0, so no drift, θ = 0
-    if (std::abs(psi_norm - M_PI / 2.0) < 1e-6) {
+    if (std::abs(psi_norm - M_PI / 2.0) < PSI_DEGENERATE_TOL) {
         sol.converged = true;
         sol.theta = 0.0;
         sol.alpha = 0.0;
         sol.Cd = Cd0;  // sin²(0) = 0
         sol.Cl = 0.0;
+        if (mu0 * sol.Cd < 1e-12) {
+            sol.converged = false;
+            return sol;
+        }
         sol.speed = std::sqrt(2.0 * lb0 / (mu0 * sol.Cd));
         sol.ux = 0.0;
         sol.uz = -sol.speed;
@@ -45,10 +61,7 @@ TerminalVelocitySolution solveTerminalVelocity(double psi, double mu0, double lb
     if (theta < 0) theta = 0.1;
 
     // Newton-Raphson iteration
-    const int max_iter = 50;
-    const double tol = 1e-12;
-
-    for (int iter = 0; iter < max_iter; ++iter) {
+    for (int iter = 0; iter < NEWTON_MAX_ITER; ++iter) {
         // With gam = 90°: α = π/2 - ψ - θ
         double alpha = M_PI / 2.0 - psi_norm - theta;
 
@@ -56,12 +69,18 @@ TerminalVelocitySolution solveTerminalVelocity(double psi, double mu0, double lb
         double Cd, Cl;
         aeroCoeffs(alpha, Cd0, Cl0, Cd, Cl);
 
+        // Guard against degenerate Cd
+        if (Cd < 1e-12) {
+            theta += 0.01;
+            continue;
+        }
+
         // f(θ) = tan(θ) - Cl/Cd
         double tan_theta = std::tan(theta);
         double f = tan_theta - Cl / Cd;
 
         // Check convergence
-        if (std::abs(f) < tol) {
+        if (std::abs(f) < NEWTON_CONVERGENCE_TOL) {
             sol.converged = true;
             sol.theta = theta;
             sol.alpha = alpha;
@@ -72,6 +91,10 @@ TerminalVelocitySolution solveTerminalVelocity(double psi, double mu0, double lb
             // D = 0.5 * (mu0/lb0) * Cd * U² = cos(θ)
             // U² = 2 * lb0 * cos(θ) / (mu0 * Cd)
             double cos_theta = std::cos(theta);
+            if (mu0 * Cd < 1e-12) {
+                sol.converged = false;
+                return sol;
+            }
             sol.speed = std::sqrt(2.0 * lb0 * cos_theta / (mu0 * Cd));
             sol.ux = -sol.speed * std::sin(theta);
             sol.uz = -sol.speed * cos_theta;
@@ -98,8 +121,8 @@ TerminalVelocitySolution solveTerminalVelocity(double psi, double mu0, double lb
         double dtheta = -f / df;
 
         // Damping for stability
-        if (std::abs(dtheta) > 0.1) {
-            dtheta = 0.1 * (dtheta > 0 ? 1.0 : -1.0);
+        if (std::abs(dtheta) > NEWTON_MAX_STEP) {
+            dtheta = NEWTON_MAX_STEP * (dtheta > 0 ? 1.0 : -1.0);
         }
 
         theta += dtheta;
@@ -114,6 +137,9 @@ TerminalVelocitySolution solveTerminalVelocity(double psi, double mu0, double lb
     sol.theta = theta;
     sol.alpha = M_PI / 2.0 - psi_norm - theta;
     aeroCoeffs(sol.alpha, Cd0, Cl0, sol.Cd, sol.Cl);
+    if (mu0 * sol.Cd < 1e-12) {
+        return sol;
+    }
     double cos_theta = std::cos(theta);
     sol.speed = std::sqrt(2.0 * lb0 * cos_theta / (mu0 * sol.Cd));
     sol.ux = -sol.speed * std::sin(theta);

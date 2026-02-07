@@ -5,15 +5,14 @@
 // Forward declaration
 class Wing;
 
-// Euler method (first-order, for initialization)
+// Convenience wrappers that allocate scratch internally (not for tight loops)
 State stepEuler(double t, double h, const State& y,
                 const std::vector<Wing>& wings);
 
-// Runge-Kutta 4th order method
 State stepRK4(double t, double h, const State& y,
               const std::vector<Wing>& wings);
 
-// Versions with pre-allocated scratch buffer (avoids repeated allocation in loops)
+// Versions with pre-allocated scratch buffer (use in tight loops to avoid allocation)
 State stepEuler(double t, double h, const State& y,
                 const std::vector<Wing>& wings,
                 std::vector<SingleWingVectors>& scratch);

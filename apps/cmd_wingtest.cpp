@@ -4,10 +4,10 @@
 #include <highfive/H5Easy.hpp>
 #include <highfive/H5File.hpp>
 
-#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -56,30 +56,24 @@ TestConfig parseTestArgs(int argc, char* argv[]) {
     for (int i = 2; i < argc; ++i) {
         if (std::strcmp(argv[i], "--gam") == 0 && i + 1 < argc) {
             if (!parseRange(argv[++i], cfg.gam)) {
-                std::cerr << "Invalid --gam format. Use START:END\n";
-                std::exit(1);
+                throw std::runtime_error("Invalid --gam format. Use START:END");
             }
         } else if (std::strcmp(argv[i], "--phi") == 0 && i + 1 < argc) {
             if (!parseRange(argv[++i], cfg.phi)) {
-                std::cerr << "Invalid --phi format. Use START:END\n";
-                std::exit(1);
+                throw std::runtime_error("Invalid --phi format. Use START:END");
             }
         } else if (std::strcmp(argv[i], "--psi") == 0 && i + 1 < argc) {
             if (!parseRange(argv[++i], cfg.psi)) {
-                std::cerr << "Invalid --psi format. Use START:END\n";
-                std::exit(1);
+                throw std::runtime_error("Invalid --psi format. Use START:END");
             }
         } else if (std::strcmp(argv[i], "--seq") == 0 && i + 1 < argc) {
             if (!parseSequence(argv[++i], cfg.sequence)) {
-                std::cerr << "Invalid --seq format. Use comma-separated list of gam,phi,psi\n";
-                std::cerr << "Example: --seq phi,gam,psi\n";
-                std::exit(1);
+                throw std::runtime_error("Invalid --seq format. Use comma-separated list of gam,phi,psi (e.g. --seq phi,gam,psi)");
             }
         } else if (std::strcmp(argv[i], "--frames") == 0 && i + 1 < argc) {
             cfg.frames_per_phase = std::atoi(argv[++i]);
             if (cfg.frames_per_phase < 2) {
-                std::cerr << "Frames must be >= 2\n";
-                std::exit(1);
+                throw std::runtime_error("Frames must be >= 2");
             }
         } else if (std::strcmp(argv[i], "--right") == 0) {
             cfg.is_left = false;
@@ -88,8 +82,7 @@ TestConfig parseTestArgs(int argc, char* argv[]) {
         } else if (argv[i][0] != '-') {
             cfg.output_file = argv[i];
         } else {
-            std::cerr << "Unknown option: " << argv[i] << "\n";
-            std::exit(1);
+            throw std::runtime_error(std::string("Unknown option: ") + argv[i]);
         }
     }
 

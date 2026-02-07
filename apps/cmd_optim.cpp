@@ -14,6 +14,12 @@
 
 namespace {
 
+// Result of an optimization run
+struct OptimResult {
+    double value;
+    bool success;
+};
+
 // Context for NLopt objective callback
 struct NLoptContext {
     KinematicParams* kin;
@@ -31,11 +37,11 @@ double nloptObjective(const std::vector<double>& x, std::vector<double>& grad, v
 }
 
 // Optimize and return the result, modifying kin in place
-double runOptimization(KinematicParams& kin, const PhysicalParams& phys,
-                       OptimBuffers& buffers, double ux, double uz, int max_eval = 200) {
+OptimResult runOptimization(KinematicParams& kin, const PhysicalParams& phys,
+                            OptimBuffers& buffers, double ux, double uz, int max_eval = 200) {
     size_t n = kin.numVariable();
     if (n == 0) {
-        return wingBeatAccel(kin, phys, buffers, ux, uz);
+        return {wingBeatAccel(kin, phys, buffers, ux, uz), true};
     }
 
     NLoptContext ctx{&kin, &phys, &buffers, ux, uz};
@@ -59,9 +65,10 @@ double runOptimization(KinematicParams& kin, const PhysicalParams& phys,
         kin.setVariableValues(x);
     } catch (const std::exception& e) {
         std::cerr << "NLopt failed: " << e.what() << std::endl;
+        return {minf, false};
     }
 
-    return minf;
+    return {minf, true};
 }
 
 // Check if solution is new (different from existing branches)
@@ -89,7 +96,8 @@ void tryOptimizeAndCollect(
 {
     KinematicParams kin = kin_template;
     kin.setVariableValues(x0);
-    runOptimization(kin, phys, buffers, ux, 0.0, config.max_eval);
+    auto result = runOptimization(kin, phys, buffers, ux, 0.0, config.max_eval);
+    if (!result.success) return;
     double accel = std::sqrt(wingBeatAccel(kin, phys, buffers, ux, 0.0));
     if (accel < config.equilibrium_tol && isNewBranch(branches, kin)) {
         branches.push_back(kin);
@@ -208,11 +216,12 @@ std::vector<KinematicParams> findBranchesGlobal(
         kin.setVariableValues(x);
 
         // Always run local refinement from global optimizer's result
-        runOptimization(kin, phys, buffers, ux, 0.0, config.max_eval);
-        double accel = std::sqrt(wingBeatAccel(kin, phys, buffers, ux, 0.0));
-
-        if (accel < config.equilibrium_tol) {
-            branches.push_back(kin);
+        auto local_result = runOptimization(kin, phys, buffers, ux, 0.0, config.max_eval);
+        if (local_result.success) {
+            double accel = std::sqrt(wingBeatAccel(kin, phys, buffers, ux, 0.0));
+            if (accel < config.equilibrium_tol) {
+                branches.push_back(kin);
+            }
         }
     } catch (const std::exception& e) {
         std::cerr << "Global optimization failed: " << e.what() << std::endl;
@@ -393,14 +402,15 @@ int runOptim(const Config& cfg) {
 
             if (i > 0) {
                 // Tighten bounds around previous solution for continuation
-                if (kin.omega.is_variable) { kin.omega.min_bound = kin.omega.value - da; kin.omega.max_bound = kin.omega.value + da; }
-                if (kin.gamma_mean.is_variable) { kin.gamma_mean.min_bound = kin.gamma_mean.value - da; kin.gamma_mean.max_bound = kin.gamma_mean.value + da; }
-                if (kin.phi_amp.is_variable) { kin.phi_amp.min_bound = kin.phi_amp.value - da; kin.phi_amp.max_bound = kin.phi_amp.value + da; }
-                if (kin.psi_mean.is_variable) { kin.psi_mean.min_bound = kin.psi_mean.value - da; kin.psi_mean.max_bound = kin.psi_mean.value + da; }
-                if (kin.psi_amp.is_variable) { kin.psi_amp.min_bound = kin.psi_amp.value - da; kin.psi_amp.max_bound = kin.psi_amp.value + da; }
-                if (kin.psi_phase.is_variable) { kin.psi_phase.min_bound = kin.psi_phase.value - da; kin.psi_phase.max_bound = kin.psi_phase.value + da; }
+                KinematicParams prev = kin;
+                kin.tightenBounds(da, branches[b]);
 
-                runOptimization(kin, phys, branch_buffers, ux, 0.0, optim_config.max_eval);
+                auto result = runOptimization(kin, phys, branch_buffers, ux, 0.0, optim_config.max_eval);
+                if (!result.success) {
+                    std::cerr << "  Warning: optimization failed at ux=" << ux
+                              << ", keeping previous values" << std::endl;
+                    kin = prev;
+                }
             }
 
             // Store all values (converted to degrees) plus ux

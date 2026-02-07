@@ -375,6 +375,14 @@ def _blender_worker(args):
             f"Blender worker failed (frames {start_frame}-{end_frame}): {result.stderr}"
         )
 
+    # Blender may exit 0 despite script errors — verify frames were produced
+    expected = Path(output_dir) / f"frame_{start_frame:06d}.png"
+    if not expected.exists():
+        raise RuntimeError(
+            f"Blender worker produced no frames (frames {start_frame}-{end_frame}).\n"
+            f"stderr: {result.stderr[-500:]}"
+        )
+
     return (start_frame, end_frame)
 
 
@@ -443,6 +451,9 @@ def run_blender_render_parallel(
                 pbar.n = rendered
                 pbar.refresh()
                 time.sleep(0.5)
+            # Check for worker exceptions before finalizing progress bar
+            for future in futures:
+                future.result()
             pbar.n = n_frames
             pbar.refresh()
             pbar.close()
@@ -454,11 +465,10 @@ def run_blender_render_parallel(
                     print(f"  Blender: {rendered}/{n_frames} frames")
                     last_printed = rendered
                 time.sleep(0.5)
+            # Check for worker exceptions before reporting completion
+            for future in futures:
+                future.result()
             print(f"  Blender: done ({n_frames} frames)")
-
-        # Raise any worker exceptions
-        for future in futures:
-            future.result()
 
 
 def check_blender_available() -> bool:

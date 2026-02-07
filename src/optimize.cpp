@@ -4,6 +4,7 @@
 #include "wing.hpp"
 
 #include <highfive/H5File.hpp>
+#include <algorithm>
 #include <optional>
 #include <stdexcept>
 
@@ -59,6 +60,23 @@ void KinematicParams::getVariableBounds(std::vector<double>& lb, std::vector<dou
         if (p.is_variable) {
             lb.push_back(p.min_bound);
             ub.push_back(p.max_bound);
+        }
+    });
+}
+
+void KinematicParams::tightenBounds(double da, const KinematicParams& original) {
+    // Use a lambda that captures both 'this' params and original params by index
+    const KinematicParam* orig_params[] = {
+        &original.omega, &original.gamma_mean, &original.gamma_amp,
+        &original.gamma_phase, &original.phi_amp, &original.psi_mean,
+        &original.psi_amp, &original.psi_phase
+    };
+    size_t idx = 0;
+    forEachParam([&](const char*, KinematicParam& p) {
+        const auto& orig = *orig_params[idx++];
+        if (p.is_variable) {
+            p.min_bound = std::max(p.value - da, orig.min_bound);
+            p.max_bound = std::min(p.value + da, orig.max_bound);
         }
     });
 }

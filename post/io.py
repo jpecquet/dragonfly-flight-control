@@ -36,10 +36,7 @@ def read_simulation(filename):
 
         # Read time and state
         time = f["/time"][:]
-        state_array = f["/state"][:]
-
-        # Convert state array to list of arrays (matching Python code interface)
-        states = [state_array[i, :] for i in range(state_array.shape[0])]
+        states = f["/state"][:]
 
         # Read wing data (variable number of wings with user-defined names)
         wing_names = [k for k in f["/wings"].keys() if k != "num_wings"]
