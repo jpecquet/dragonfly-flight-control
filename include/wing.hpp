@@ -5,9 +5,17 @@
 #include "rotation.hpp"
 #include "eom.hpp"
 
+#include <stdexcept>
 #include <string>
 
 enum class WingSide { Left, Right };
+
+// Parse "left"/"right" string to WingSide enum
+inline WingSide parseSide(const std::string& s) {
+    if (s == "left") return WingSide::Left;
+    if (s == "right") return WingSide::Right;
+    throw std::runtime_error("Invalid wing side: '" + s + "' (expected 'left' or 'right')");
+}
 
 // Configuration for a single wing (used for variable wing count support)
 struct WingConfig {

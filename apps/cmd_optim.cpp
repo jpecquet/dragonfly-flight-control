@@ -127,7 +127,6 @@ void writeBranchOutput(const std::string& filename,
         }
         out << "\n";
     }
-    out.close();
 }
 
 // Find branches using Sobol multi-start sampling
@@ -323,38 +322,24 @@ int runOptim(const Config& cfg) {
     std::cout << "\nSearching for equilibria at ux=" << ux_min << "..." << std::endl;
 
     // Algorithm dispatch
-    std::string alg_name;
     std::vector<KinematicParams> branches;
 
     switch (optim_config.algorithm) {
         case OptimAlgorithm::MULTISTART:
-            alg_name = "multistart";
             std::cout << "Using multi-start with " << optim_config.n_samples
                       << " Sobol samples" << std::endl;
             branches = findBranchesMultistart(kin_template, phys, ux_min, optim_config);
             break;
 
         case OptimAlgorithm::DIRECT:
-            alg_name = "DIRECT";
-            std::cout << "Using DIRECT global optimizer" << std::endl;
-            branches = findBranchesGlobal(kin_template, phys, ux_min, optim_config);
-            break;
-
         case OptimAlgorithm::MLSL:
-            alg_name = "MLSL";
-            std::cout << "Using MLSL global optimizer" << std::endl;
-            branches = findBranchesGlobal(kin_template, phys, ux_min, optim_config);
-            break;
-
         case OptimAlgorithm::CRS2:
-            alg_name = "CRS2";
-            std::cout << "Using CRS2 global optimizer" << std::endl;
+            std::cout << "Using global optimizer" << std::endl;
             branches = findBranchesGlobal(kin_template, phys, ux_min, optim_config);
             break;
 
         case OptimAlgorithm::COBYLA:
         default:
-            alg_name = "cobyla (grid search)";
             std::cout << "Using grid search with " << optim_config.n_grid
                       << "^" << var_names.size() << " starting points" << std::endl;
             branches = findBranchesGrid(kin_template, phys, ux_min, optim_config, var_names);

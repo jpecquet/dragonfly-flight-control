@@ -83,62 +83,6 @@ def find_blender() -> Optional[str]:
     return None
 
 
-def composite_frames(
-    blender_dir: Path,
-    mpl_dir: Path,
-    output_dir: Path,
-    n_frames: int
-) -> List[str]:
-    """
-    Composite Blender and matplotlib frames.
-
-    Blender frame is placed on top of matplotlib frame (axes/trail behind mesh).
-
-    Args:
-        blender_dir: Directory containing Blender frames (frame_NNNNNN.png)
-        mpl_dir: Directory containing matplotlib frames (mpl_NNNNNN.png)
-        output_dir: Output directory for composited frames
-        n_frames: Number of frames to composite
-
-    Returns:
-        List of paths to composited PNG files
-    """
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    output_files = []
-
-    for i in range(n_frames):
-        blender_path = blender_dir / f"frame_{i:06d}.png"
-        mpl_path = mpl_dir / f"mpl_{i:06d}.png"
-        output_path = output_dir / f"composite_{i:06d}.png"
-
-        if not blender_path.exists():
-            raise FileNotFoundError(f"Blender frame not found: {blender_path}")
-        if not mpl_path.exists():
-            raise FileNotFoundError(f"Matplotlib frame not found: {mpl_path}")
-
-        # Load images
-        mpl_img = Image.open(mpl_path).convert('RGBA')
-        blender_img = Image.open(blender_path).convert('RGBA')
-
-        # Resize if needed (Blender and matplotlib might have slight size differences)
-        if mpl_img.size != blender_img.size:
-            blender_img = blender_img.resize(mpl_img.size, Image.Resampling.LANCZOS)
-
-        # Composite: matplotlib background, Blender on top
-        composite = Image.alpha_composite(mpl_img, blender_img)
-
-        # Save
-        composite.save(output_path)
-        output_files.append(str(output_path))
-
-        if i % 100 == 0:
-            print(f"  Compositing: frame {i}/{n_frames}")
-
-    return output_files
-
-
 def _composite_single_frame(args):
     """
     Worker for single frame compositing.

@@ -12,7 +12,7 @@ bool isIdentity(const Mat3& M, double tol) {
 }
 
 // Check if two vectors are approximately equal
-bool vecEqual(const Vec3& a, const Vec3& b, double tol) {
+bool vecNear(const Vec3& a, const Vec3& b, double tol) {
     return (a - b).norm() < tol;
 }
 
@@ -125,7 +125,7 @@ int main() {
     std::cout << "\nKnown-value rotation tests (90° and 180°):\n";
     for (const auto& t : vec_tests) {
         Mat3 R = t.func(t.angle);
-        bool ok = vecEqual(R * t.input, t.expected, tol);
+        bool ok = vecNear(R * t.input, t.expected, tol);
         std::cout << "  " << t.label << ": " << (ok ? "PASS" : "FAIL") << "\n";
         all_passed &= ok;
     }

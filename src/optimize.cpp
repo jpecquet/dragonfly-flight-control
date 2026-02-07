@@ -65,18 +65,17 @@ void KinematicParams::getVariableBounds(std::vector<double>& lb, std::vector<dou
 }
 
 void KinematicParams::tightenBounds(double da, const KinematicParams& original) {
-    // Use a lambda that captures both 'this' params and original params by index
-    const KinematicParam* orig_params[] = {
-        &original.omega, &original.gamma_mean, &original.gamma_amp,
-        &original.gamma_phase, &original.phi_amp, &original.psi_mean,
-        &original.psi_amp, &original.psi_phase
-    };
+    // Collect original bounds via the same visitor, ensuring order matches
+    std::vector<std::pair<double, double>> orig_bounds;
+    original.forEachParam([&](const char*, const KinematicParam& p) {
+        orig_bounds.emplace_back(p.min_bound, p.max_bound);
+    });
     size_t idx = 0;
     forEachParam([&](const char*, KinematicParam& p) {
-        const auto& orig = *orig_params[idx++];
+        auto [orig_min, orig_max] = orig_bounds[idx++];
         if (p.is_variable) {
-            p.min_bound = std::max(p.value - da, orig.min_bound);
-            p.max_bound = std::min(p.value + da, orig.max_bound);
+            p.min_bound = std::max(p.value - da, orig_min);
+            p.max_bound = std::min(p.value + da, orig_max);
         }
     });
 }
@@ -143,19 +142,23 @@ PhysicalParams PhysicalParams::fromConfig(const Config& cfg) {
 
     PhysicalParams params;
     for (const auto& entry : cfg.getWingEntries()) {
-        WingSide side = (entry.side == "left") ? WingSide::Left : WingSide::Right;
+        WingSide side = parseSide(entry.side);
         params.wings.emplace_back(entry.name, side, entry.mu0, entry.lb0,
                                   entry.Cd0, entry.Cl0, entry.phase);
     }
     return params;
 }
 
+// Convert optimizer params to plain simulation params
+static SimKinematicParams toSimParams(const KinematicParams& kin) {
+    return {kin.omega.value, kin.gamma_mean.value, kin.gamma_amp.value,
+            kin.gamma_phase.value, kin.phi_amp.value, kin.psi_mean.value,
+            kin.psi_amp.value, kin.psi_phase.value};
+}
+
 // Internal helper to create wings from optimizer params
 static std::vector<Wing> createOptimWings(const KinematicParams& kin, const PhysicalParams& phys) {
-    return createWings(phys.wings, kin.omega.value, kin.gamma_mean.value,
-                       kin.gamma_amp.value, kin.gamma_phase.value,
-                       kin.phi_amp.value, kin.psi_mean.value,
-                       kin.psi_amp.value, kin.psi_phase.value);
+    return createWings(phys.wings, toSimParams(kin));
 }
 
 // OptimBuffers implementation

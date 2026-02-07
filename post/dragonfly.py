@@ -54,12 +54,6 @@ def plot_dragonfly(states, wing_vectors, params, outfile):
 
     wing_names = list(wing_vectors[0].keys())
 
-    # Calculate average lb0 for fore and hind wings
-    fore_lb0 = [wing_lb0.get(w, DEFAULT_LB0) for w in wing_names if 'fore' in w]
-    hind_lb0 = [wing_lb0.get(w, DEFAULT_LB0) for w in wing_names if 'hind' in w]
-    avg_fore = sum(fore_lb0) / len(fore_lb0) if fore_lb0 else DEFAULT_LB0
-    avg_hind = sum(hind_lb0) / len(hind_lb0) if hind_lb0 else DEFAULT_LB0
-
     wing_info = get_wing_info(wing_vectors[0], wing_lb0)
 
     # Pre-create body mesh at origin (will be copied and translated each frame)

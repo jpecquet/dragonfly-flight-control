@@ -50,50 +50,32 @@ int main(int argc, char* argv[]) {
 
     std::string command = argv[1];
 
-    // wingtest command has its own argument parsing
-    if (command == "wingtest") {
-        try {
+    try {
+        // Commands with their own argument parsing
+        if (command == "wingtest") {
             return runWingtest(argc, argv);
-        } catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-            return 1;
         }
-    }
-
-    // termvel command has its own argument parsing
-    if (command == "termvel") {
-        try {
+        if (command == "termvel") {
             return runTermvel(argc, argv);
-        } catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
+        }
+
+        // Remaining commands require -c <config>
+        if (argc < 4) {
+            printUsage(argv[0]);
             return 1;
         }
-    }
 
-    // Other commands require -c <config>
-    if (argc < 4) {
-        printUsage(argv[0]);
-        return 1;
-    }
+        std::string config_flag = argv[2];
+        std::string config_file = argv[3];
 
-    std::string config_flag = argv[2];
-    std::string config_file = argv[3];
+        if (config_flag != "-c") {
+            std::cerr << "Error: expected -c <config>\n";
+            printUsage(argv[0]);
+            return 1;
+        }
 
-    if (config_flag != "-c") {
-        std::cerr << "Error: expected -c <config>\n";
-        printUsage(argv[0]);
-        return 1;
-    }
+        Config cfg = Config::load(config_file);
 
-    Config cfg;
-    try {
-        cfg = Config::load(config_file);
-    } catch (const std::exception& e) {
-        std::cerr << "Error loading config: " << e.what() << std::endl;
-        return 1;
-    }
-
-    try {
         if (command == "sim") {
             return runSim(cfg);
         } else if (command == "track") {

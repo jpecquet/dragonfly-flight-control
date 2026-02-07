@@ -31,12 +31,12 @@ Eigen::MatrixXd toMatrix(
     return result;
 }
 
-} // namespace
-
 std::string wingGroupName(const Wing& wing) {
     std::string suffix = (wing.side() == WingSide::Left) ? "_left" : "_right";
     return wing.name() + suffix;
 }
+
+} // namespace
 
 void writeHDF5(const std::string& filename, const SimulationOutput& output,
                const std::vector<Wing>& wings) {
@@ -44,11 +44,12 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
 
     // Write kinematic parameters
     file.createGroup("/parameters");
+    const auto& k = output.kin;
     const std::pair<const char*, double> kin_params[] = {
-        {"omega", output.omega}, {"gamma_mean", output.gamma_mean},
-        {"gamma_amp", output.gamma_amp}, {"gamma_phase", output.gamma_phase},
-        {"phi_amp", output.phi_amp}, {"psi_mean", output.psi_mean},
-        {"psi_amp", output.psi_amp}, {"psi_phase", output.psi_phase},
+        {"omega", k.omega}, {"gamma_mean", k.gamma_mean},
+        {"gamma_amp", k.gamma_amp}, {"gamma_phase", k.gamma_phase},
+        {"phi_amp", k.phi_amp}, {"psi_mean", k.psi_mean},
+        {"psi_amp", k.psi_amp}, {"psi_phase", k.psi_phase},
     };
     for (auto& [name, val] : kin_params) {
         H5Easy::dump(file, std::string("/parameters/") + name, val);

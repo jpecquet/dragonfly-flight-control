@@ -20,27 +20,6 @@ import post
 from post.io import read_wing_rotation
 
 
-# Map angle keys to descriptive names
-ANGLE_NAMES = {
-    'gam': 'Stroke plane (gam)',
-    'phi': 'Flapping (phi)',
-    'psi': 'Pitch (psi)',
-}
-
-
-def _get_phase(frame, phase_boundaries, sequence):
-    """Return phase number (1, 2, or 3) and phase name based on sequence."""
-    if frame < phase_boundaries[1]:
-        phase_idx = 0
-    elif frame < phase_boundaries[2]:
-        phase_idx = 1
-    else:
-        phase_idx = 2
-
-    angle_key = sequence[phase_idx]
-    return phase_idx + 1, ANGLE_NAMES.get(angle_key, angle_key)
-
-
 def animate_vectors(data, outfile):
     """Create animation of wing vectors."""
     fig = plt.figure(figsize=(4, 4))
