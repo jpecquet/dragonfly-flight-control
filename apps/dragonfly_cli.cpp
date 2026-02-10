@@ -30,7 +30,7 @@ void printUsage(const char* prog) {
     std::cerr << "  -o <file>          Output file (default: wingtest.h5)\n";
     std::cerr << "\n";
     std::cerr << "Termvel options:\n";
-    std::cerr << "  --psi DEG          Wing pitch angle in degrees (default: 90)\n";
+    std::cerr << "  --psi DEG          Wing pitch angle in degrees (default: 0)\n";
     std::cerr << "  --dt VALUE         Time step (default: 0.01)\n";
     std::cerr << "  --tmax VALUE       Maximum simulation time (default: 50.0)\n";
     std::cerr << "  -o <file>          Output file (default: termvel.h5)\n";
@@ -39,7 +39,7 @@ void printUsage(const char* prog) {
     std::cerr << "  " << prog << " sim -c configs/sim_hover.cfg\n";
     std::cerr << "  " << prog << " optim -c configs/optim.cfg\n";
     std::cerr << "  " << prog << " wingtest --gam 0:90 --phi 0:25 -o out.h5\n";
-    std::cerr << "  " << prog << " termvel --psi 90 -o termvel.h5\n";
+    std::cerr << "  " << prog << " termvel --psi 0 -o termvel.h5\n";
 }
 
 int main(int argc, char* argv[]) {

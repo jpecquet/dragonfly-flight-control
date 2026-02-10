@@ -40,6 +40,16 @@ simulation_output.h5
         ├── e_c              (dataset) [N x 3] - Chord direction unit vector
         ├── lift             (dataset) [N x 3] - Lift force vector
         └── drag             (dataset) [N x 3] - Drag force vector
+
+# Optional (tracking runs only)
+simulation_output.h5
+└── /controller              (group)
+    ├── active               (scalar int) - Always 1 when present
+    ├── target_position      (dataset) [N x 3] - Desired trajectory position
+    ├── position_error       (dataset) [N x 3] - Target minus actual position
+    ├── gamma_mean           (dataset) [N] - Controlled stroke-plane angle history
+    ├── psi_mean             (dataset) [N] - Controlled mean pitch history
+    └── phi_amp              (dataset) [N] - Controlled stroke amplitude history
 ```
 
 ## Wing Names
@@ -64,6 +74,12 @@ Wing group names are constructed from the config-defined name combined with the 
 | time | `H5T_NATIVE_DOUBLE` | 1D array of size N |
 | state | `H5T_NATIVE_DOUBLE` | 2D array of shape [N, 6] |
 | Wing vectors | `H5T_NATIVE_DOUBLE` | 2D arrays of shape [N, 3] |
+| controller/active | `H5T_NATIVE_INT` | Present only for tracking output |
+| controller/target_position | `H5T_NATIVE_DOUBLE` | 2D array [N, 3], tracking only |
+| controller/position_error | `H5T_NATIVE_DOUBLE` | 2D array [N, 3], tracking only |
+| controller/gamma_mean | `H5T_NATIVE_DOUBLE` | 1D array [N], tracking only |
+| controller/psi_mean | `H5T_NATIVE_DOUBLE` | 1D array [N], tracking only |
+| controller/phi_amp | `H5T_NATIVE_DOUBLE` | 1D array [N], tracking only |
 
 ## Coordinate System
 

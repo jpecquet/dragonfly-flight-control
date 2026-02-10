@@ -445,7 +445,7 @@ def render_hybrid(
     """
     if not check_blender_available():
         raise RuntimeError(
-            "Blender is not available. Install Blender or use --renderer pyvista"
+            "Blender is not available. Install Blender or use matplotlib-only fallback"
         )
 
     if config is None:
@@ -512,7 +512,7 @@ def render_mpl_only(
     """
     Render using matplotlib only (fallback when Blender unavailable).
 
-    Renders axes/trail/forces but without the 3D mesh.
+    Renders axes/trail/forces plus simplified body and wing models.
 
     Args:
         states: List of state arrays
@@ -535,8 +535,10 @@ def render_mpl_only(
         tmpdir = Path(tmpdir)
 
         print("Rendering matplotlib frames...")
+        print("  Using simplified matplotlib body/wing models")
         render_all_frames(
-            states, wing_vectors, params, config, tmpdir, controller=controller
+            states, wing_vectors, params, config, tmpdir, controller=controller,
+            draw_models=True,
         )
 
         # Rename files to match expected pattern for ffmpeg

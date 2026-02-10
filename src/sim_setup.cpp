@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 
 SimKinematicParams readKinematicParams(const Config& cfg) {
@@ -28,10 +29,24 @@ TimeParams readTimeParams(const Config& cfg, double omega) {
     int n_wingbeats = cfg.getInt("n_wingbeats", 5);
     int steps_per_wingbeat = cfg.getInt("steps_per_wingbeat", 50);
 
+    if (!std::isfinite(omega) || omega <= 0.0) {
+        throw std::runtime_error("omega must be finite and > 0");
+    }
+    if (n_wingbeats < 0) {
+        throw std::runtime_error("n_wingbeats must be >= 0");
+    }
+    if (steps_per_wingbeat <= 0) {
+        throw std::runtime_error("steps_per_wingbeat must be > 0");
+    }
+
     double Twb = 2.0 * M_PI / omega;
     double dt = Twb / steps_per_wingbeat;
-    double T = n_wingbeats * Twb;
-    int nsteps = static_cast<int>(T / dt);
+    long long nsteps_ll = static_cast<long long>(n_wingbeats) * steps_per_wingbeat;
+    if (nsteps_ll > std::numeric_limits<int>::max()) {
+        throw std::runtime_error("Too many integration steps; reduce n_wingbeats or steps_per_wingbeat");
+    }
+    int nsteps = static_cast<int>(nsteps_ll);
+    double T = nsteps * dt;
 
     return {Twb, dt, T, nsteps};
 }

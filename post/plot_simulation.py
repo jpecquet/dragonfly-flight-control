@@ -6,11 +6,10 @@ Usage:
     python -m post.plot_simulation <input.h5> [output.mp4] [options]
 
 Options:
-    --renderer hybrid|pyvista  Rendering backend (default: hybrid)
-    --config <file.json>       Custom visualization config (hybrid only)
+    --config <file.json>  Custom visualization config
+    --no-blender          Force matplotlib-only fallback rendering
 """
 import argparse
-import sys
 from pathlib import Path
 
 from post.io import read_simulation
@@ -23,14 +22,13 @@ def main():
     parser.add_argument("input", help="Input HDF5 file")
     parser.add_argument("output", nargs="?", help="Output video file (default: <input>.mp4)")
     parser.add_argument(
-        "--renderer",
-        choices=["hybrid", "pyvista"],
-        default="hybrid",
-        help="Rendering backend (default: hybrid)"
+        "--config",
+        help="Custom visualization config JSON"
     )
     parser.add_argument(
-        "--config",
-        help="Custom visualization config JSON (hybrid renderer only)"
+        "--no-blender",
+        action="store_true",
+        help="Force matplotlib-only fallback rendering"
     )
 
     args = parser.parse_args()
@@ -45,34 +43,32 @@ def main():
     print(f"Wings: {list(params['wing_lb0'].keys())}")
 
     print(f"Creating animation: {output_file}")
-    print(f"Renderer: {args.renderer}")
+    from post.composite import (
+        check_blender_available,
+        render_hybrid,
+        render_mpl_only
+    )
+    from post.hybrid_config import HybridConfig
 
-    if args.renderer == "hybrid":
-        from post.composite import (
-            check_blender_available,
-            render_hybrid,
-            render_mpl_only
+    # Load custom config if provided
+    config = None
+    if args.config:
+        config = HybridConfig.load(args.config)
+
+    if args.no_blender:
+        print("Blender disabled via --no-blender; using matplotlib-only fallback")
+        render_mpl_only(
+            states, wings, params, output_file, config=config
         )
-        from post.hybrid_config import HybridConfig
-
-        # Load custom config if provided
-        config = None
-        if args.config:
-            config = HybridConfig.load(args.config)
-
-        if check_blender_available():
-            render_hybrid(
-                states, wings, params, input_file, output_file, config=config
-            )
-        else:
-            print("Warning: Blender not available, using matplotlib-only fallback")
-            render_mpl_only(
-                states, wings, params, output_file, config=config
-            )
+    elif check_blender_available():
+        render_hybrid(
+            states, wings, params, input_file, output_file, config=config
+        )
     else:
-        # PyVista renderer
-        from post.dragonfly import plot_dragonfly
-        plot_dragonfly(states, wings, params, output_file)
+        print("Warning: Blender not available, using matplotlib-only fallback")
+        render_mpl_only(
+            states, wings, params, output_file, config=config
+        )
 
     print("Done.")
 

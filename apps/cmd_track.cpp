@@ -5,6 +5,7 @@
 #include "sim_setup.hpp"
 #include "trajectory_controller.hpp"
 
+#include <cmath>
 #include <iostream>
 #include <string>
 
@@ -30,6 +31,33 @@ int runTrack(const Config& cfg) {
     auto wingConfigs = buildWingConfigs(cfg);
     auto wings = createWings(wingConfigs, kin);
     auto output = initOutput(wingConfigs, kin, tp.nsteps);
+
+    // Controller-updated parameters shared by all pre-bound wing angle lambdas.
+    double gamma_mean_cmd = kin.gamma_mean;
+    double psi_mean_cmd = kin.psi_mean;
+    double phi_amp_cmd = kin.phi_amp;
+    for (size_t w = 0; w < wings.size(); ++w) {
+        const double phase_offset = wingConfigs[w].phaseOffset;
+        auto angleFunc = [&gamma_mean_cmd, &psi_mean_cmd, &phi_amp_cmd,
+                          omega = kin.omega,
+                          gamma_amp = kin.gamma_amp,
+                          gamma_phase = kin.gamma_phase,
+                          psi_amp = kin.psi_amp,
+                          psi_phase = kin.psi_phase,
+                          phase_offset](double t) -> WingAngles {
+            double phase_gam = omega * t + gamma_phase + phase_offset;
+            double phase_phi = omega * t + phase_offset;
+            double phase_psi = omega * t + psi_phase + phase_offset;
+            return {
+                gamma_mean_cmd + gamma_amp * std::cos(phase_gam),
+                -gamma_amp * omega * std::sin(phase_gam),
+                phi_amp_cmd * std::cos(phase_phi),
+                -phi_amp_cmd * omega * std::sin(phase_phi),
+                psi_mean_cmd + psi_amp * std::cos(phase_psi)
+            };
+        };
+        wings[w].setAngleFunc(std::move(angleFunc));
+    }
 
     // Setup controller
     TrajectoryController controller;
@@ -57,6 +85,9 @@ int runTrack(const Config& cfg) {
 
     // Initial controller state
     auto ctrl = controller.compute(t, tp.dt, state);
+    gamma_mean_cmd = ctrl.gamma_mean;
+    psi_mean_cmd = ctrl.psi_mean;
+    phi_amp_cmd = ctrl.phi_amp;
     const auto& cs = controller.lastState();
     output.target_positions.push_back(cs.target_pos);
     output.position_errors.push_back(cs.pos_error);
@@ -71,16 +102,11 @@ int runTrack(const Config& cfg) {
     for (int i = 0; i < tp.nsteps; ++i) {
         // 1. Controller update
         ctrl = controller.compute(t, tp.dt, state);
+        gamma_mean_cmd = ctrl.gamma_mean;
+        psi_mean_cmd = ctrl.psi_mean;
+        phi_amp_cmd = ctrl.phi_amp;
 
-        // 2. Update wing angle functions with new parameters
-        for (size_t w = 0; w < wings.size(); ++w) {
-            auto angleFunc = makeAngleFunc(ctrl.gamma_mean, kin.gamma_amp, kin.gamma_phase,
-                                           ctrl.phi_amp, ctrl.psi_mean, kin.psi_amp,
-                                           kin.psi_phase, wingConfigs[w].phaseOffset, kin.omega);
-            wings[w].setAngleFunc(std::move(angleFunc));
-        }
-
-        // 3. Physics step
+        // 2. Physics step
         state = stepRK4(t, tp.dt, state, wings, scratch);
         t += tp.dt;
 

@@ -5,32 +5,27 @@ Python tools for visualizing dragonfly simulation output.
 ## Requirements
 
 ```bash
-pip install numpy matplotlib h5py pillow
+# From repository root:
+pip install -r requirements.txt
 
 # For hybrid renderer (default):
 brew install blender  # macOS, or download from blender.org
 
-# For PyVista renderer (legacy):
-pip install pyvista imageio imageio-ffmpeg
-
 # For animations:
 brew install ffmpeg  # macOS
 
-# Optional, for progress bars:
-pip install tqdm
+# Optional: lock current environment exactly
+pip freeze > requirements.lock.txt
 ```
 
-## Rendering Backends
+## Rendering Backend
 
-The visualization scripts support two rendering backends:
-
-### Hybrid (Default)
+### Hybrid (Default and only backend)
 
 Uses Blender for high-quality 3D mesh rendering combined with matplotlib for axes, trajectories, and annotations. Produces consistent visual style matching 2D plots (Times New Roman, STIX fonts).
 
 ```bash
 python -m post.plot_simulation output.h5 output.mp4  # Uses hybrid by default
-python -m post.plot_simulation output.h5 output.mp4 --renderer hybrid
 ```
 
 Requirements:
@@ -38,19 +33,7 @@ Requirements:
 - Pillow (for PNG compositing)
 - ffmpeg (for video assembly)
 
-If Blender is not available, falls back to matplotlib-only rendering (axes and trajectories without 3D mesh).
-
-### PyVista (Legacy)
-
-Uses PyVista/VTK for interactive 3D rendering. Good for quick previews.
-
-```bash
-python -m post.plot_simulation output.h5 output.mp4 --renderer pyvista
-```
-
-Requirements:
-- PyVista
-- imageio, imageio-ffmpeg
+If Blender is not available, falls back to matplotlib-only rendering (axes, trajectories, forces, and simplified body/wing models).
 
 ## Assets
 
@@ -79,11 +62,11 @@ Visualize simulation output (body + wings + force vectors).
 # Animation with hybrid renderer (default)
 python -m post.plot_simulation output.h5 output.mp4
 
-# Animation with PyVista renderer
-python -m post.plot_simulation output.h5 output.mp4 --renderer pyvista
-
 # With custom configuration
 python -m post.plot_simulation output.h5 output.mp4 --config my_config.json
+
+# Force matplotlib-only fallback (skip Blender)
+python -m post.plot_simulation output.h5 output.mp4 --no-blender
 ```
 
 ### plot_tracking.py
@@ -96,6 +79,9 @@ python -m post.plot_tracking track.h5 tracking.mp4
 
 # Summary plot only
 python -m post.plot_tracking track.h5 tracking.png
+
+# Force matplotlib-only fallback (skip Blender)
+python -m post.plot_tracking track.h5 tracking.mp4 --no-blender
 ```
 
 ### plot_landscape.py
@@ -138,18 +124,6 @@ python -m post.plot_terminal_velocity --psi 45 output.png
 python -m post.plot_terminal_velocity --psi 45 output.mp4
 ```
 
-### view_meshes.py
-
-View wing meshes from assets directory (for debugging mesh orientation).
-
-```bash
-# Interactive viewer
-python -m post.view_meshes
-
-# Save to file
-python -m post.view_meshes meshes.png
-```
-
 ## Custom Configuration
 
 The hybrid renderer accepts a JSON configuration file:
@@ -189,12 +163,10 @@ post/
 ├── hybrid_config.py         # Shared camera/style configuration
 ├── mpl_overlay.py           # Matplotlib 3D overlay rendering
 ├── composite.py             # PNG compositing + video assembly
-├── dragonfly.py             # PyVista 3D body/wing rendering
 ├── blender/
 │   ├── __init__.py
 │   ├── materials.py         # Blender material definitions
 │   └── render_dragonfly.py  # Blender headless rendering script
-├── view_meshes.py           # Wing mesh viewer
 ├── plot_simulation.py       # CLI: simulation visualization
 ├── plot_tracking.py         # CLI: trajectory tracking visualization
 ├── plot_landscape.py        # CLI: optimizer landscape

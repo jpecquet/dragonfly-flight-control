@@ -7,6 +7,7 @@ Renders transparent PNG overlays with:
 - Target position (for tracking)
 - Error vectors (for tracking)
 - Force vectors (lift/drag)
+- Optional simplified body/wing models (matplotlib-only fallback)
 """
 
 import os
@@ -25,11 +26,13 @@ import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from mpl_toolkits.mplot3d.proj3d import proj_transform
 import numpy as np
 
 from .constants import (
-    DW, FW_X0, HW_X0, DEFAULT_LB0,
+    FW_X0, HW_X0, DEFAULT_LB0,
+    Lh, Lt, La, Rh, Rt, Ra, H_XC, T_XC, A_XC,
     FORCE_CENTER_FRACTION, FORCE_THRESHOLD,
     RIGHT_WING_Y_OFFSET, LEFT_WING_Y_OFFSET,
 )
@@ -193,13 +196,80 @@ def _draw_forces(ax, xb, wing_vectors, wing_lb0, config):
                         color=color, linewidth=style.force_linewidth)
 
 
+def _draw_body_and_wings(ax, xb, wing_vectors, wing_lb0):
+    """
+    Draw simplified dragonfly body and wing geometry in matplotlib 3D.
+
+    This is intended for matplotlib-only fallback rendering where Blender meshes
+    are unavailable.
+    """
+    wing_color = '#cccccc'
+    wing_edge = '#2e2e2e'
+
+    # Body as a black stick with a hollow head marker.
+    tail = xb + np.array([A_XC - La / 2.0, 0.0, 0.0])
+    head = xb + np.array([H_XC + Lh / 2.0, 0.0, 0.0])
+    ax.plot(
+        [tail[0], head[0]], [tail[1], head[1]], [tail[2], head[2]],
+        color='black', linewidth=2.0, solid_capstyle='round', zorder=2,
+    )
+    ax.scatter(
+        [head[0]], [head[1]], [head[2]],
+        s=30, facecolors='white', edgecolors='black', linewidths=2.0, zorder=3,
+    )
+
+    # Wings as thin oriented plates.
+    for wname, wdata in wing_vectors.items():
+        lb0 = wing_lb0.get(wname, DEFAULT_LB0)
+        xoffset = FW_X0 if 'fore' in wname else HW_X0
+        yoffset = RIGHT_WING_Y_OFFSET if 'right' in wname else LEFT_WING_Y_OFFSET
+        root = xb + np.array([xoffset, yoffset, 0.0])
+
+        e_r = np.asarray(wdata['e_r'], dtype=float)
+        e_c = np.asarray(wdata['e_c'], dtype=float)
+        nr = np.linalg.norm(e_r)
+        nc = np.linalg.norm(e_c)
+        if nr < 1e-12 or nc < 1e-12:
+            continue
+        e_r = e_r / nr
+        e_c = e_c / nc
+
+        span = lb0
+        chord = 0.24 * lb0
+        root_le = root + 0.5 * chord * e_c
+        root_te = root - 0.5 * chord * e_c
+        tip_le = root_le + span * e_r
+        tip_te = root_te + span * e_r
+
+        wing_poly = Poly3DCollection(
+            [[root_le, tip_le, tip_te, root_te]],
+            facecolors=wing_color,
+            edgecolors=wing_edge,
+            linewidths=0.6,
+            alpha=0.75,
+            zorder=1,
+        )
+        ax.add_collection3d(wing_poly)
+
+        ax.plot(
+            [root[0], (root + span * e_r)[0]],
+            [root[1], (root + span * e_r)[1]],
+            [root[2], (root + span * e_r)[2]],
+            color=wing_edge,
+            linewidth=1.2,
+            alpha=0.95,
+            zorder=2,
+        )
+
+
 def render_simulation_frame(
     frame_idx: int,
     states: List[np.ndarray],
     wing_vectors: List[Dict],
     params: Dict,
     config: HybridConfig,
-    output_path: Path
+    output_path: Path,
+    draw_models: bool = False,
 ) -> str:
     """
     Render matplotlib overlay for a simulation frame.
@@ -224,6 +294,9 @@ def render_simulation_frame(
     # Current position
     xb = states[frame_idx][0:3]
     v = wing_vectors[frame_idx]
+
+    if draw_models:
+        _draw_body_and_wings(ax, xb, v, wing_lb0)
 
     # Draw trajectory trail (full history)
     if frame_idx > 0:
@@ -254,7 +327,8 @@ def render_tracking_frame(
     params: Dict,
     controller: Dict,
     config: HybridConfig,
-    output_path: Path
+    output_path: Path,
+    draw_models: bool = False,
 ) -> str:
     """
     Render matplotlib overlay for a tracking frame.
@@ -283,6 +357,9 @@ def render_tracking_frame(
     # Current state
     xb = states[frame_idx][0:3]
     v = wing_vectors[frame_idx]
+    if draw_models:
+        _draw_body_and_wings(ax, xb, v, wing_lb0)
+
     target = controller['target_position'][frame_idx]
     error = controller['position_error'][frame_idx]
     error_mag = np.linalg.norm(error)
@@ -350,6 +427,7 @@ def render_all_frames(
     config: HybridConfig,
     output_path: Path,
     controller: Optional[Dict] = None,
+    draw_models: bool = False,
     progress_callback=None
 ) -> List[str]:
     """
@@ -376,11 +454,13 @@ def render_all_frames(
     for i in range(n_frames):
         if controller is not None:
             filepath = render_tracking_frame(
-                i, states, wing_vectors, params, controller, config, output_path
+                i, states, wing_vectors, params, controller, config, output_path,
+                draw_models=draw_models,
             )
         else:
             filepath = render_simulation_frame(
-                i, states, wing_vectors, params, config, output_path
+                i, states, wing_vectors, params, config, output_path,
+                draw_models=draw_models,
             )
         output_files.append(filepath)
 
@@ -394,12 +474,18 @@ def render_all_frames(
 
 def _frame_worker(args):
     """Worker for parallel frame rendering."""
-    frame_idx, states, wing_vectors, params, controller, config_dict, output_path_str = args
+    frame_idx, states, wing_vectors, params, controller, config_dict, output_path_str, draw_models = args
     config = HybridConfig.from_dict(config_dict)
     output_path = Path(output_path_str)
     if controller is not None:
-        return render_tracking_frame(frame_idx, states, wing_vectors, params, controller, config, output_path)
-    return render_simulation_frame(frame_idx, states, wing_vectors, params, config, output_path)
+        return render_tracking_frame(
+            frame_idx, states, wing_vectors, params, controller, config, output_path,
+            draw_models=draw_models,
+        )
+    return render_simulation_frame(
+        frame_idx, states, wing_vectors, params, config, output_path,
+        draw_models=draw_models,
+    )
 
 
 def render_all_frames_parallel(
@@ -409,6 +495,7 @@ def render_all_frames_parallel(
     config: HybridConfig,
     output_path: Path,
     controller: Optional[Dict] = None,
+    draw_models: bool = False,
     n_workers: Optional[int] = None
 ) -> List[str]:
     """
@@ -437,7 +524,7 @@ def render_all_frames_parallel(
     output_path_str = str(output_path)
 
     work = [
-        (i, states, wing_vectors, params, controller, config_dict, output_path_str)
+        (i, states, wing_vectors, params, controller, config_dict, output_path_str, draw_models)
         for i in range(n_frames)
     ]
 

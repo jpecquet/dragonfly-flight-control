@@ -290,6 +290,14 @@ int runOptim(const Config& cfg) {
     double ux_min = cfg.getDouble("ux_min", 0.0);
     double ux_max = cfg.getDouble("ux_max", 10.0);
     int n_velocity = cfg.getInt("n_velocity", 101);
+    if (n_velocity <= 0) {
+        std::cerr << "n_velocity must be >= 1" << std::endl;
+        return 1;
+    }
+    if (optim_config.algorithm == OptimAlgorithm::COBYLA && optim_config.n_grid < 2) {
+        std::cerr << "n_grid must be >= 2 for COBYLA grid search" << std::endl;
+        return 1;
+    }
 
     // Output base name (will append _branch1.txt, _branch2.txt, etc.)
     std::string output_base = cfg.getString("output");
@@ -383,7 +391,10 @@ int runOptim(const Config& cfg) {
         branch_buffers.init(kin, phys);
 
         for (int i = 0; i < n_velocity; ++i) {
-            double ux = ux_min + i * (ux_max - ux_min) / (n_velocity - 1);
+            double ux = ux_min;
+            if (n_velocity > 1) {
+                ux = ux_min + i * (ux_max - ux_min) / (n_velocity - 1);
+            }
 
             if (i > 0) {
                 // Tighten bounds around previous solution for continuation

@@ -2,7 +2,7 @@
 Shared geometry constants for dragonfly visualization.
 
 Body segment lengths, radii, wing attachment positions, and visualization parameters
-used across all rendering backends (PyVista, Matplotlib, Blender).
+used across the hybrid visualization pipeline.
 """
 
 # Body segment lengths

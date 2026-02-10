@@ -110,7 +110,11 @@ static KinematicParam parseParam(const Config& cfg, const std::string& name,
     } else {
         param.is_variable = false;
         try {
-            param.value = std::stod(val);
+            size_t idx = 0;
+            param.value = std::stod(val, &idx);
+            if (idx != val.size()) {
+                throw std::runtime_error("trailing characters");
+            }
         } catch (const std::exception&) {
             throw std::runtime_error("Invalid value for '" + name + "': expected number, got '" + val + "'");
         }
