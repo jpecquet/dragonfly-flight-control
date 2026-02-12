@@ -28,7 +28,7 @@ Vec3 BladeElement::computeForce(const Vec3& u, const Vec3& e_r, const Vec3& e_c,
     double c_alpha = u.dot(e_c) * U_inv;
     double s_alpha = u.cross(e_c).dot(e_r) * U_inv;
 
-    // Drag and lift coefficients (Cd0 + 2*sin^2(alpha), Cl0*sin(2*alpha))
+    // Drag and lift coefficients (Cd0 + 1 - cos(2*alpha), Cl0*sin(2*alpha))
     double Cd = (Cd0_ + 1.0) - (2.0 * c_alpha * c_alpha - 1.0);
     double Cl = 2.0 * Cl0_ * s_alpha * c_alpha;
 
