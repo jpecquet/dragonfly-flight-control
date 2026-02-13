@@ -10,13 +10,21 @@ The dragonfly flight simulation outputs data in HDF5 format. This document speci
 simulation_output.h5
 ├── /parameters              (group)
 │   ├── omega                (scalar) - Wing beat frequency
+│   ├── n_harmonics          (scalar int) - Number of harmonics used
 │   ├── gamma_mean           (scalar) - Mean stroke plane angle
+│   ├── phi_mean             (scalar) - Mean stroke angle
+│   ├── psi_mean             (scalar) - Mean pitch angle
 │   ├── gamma_amp            (scalar) - Stroke plane oscillation amplitude
 │   ├── gamma_phase          (scalar) - Stroke plane phase offset
 │   ├── phi_amp              (scalar) - Stroke amplitude
-│   ├── psi_mean             (scalar) - Mean pitch angle
 │   ├── psi_amp              (scalar) - Pitch oscillation amplitude
 │   ├── psi_phase            (scalar) - Pitch phase offset
+│   ├── gamma_cos            (array)  - gamma cosine coefficients [N]
+│   ├── gamma_sin            (array)  - gamma sine coefficients [N]
+│   ├── phi_cos              (array)  - phi cosine coefficients [N]
+│   ├── phi_sin              (array)  - phi sine coefficients [N]
+│   ├── psi_cos              (array)  - psi cosine coefficients [N]
+│   ├── psi_sin              (array)  - psi sine coefficients [N]
 │   └── /wings               (group)
 │       ├── count            (scalar) - Number of wings
 │       ├── names            (array)  - Wing names with side (e.g., "fore_left", "hind_right")
@@ -25,7 +33,18 @@ simulation_output.h5
 │       ├── lb0              (array)  - Span lengths
 │       ├── Cd0              (array)  - Drag coefficients
 │       ├── Cl0              (array)  - Lift coefficients
-│       └── phase_offset     (array)  - Phase offsets (radians)
+│       ├── phase_offset     (array)  - Phase offsets (radians)
+│       ├── has_custom_motion(array int) - 1 if wing had explicit motion overrides
+│       ├── omega            (array)  - Per-wing wingbeat frequencies
+│       ├── gamma_mean       (array)  - Per-wing gamma means
+│       ├── phi_mean         (array)  - Per-wing phi means
+│       ├── psi_mean         (array)  - Per-wing psi means
+│       ├── gamma_cos        (matrix) [num_wings x N] - Per-wing gamma cosine coeffs
+│       ├── gamma_sin        (matrix) [num_wings x N] - Per-wing gamma sine coeffs
+│       ├── phi_cos          (matrix) [num_wings x N] - Per-wing phi cosine coeffs
+│       ├── phi_sin          (matrix) [num_wings x N] - Per-wing phi sine coeffs
+│       ├── psi_cos          (matrix) [num_wings x N] - Per-wing psi cosine coeffs
+│       └── psi_sin          (matrix) [num_wings x N] - Per-wing psi sine coeffs
 │
 ├── /time                    (dataset) [N] - Time values
 │
@@ -66,9 +85,13 @@ Wing group names are constructed from the config-defined name combined with the 
 
 | Field | HDF5 Type | Description |
 |-------|-----------|-------------|
-| Kinematic params | `H5T_NATIVE_DOUBLE` | Scalar 64-bit floats |
+| omega, means, amp/phase aliases | `H5T_NATIVE_DOUBLE` | Scalar 64-bit floats |
+| n_harmonics | `H5T_NATIVE_INT` | Number of harmonics in coefficient arrays |
+| *_cos, *_sin | `H5T_NATIVE_DOUBLE` | 1D arrays of length N |
 | names | Variable-length string | Wing name strings |
 | Wing config arrays | `H5T_NATIVE_DOUBLE` | 1D arrays, length = num_wings |
+| wing has_custom_motion | `H5T_NATIVE_INT` | 1D array, length = num_wings |
+| wing harmonic matrices | `H5T_NATIVE_DOUBLE` | 2D arrays [num_wings, N] |
 | count, num_wings | `H5T_NATIVE_INT` | Number of wings |
 | sides | `H5T_NATIVE_INT` | 0=left, 1=right |
 | time | `H5T_NATIVE_DOUBLE` | 1D array of size N |
@@ -93,6 +116,8 @@ Right-handed coordinate system:
 All quantities are **nondimensional**:
 - Time, distances, and velocities are nondimensionalized
 - Angles are in radians
+
+`/parameters/*` stores the global/default kinematic inputs. When per-wing motion overrides are used in config, resolved per-wing values are stored in `/parameters/wings/*`.
 
 ## Usage
 

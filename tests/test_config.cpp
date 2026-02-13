@@ -177,6 +177,137 @@ bool testMissingRequiredWingFields() {
     return passed;
 }
 
+bool testDoubleListParsing() {
+    std::cout << "Test: getDoubleList parses comma-separated and bracketed lists\n";
+
+    const std::string cfg_text =
+        "gamma_cos = 0.1, -0.2, 0.3\n"
+        "psi_sin = [0.0, 1.0, -1.0]\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd0 = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n";
+
+    fs::path path = writeTempConfig(cfg_text);
+    bool passed = true;
+    try {
+        Config cfg = Config::load(path.string());
+        std::vector<double> gamma = cfg.getDoubleList("gamma_cos");
+        std::vector<double> psi = cfg.getDoubleList("psi_sin");
+
+        if (gamma.size() != 3 || std::abs(gamma[0] - 0.1) > 1e-12 ||
+            std::abs(gamma[1] + 0.2) > 1e-12 || std::abs(gamma[2] - 0.3) > 1e-12) {
+            passed = false;
+            std::cout << "  FAILED: gamma_cos parsed incorrectly\n";
+        }
+        if (psi.size() != 3 || std::abs(psi[0] - 0.0) > 1e-12 ||
+            std::abs(psi[1] - 1.0) > 1e-12 || std::abs(psi[2] + 1.0) > 1e-12) {
+            passed = false;
+            std::cout << "  FAILED: psi_sin parsed incorrectly\n";
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception: " << e.what() << "\n";
+    }
+
+    fs::remove(path);
+    std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
+    return passed;
+}
+
+bool testDoubleListStrictness() {
+    std::cout << "Test: getDoubleList rejects malformed lists\n";
+
+    const std::string cfg_text =
+        "gamma_cos = 0.1,,0.3\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd0 = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n";
+
+    fs::path path = writeTempConfig(cfg_text);
+    bool passed = true;
+    try {
+        Config cfg = Config::load(path.string());
+        passed = expectThrow([&]() {
+            (void)cfg.getDoubleList("gamma_cos");
+        });
+        if (!passed) {
+            std::cout << "  FAILED: expected malformed list to throw\n";
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception during load: " << e.what() << "\n";
+    }
+
+    fs::remove(path);
+    std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
+    return passed;
+}
+
+bool testWingMotionOverrides() {
+    std::cout << "Test: [[wing]] accepts per-wing motion override keys\n";
+
+    const std::string cfg_text =
+        "omega = 10.0\n"
+        "phi_amp = 0.2\n"
+        "gamma_mean = 1.0\n"
+        "psi_mean = 0.5\n"
+        "psi_amp = 0.3\n"
+        "psi_phase = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd0 = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n"
+        "phi_cos = 0.3, 0.1\n"
+        "psi_mean = 0.7\n";
+
+    fs::path path = writeTempConfig(cfg_text);
+    bool passed = true;
+    try {
+        Config cfg = Config::load(path.string());
+        const auto& wings = cfg.getWingEntries();
+        if (wings.size() != 1) {
+            passed = false;
+            std::cout << "  FAILED: expected one wing\n";
+        } else {
+            const auto& overrides = wings[0].motion_overrides;
+            auto it_phi = overrides.find("phi_cos");
+            auto it_psi = overrides.find("psi_mean");
+            if (it_phi == overrides.end() || it_phi->second != "0.3, 0.1") {
+                passed = false;
+                std::cout << "  FAILED: missing or incorrect phi_cos override\n";
+            }
+            if (it_psi == overrides.end() || it_psi->second != "0.7") {
+                passed = false;
+                std::cout << "  FAILED: missing or incorrect psi_mean override\n";
+            }
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception: " << e.what() << "\n";
+    }
+
+    fs::remove(path);
+    std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
+    return passed;
+}
+
 }  // namespace
 
 int main() {
@@ -184,12 +315,15 @@ int main() {
     std::cout << "===================\n\n";
 
     int passed = 0;
-    const int total = 4;
+    const int total = 7;
 
     if (testInlineComments()) passed++;
     if (testStrictGlobalNumeric()) passed++;
     if (testStrictWingNumeric()) passed++;
     if (testMissingRequiredWingFields()) passed++;
+    if (testDoubleListParsing()) passed++;
+    if (testDoubleListStrictness()) passed++;
+    if (testWingMotionOverrides()) passed++;
 
     std::cout << "Summary: " << passed << "/" << total << " tests passed\n";
     return (passed == total) ? 0 : 1;

@@ -13,7 +13,7 @@ int runSim(const Config& cfg) {
     bool tether = cfg.getBool("tether", false);
     std::string output_file = cfg.getString("output");
 
-    auto wingConfigs = buildWingConfigs(cfg);
+    auto wingConfigs = buildWingConfigs(cfg, kin);
     auto wings = createWings(wingConfigs, kin);
     auto output = initOutput(wingConfigs, kin, tp.nsteps);
 

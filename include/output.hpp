@@ -9,11 +9,21 @@
 // Kinematic values read from config (plain doubles, distinct from optimizer's KinematicParam)
 struct SimKinematicParams {
     double omega = 0.0;
+    int n_harmonics = 1;
     double gamma_mean = 0.0;
+    double phi_mean = 0.0;
+    double psi_mean = 0.0;
+    std::vector<double> gamma_cos;
+    std::vector<double> gamma_sin;
+    std::vector<double> phi_cos;
+    std::vector<double> phi_sin;
+    std::vector<double> psi_cos;
+    std::vector<double> psi_sin;
+
+    // Legacy aliases derived from the first harmonic for compatibility with existing tooling.
     double gamma_amp = 0.0;
     double gamma_phase = 0.0;
     double phi_amp = 0.0;
-    double psi_mean = 0.0;
     double psi_amp = 0.0;
     double psi_phase = 0.0;
 };

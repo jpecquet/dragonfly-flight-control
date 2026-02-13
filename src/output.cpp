@@ -2,6 +2,7 @@
 
 #include <highfive/H5Easy.hpp>
 #include <highfive/H5File.hpp>
+#include <algorithm>
 
 namespace {
 
@@ -45,15 +46,23 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     // Write kinematic parameters
     file.createGroup("/parameters");
     const auto& k = output.kin;
+    H5Easy::dump(file, "/parameters/n_harmonics", k.n_harmonics);
     const std::pair<const char*, double> kin_params[] = {
         {"omega", k.omega}, {"gamma_mean", k.gamma_mean},
+        {"phi_mean", k.phi_mean}, {"psi_mean", k.psi_mean},
         {"gamma_amp", k.gamma_amp}, {"gamma_phase", k.gamma_phase},
-        {"phi_amp", k.phi_amp}, {"psi_mean", k.psi_mean},
+        {"phi_amp", k.phi_amp},
         {"psi_amp", k.psi_amp}, {"psi_phase", k.psi_phase},
     };
     for (auto& [name, val] : kin_params) {
         H5Easy::dump(file, std::string("/parameters/") + name, val);
     }
+    H5Easy::dump(file, "/parameters/gamma_cos", k.gamma_cos);
+    H5Easy::dump(file, "/parameters/gamma_sin", k.gamma_sin);
+    H5Easy::dump(file, "/parameters/phi_cos", k.phi_cos);
+    H5Easy::dump(file, "/parameters/phi_sin", k.phi_sin);
+    H5Easy::dump(file, "/parameters/psi_cos", k.psi_cos);
+    H5Easy::dump(file, "/parameters/psi_sin", k.psi_sin);
 
     // Write wing configurations
     size_t num_configs = output.wingConfigs.size();
@@ -82,6 +91,66 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     H5Easy::dump(file, "/parameters/wings/Cd0", Cd0_vals);
     H5Easy::dump(file, "/parameters/wings/Cl0", Cl0_vals);
     H5Easy::dump(file, "/parameters/wings/phase_offset", phase_vals);
+
+    // Optional per-wing kinematic parameters (resolved values actually used in simulation).
+    const size_t n_harmonics = static_cast<size_t>(std::max(0, output.kin.n_harmonics));
+    bool have_wing_motion = n_harmonics > 0;
+    if (have_wing_motion) {
+        for (const auto& wc : output.wingConfigs) {
+            if (wc.gamma_cos.size() != n_harmonics || wc.gamma_sin.size() != n_harmonics ||
+                wc.phi_cos.size() != n_harmonics || wc.phi_sin.size() != n_harmonics ||
+                wc.psi_cos.size() != n_harmonics || wc.psi_sin.size() != n_harmonics) {
+                have_wing_motion = false;
+                break;
+            }
+        }
+    }
+
+    if (have_wing_motion) {
+        std::vector<int> has_custom_motion;
+        std::vector<double> omega_vals, gamma_mean_vals, phi_mean_vals, psi_mean_vals;
+        has_custom_motion.reserve(num_configs);
+        omega_vals.reserve(num_configs);
+        gamma_mean_vals.reserve(num_configs);
+        phi_mean_vals.reserve(num_configs);
+        psi_mean_vals.reserve(num_configs);
+
+        Eigen::MatrixXd gamma_cos_mat(num_configs, n_harmonics);
+        Eigen::MatrixXd gamma_sin_mat(num_configs, n_harmonics);
+        Eigen::MatrixXd phi_cos_mat(num_configs, n_harmonics);
+        Eigen::MatrixXd phi_sin_mat(num_configs, n_harmonics);
+        Eigen::MatrixXd psi_cos_mat(num_configs, n_harmonics);
+        Eigen::MatrixXd psi_sin_mat(num_configs, n_harmonics);
+
+        for (size_t i = 0; i < num_configs; ++i) {
+            const auto& wc = output.wingConfigs[i];
+            has_custom_motion.push_back(wc.hasCustomMotion ? 1 : 0);
+            omega_vals.push_back(wc.omega);
+            gamma_mean_vals.push_back(wc.gamma_mean);
+            phi_mean_vals.push_back(wc.phi_mean);
+            psi_mean_vals.push_back(wc.psi_mean);
+            for (size_t k = 0; k < n_harmonics; ++k) {
+                gamma_cos_mat(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(k)) = wc.gamma_cos[k];
+                gamma_sin_mat(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(k)) = wc.gamma_sin[k];
+                phi_cos_mat(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(k)) = wc.phi_cos[k];
+                phi_sin_mat(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(k)) = wc.phi_sin[k];
+                psi_cos_mat(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(k)) = wc.psi_cos[k];
+                psi_sin_mat(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(k)) = wc.psi_sin[k];
+            }
+        }
+
+        H5Easy::dump(file, "/parameters/wings/has_custom_motion", has_custom_motion);
+        H5Easy::dump(file, "/parameters/wings/omega", omega_vals);
+        H5Easy::dump(file, "/parameters/wings/gamma_mean", gamma_mean_vals);
+        H5Easy::dump(file, "/parameters/wings/phi_mean", phi_mean_vals);
+        H5Easy::dump(file, "/parameters/wings/psi_mean", psi_mean_vals);
+        file.createDataSet("/parameters/wings/gamma_cos", gamma_cos_mat);
+        file.createDataSet("/parameters/wings/gamma_sin", gamma_sin_mat);
+        file.createDataSet("/parameters/wings/phi_cos", phi_cos_mat);
+        file.createDataSet("/parameters/wings/phi_sin", phi_sin_mat);
+        file.createDataSet("/parameters/wings/psi_cos", psi_cos_mat);
+        file.createDataSet("/parameters/wings/psi_sin", psi_sin_mat);
+    }
 
     // Write time
     file.createDataSet("/time", output.time);

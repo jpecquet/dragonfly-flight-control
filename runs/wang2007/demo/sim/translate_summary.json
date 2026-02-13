@@ -1,0 +1,17 @@
+{
+  "fit_params_path": "/Users/jean/Code/dragonfly-flight-control/runs/wang2007/demo/fit/fit_params.json",
+  "generated_at_utc": "2026-02-13T20:26:08+00:00",
+  "lb0_derived_from_physical": 0.7999999999999999,
+  "lb0_lambda": 0.7999999999999999,
+  "motion_n_harmonics": 1,
+  "mu0_derived_from_physical": 0.06533333333333334,
+  "mu0_lb0_overridden": false,
+  "mu0_mu": 0.06533333333333334,
+  "n_wingbeats": 5,
+  "omega": 14.982242894657686,
+  "sim_config_path": "/Users/jean/Code/dragonfly-flight-control/runs/wang2007/demo/sim/sim_wang2007.cfg",
+  "sim_output_path": "/Users/jean/Code/dragonfly-flight-control/runs/wang2007/demo/sim/output.h5",
+  "steps_per_wingbeat": 200,
+  "tether": false,
+  "wing_motion_source": "fit"
+}

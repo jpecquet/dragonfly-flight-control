@@ -14,6 +14,7 @@ struct WingConfigEntry {
     double Cd0 = 0.0;
     double Cl0 = 0.0;
     double phase = 0.0;
+    std::map<std::string, std::string> motion_overrides;  // Optional per-wing kinematic overrides
 };
 
 // Simple key=value config file parser with [[wing]] section support
@@ -64,6 +65,13 @@ public:
 
     double getDouble(const std::string& key, double default_val) const {
         return has(key) ? getDouble(key) : default_val;
+    }
+
+    std::vector<double> getDoubleList(const std::string& key) const;
+
+    std::vector<double> getDoubleList(const std::string& key,
+                                      const std::vector<double>& default_val) const {
+        return has(key) ? getDoubleList(key) : default_val;
     }
 
     int getInt(const std::string& key) const {

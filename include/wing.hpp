@@ -7,6 +7,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 enum class WingSide { Left, Right };
 
@@ -26,6 +27,19 @@ struct WingConfig {
     double Cd0 = 0.0;             // Drag coefficient
     double Cl0 = 0.0;             // Lift coefficient
     double phaseOffset = 0.0;     // Phase offset from reference (radians)
+
+    // Optional per-wing kinematic parameters (if empty, global simulation parameters are used).
+    bool hasCustomMotion = false;
+    double omega = 0.0;
+    double gamma_mean = 0.0;
+    double phi_mean = 0.0;
+    double psi_mean = 0.0;
+    std::vector<double> gamma_cos;
+    std::vector<double> gamma_sin;
+    std::vector<double> phi_cos;
+    std::vector<double> phi_sin;
+    std::vector<double> psi_cos;
+    std::vector<double> psi_sin;
 
     WingConfig() = default;
     WingConfig(const std::string& name_, WingSide side_, double mu0_, double lb0_,

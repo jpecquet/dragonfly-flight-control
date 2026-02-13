@@ -418,6 +418,32 @@ def check_blender_available() -> bool:
     return find_blender() is not None
 
 
+def _subsample_animation_inputs(
+    states: List[np.ndarray],
+    wing_vectors: List[Dict],
+    controller: Optional[Dict],
+    frame_step: int,
+) -> Tuple[List[np.ndarray], List[Dict], Optional[Dict]]:
+    """Subsample animation inputs by stride."""
+    if frame_step <= 1:
+        return states, wing_vectors, controller
+
+    states_sub = states[::frame_step]
+    wings_sub = wing_vectors[::frame_step]
+
+    controller_sub = None
+    if controller is not None:
+        controller_sub = {}
+        for key, value in controller.items():
+            try:
+                controller_sub[key] = value[::frame_step]
+            except Exception:
+                # Preserve non-indexable fields if any are added in the future.
+                controller_sub[key] = value
+
+    return states_sub, wings_sub, controller_sub
+
+
 def render_hybrid(
     states: List[np.ndarray],
     wing_vectors: List[Dict],
@@ -425,7 +451,8 @@ def render_hybrid(
     input_file: str,
     output_file: str,
     controller: Optional[Dict] = None,
-    config: Optional[HybridConfig] = None
+    config: Optional[HybridConfig] = None,
+    frame_step: int = 1,
 ):
     """
     Render using hybrid Blender + matplotlib pipeline.
@@ -442,7 +469,11 @@ def render_hybrid(
         output_file: Output video file path
         controller: Controller data dict (None for simulation mode)
         config: Optional HybridConfig (uses defaults if None)
+        frame_step: Render every Nth frame (N>=1)
     """
+    if frame_step < 1:
+        raise ValueError(f"frame_step must be >= 1, got {frame_step}")
+
     if not check_blender_available():
         raise RuntimeError(
             "Blender is not available. Install Blender or use matplotlib-only fallback"
@@ -450,6 +481,13 @@ def render_hybrid(
 
     if config is None:
         config = HybridConfig()
+
+    original_n = len(states)
+    states, wing_vectors, controller = _subsample_animation_inputs(
+        states, wing_vectors, controller, frame_step
+    )
+    if frame_step > 1:
+        print(f"Frame skipping enabled: step={frame_step} ({original_n} -> {len(states)} frames)")
 
     if config.viewport is None:
         targets = controller['target_position'] if controller else None
@@ -507,7 +545,8 @@ def render_mpl_only(
     params: Dict,
     output_file: str,
     controller: Optional[Dict] = None,
-    config: Optional[HybridConfig] = None
+    config: Optional[HybridConfig] = None,
+    frame_step: int = 1,
 ):
     """
     Render using matplotlib only (fallback when Blender unavailable).
@@ -521,9 +560,20 @@ def render_mpl_only(
         output_file: Output video file path
         controller: Controller data dict (None for simulation mode)
         config: Optional HybridConfig
+        frame_step: Render every Nth frame (N>=1)
     """
+    if frame_step < 1:
+        raise ValueError(f"frame_step must be >= 1, got {frame_step}")
+
     if config is None:
         config = HybridConfig()
+
+    original_n = len(states)
+    states, wing_vectors, controller = _subsample_animation_inputs(
+        states, wing_vectors, controller, frame_step
+    )
+    if frame_step > 1:
+        print(f"Frame skipping enabled: step={frame_step} ({original_n} -> {len(states)} frames)")
 
     if config.viewport is None:
         targets = controller['target_position'] if controller else None

@@ -5,6 +5,7 @@
 
 #include <highfive/H5File.hpp>
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <stdexcept>
 
@@ -155,9 +156,24 @@ PhysicalParams PhysicalParams::fromConfig(const Config& cfg) {
 
 // Convert optimizer params to plain simulation params
 static SimKinematicParams toSimParams(const KinematicParams& kin) {
-    return {kin.omega.value, kin.gamma_mean.value, kin.gamma_amp.value,
-            kin.gamma_phase.value, kin.phi_amp.value, kin.psi_mean.value,
-            kin.psi_amp.value, kin.psi_phase.value};
+    SimKinematicParams out;
+    out.omega = kin.omega.value;
+    out.n_harmonics = 1;
+    out.gamma_mean = kin.gamma_mean.value;
+    out.phi_mean = 0.0;
+    out.psi_mean = kin.psi_mean.value;
+    out.gamma_cos = {kin.gamma_amp.value * std::cos(kin.gamma_phase.value)};
+    out.gamma_sin = {-kin.gamma_amp.value * std::sin(kin.gamma_phase.value)};
+    out.phi_cos = {kin.phi_amp.value};
+    out.phi_sin = {0.0};
+    out.psi_cos = {kin.psi_amp.value * std::cos(kin.psi_phase.value)};
+    out.psi_sin = {-kin.psi_amp.value * std::sin(kin.psi_phase.value)};
+    out.gamma_amp = kin.gamma_amp.value;
+    out.gamma_phase = kin.gamma_phase.value;
+    out.phi_amp = kin.phi_amp.value;
+    out.psi_amp = kin.psi_amp.value;
+    out.psi_phase = kin.psi_phase.value;
+    return out;
 }
 
 // Internal helper to create wings from optimizer params

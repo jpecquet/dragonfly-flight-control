@@ -10,6 +10,7 @@ Usage:
 Options:
     --config <file.json>  Custom visualization config
     --no-blender          Force matplotlib-only fallback rendering
+    --frame-step N        Render every Nth frame (default: 1)
 """
 import argparse
 import sys
@@ -123,8 +124,16 @@ def main():
         action="store_true",
         help="Force matplotlib-only fallback rendering"
     )
+    parser.add_argument(
+        "--frame-step",
+        type=int,
+        default=1,
+        help="Render every Nth frame (default: 1)"
+    )
 
     args = parser.parse_args()
+    if args.frame_step < 1:
+        parser.error("--frame-step must be >= 1")
 
     input_file = args.input
 
@@ -159,17 +168,20 @@ def main():
         if args.no_blender:
             print("Blender disabled via --no-blender; using matplotlib-only fallback")
             render_mpl_only(
-                states, wings, params, out, controller=controller, config=config
+                states, wings, params, out, controller=controller, config=config,
+                frame_step=args.frame_step
             )
         elif check_blender_available():
             render_hybrid(
                 states, wings, params,
-                input_file, out, controller=controller, config=config
+                input_file, out, controller=controller, config=config,
+                frame_step=args.frame_step
             )
         else:
             print("Warning: Blender not available, using matplotlib-only fallback")
             render_mpl_only(
-                states, wings, params, out, controller=controller, config=config
+                states, wings, params, out, controller=controller, config=config,
+                frame_step=args.frame_step
             )
 
     # Generate both animation and summary plot

@@ -62,6 +62,9 @@ Visualize simulation output (body + wings + force vectors).
 # Animation with hybrid renderer (default)
 python -m post.plot_simulation output.h5 output.mp4
 
+# Skip frames to speed up rendering (use every 3rd frame)
+python -m post.plot_simulation output.h5 output.mp4 --frame-step 3
+
 # With custom configuration
 python -m post.plot_simulation output.h5 output.mp4 --config my_config.json
 
@@ -76,6 +79,9 @@ Visualize trajectory tracking simulation (includes target trajectory and error).
 ```bash
 # Animation + summary plot
 python -m post.plot_tracking track.h5 tracking.mp4
+
+# Skip frames in animation render
+python -m post.plot_tracking track.h5 tracking.mp4 --frame-step 3
 
 # Summary plot only
 python -m post.plot_tracking track.h5 tracking.png

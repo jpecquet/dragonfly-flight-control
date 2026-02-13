@@ -160,6 +160,38 @@ python -m post.plot_wing_rotation wingtest.h5 rotation.mp4
   <img src="assets/media/wing_rotation.gif" alt="Wing rotation basis vectors" width="500">
 </p>
 
+## Wang 2007 Pipeline
+
+Convenience pipeline from experimental wing motion data to simulation and postprocessing:
+
+```bash
+# Full pipeline (fit -> translate -> sim -> post)
+python scripts/wang2007_pipeline.py all --no-blender
+
+# Stage-by-stage (same --run-dir to reuse artifacts)
+python scripts/wang2007_pipeline.py fit --run-dir runs/wang2007/demo
+python scripts/wang2007_pipeline.py translate --run-dir runs/wang2007/demo
+python scripts/wang2007_pipeline.py sim --run-dir runs/wang2007/demo
+python scripts/wang2007_pipeline.py post --run-dir runs/wang2007/demo --no-blender
+# Skip frames in 3D animation render
+python scripts/wang2007_pipeline.py post --run-dir runs/wang2007/demo --frame-step 3 --no-blender
+```
+
+By default, the translator derives nondimensional parameters from physical inputs:
+- `omega = 2*pi*f*sqrt(L/g)` (default `L=50 mm`, `f=33.4 Hz`)
+- `lb0 = lambda = L_wing/L` (default `L_wing=40 mm`)
+- `mu0 = mu = rho_air*S_wing*L_wing/m` (default `S_wing=400 mm^2`, `m=300 mg`)
+
+Use `--body-length-mm`, `--wing-length-mm`, `--wing-area-mm2`, `--frequency-hz`,
+`--body-mass-mg`, `--rho-air`, and `--gravity` to change scaling.
+
+Outputs are written under `runs/wang2007/<run_id>/`:
+
+- `fit/fit_params.json` + fit diagnostic PDFs
+- `sim/sim_wang2007.cfg` + `sim/output.h5`
+- `post/simulation.mp4` (+ `post/stroke_fore_left.mp4` unless `--skip-stick`)
+- `manifest.json` (stage metadata and artifact paths)
+
 ## Terminal Velocity
 
 <!-- TODO: description -->
@@ -178,13 +210,29 @@ python -m post.plot_terminal_velocity --psi 45 animation.mp4
 | Parameter | Description |
 |-----------|-------------|
 | `omega` | Wing beat frequency (rad/s) |
+| `n_harmonics` | Number of Fourier harmonics per angle (`>=1`, default `1`) |
 | `gamma_mean` | Stroke plane angle |
 | `gamma_amp` | Stroke plane oscillation amplitude |
 | `gamma_phase` | Stroke plane phase offset |
+| `gamma_cos`, `gamma_sin` | Harmonic cosine/sine coefficients for `gamma` (length `n_harmonics`) |
+| `phi_mean` | Mean stroke angle (default `0`) |
 | `phi_amp` | Flapping stroke amplitude |
+| `phi_cos`, `phi_sin` | Harmonic cosine/sine coefficients for `phi` (length `n_harmonics`) |
 | `psi_mean` | Mean pitch angle |
 | `psi_amp` | Pitch oscillation amplitude |
 | `psi_phase` | Pitch phase offset |
+| `psi_cos`, `psi_sin` | Harmonic cosine/sine coefficients for `psi` (length `n_harmonics`) |
+
+Legacy single-harmonic inputs (`*_amp`, `*_phase`) are still supported. When `*_cos`/`*_sin`
+are provided, they take precedence for that angle.
+
+Fourier form used by the simulator:
+
+```
+angle(t) = mean + sum_{k=1..N}[a_k cos(k*(omega*t + wing_phase)) + b_k sin(k*(omega*t + wing_phase))]
+```
+
+The same kinematic keys can be placed inside `[[wing]]` blocks to override motion per wing.
 
 ### Wing definition
 
@@ -200,6 +248,26 @@ Cd0 = 0.4
 Cl0 = 1.2
 phase = 0.0
 ```
+
+Per-wing motion overrides are optional. If present, they override global kinematic inputs for that wing only:
+
+```
+[[wing]]
+...
+omega = 12.0
+gamma_mean = 1.4
+gamma_cos = 0.2, 0.05
+gamma_sin = 0.0, -0.02
+phi_mean = 0.0
+phi_cos = 0.5, 0.1
+phi_sin = 0.0, 0.0
+psi_mean = 0.7
+psi_cos = 0.25, -0.03
+psi_sin = 0.0, 0.01
+```
+
+You can also use legacy per-wing first-harmonic keys (`gamma_amp`, `gamma_phase`, `phi_amp`, `psi_amp`, `psi_phase`).
+When every wing defines its own motion, global `gamma/phi/psi` values can be left at defaults; keep `omega` (and `n_harmonics` if `N>1`) at global scope.
 
 ## Output Format
 

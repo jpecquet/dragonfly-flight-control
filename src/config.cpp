@@ -1,6 +1,8 @@
 #include "config.hpp"
 
 #include <fstream>
+#include <sstream>
+#include <set>
 #include <vector>
 
 static double parseDouble(const std::string& value, const std::string& key, int line_num) {
@@ -60,6 +62,16 @@ void validateWingSection(const WingRequiredFields& fields, int section_start_lin
     throw std::runtime_error(msg);
 }
 
+bool isWingMotionKey(const std::string& key) {
+    static const std::set<std::string> kMotionKeys = {
+        "omega",
+        "gamma_mean", "gamma_amp", "gamma_phase", "gamma_cos", "gamma_sin",
+        "phi_mean", "phi_amp", "phi_cos", "phi_sin",
+        "psi_mean", "psi_amp", "psi_phase", "psi_cos", "psi_sin"
+    };
+    return kMotionKeys.find(key) != kMotionKeys.end();
+}
+
 }  // namespace
 
 std::string Config::trim(const std::string& s) {
@@ -67,6 +79,49 @@ std::string Config::trim(const std::string& s) {
     if (start == std::string::npos) return "";
     size_t end = s.find_last_not_of(" \t");
     return s.substr(start, end - start + 1);
+}
+
+std::vector<double> Config::getDoubleList(const std::string& key) const {
+    std::string raw = getString(key);
+    std::string val = trim(raw);
+
+    // Optional bracket syntax: [1, 2, 3]
+    if (val.size() >= 2 && val.front() == '[' && val.back() == ']') {
+        val = trim(val.substr(1, val.size() - 2));
+    }
+
+    if (val.empty()) {
+        throw std::runtime_error("Invalid value for '" + key + "': expected comma-separated numbers, got empty");
+    }
+
+    std::vector<double> values;
+    std::stringstream ss(val);
+    std::string token;
+    int token_index = 0;
+    while (std::getline(ss, token, ',')) {
+        token = trim(token);
+        if (token.empty()) {
+            throw std::runtime_error("Invalid value for '" + key + "': empty token at position " +
+                                     std::to_string(token_index));
+        }
+        try {
+            size_t idx = 0;
+            double parsed = std::stod(token, &idx);
+            if (idx != token.size()) {
+                throw std::runtime_error("trailing characters");
+            }
+            values.push_back(parsed);
+        } catch (const std::exception&) {
+            throw std::runtime_error("Invalid value for '" + key +
+                                     "': expected number in token '" + token + "'");
+        }
+        token_index++;
+    }
+
+    if (values.empty()) {
+        throw std::runtime_error("Invalid value for '" + key + "': no values parsed");
+    }
+    return values;
 }
 
 Config Config::load(const std::string& filename) {
@@ -144,6 +199,8 @@ Config Config::load(const std::string& filename) {
                 wing_fields.Cl0 = true;
             } else if (key == "phase") {
                 current_wing.phase = parseDouble(value, key, line_num);
+            } else if (isWingMotionKey(key)) {
+                current_wing.motion_overrides[key] = value;
             } else {
                 throw std::runtime_error("Unknown wing parameter '" + key + "' at line " + std::to_string(line_num));
             }
