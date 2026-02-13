@@ -33,6 +33,19 @@ cd build
 ctest
 ```
 
+## Documentation
+
+Theory and API docs are built with Sphinx (MyST Markdown), with optional C++ API extraction via Doxygen/Breathe.
+
+```bash
+python -m pip install -r docs/requirements.txt
+make -C docs html
+```
+
+Open `docs/_build/html/index.html` in a browser.
+
+Hosted builds can be enabled with Read the Docs via `.readthedocs.yaml`.
+
 ## Usage
 
 All simulation modes are accessed through a single `dragonfly` executable:

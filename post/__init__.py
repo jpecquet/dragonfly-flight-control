@@ -18,3 +18,6 @@ try:
     plt.rcParams["font.size"] = 12
 except ImportError:
     pass
+except Exception:
+    # Keep package importable in stripped/mocked doc-build environments.
+    pass
