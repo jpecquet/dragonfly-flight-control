@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <functional>
 #include <iostream>
 #include <limits>
 #include <sstream>
@@ -21,10 +20,6 @@ void requireHarmonicLength(const std::vector<double>& values, int expected,
         throw std::runtime_error(key + " expects " + std::to_string(expected) +
                                  " values, got " + std::to_string(values.size()));
     }
-}
-
-double firstOrZero(const std::vector<double>& v) {
-    return v.empty() ? 0.0 : v.front();
 }
 
 std::string trimToken(const std::string& s) {
@@ -76,48 +71,17 @@ const std::string* findOverride(const WingConfigEntry& entry, const std::string&
     return (it == entry.motion_overrides.end()) ? nullptr : &it->second;
 }
 
-void setLegacyAliases(SimKinematicParams& kin) {
-    const double gamma_c1 = firstOrZero(kin.gamma_cos);
-    const double gamma_s1 = firstOrZero(kin.gamma_sin);
-    kin.gamma_amp = std::hypot(gamma_c1, gamma_s1);
-    kin.gamma_phase = std::atan2(-gamma_s1, gamma_c1);
-
-    const double phi_c1 = firstOrZero(kin.phi_cos);
-    const double phi_s1 = firstOrZero(kin.phi_sin);
-    kin.phi_amp = std::hypot(phi_c1, phi_s1);
-
-    const double psi_c1 = firstOrZero(kin.psi_cos);
-    const double psi_s1 = firstOrZero(kin.psi_sin);
-    kin.psi_amp = std::hypot(psi_c1, psi_s1);
-    kin.psi_phase = std::atan2(-psi_s1, psi_c1);
-}
-
 void loadAngleSeries(const Config& cfg, const std::string& prefix,
-                     int n_harmonics, double legacy_mean,
-                     bool require_mean_when_legacy,
-                     const std::function<void(std::vector<double>&, std::vector<double>&)>& legacy_loader,
+                     int n_harmonics, double default_mean,
                      double& mean_out, std::vector<double>& cos_out, std::vector<double>& sin_out) {
     const std::string mean_key = prefix + "_mean";
     const std::string cos_key = prefix + "_cos";
     const std::string sin_key = prefix + "_sin";
-    const bool has_harmonics = cfg.has(cos_key) || cfg.has(sin_key);
-
-    if (!has_harmonics && require_mean_when_legacy && !cfg.has(mean_key)) {
-        throw std::runtime_error("Missing config key: " + mean_key);
-    }
-
-    mean_out = cfg.getDouble(mean_key, legacy_mean);
-    if (has_harmonics) {
-        cos_out = cfg.getDoubleList(cos_key, zeroHarmonics(n_harmonics));
-        sin_out = cfg.getDoubleList(sin_key, zeroHarmonics(n_harmonics));
-        requireHarmonicLength(cos_out, n_harmonics, cos_key);
-        requireHarmonicLength(sin_out, n_harmonics, sin_key);
-        return;
-    }
-
-    cos_out = zeroHarmonics(n_harmonics);
-    sin_out = zeroHarmonics(n_harmonics);
-    legacy_loader(cos_out, sin_out);
+    mean_out = cfg.getDouble(mean_key, default_mean);
+    cos_out = cfg.getDoubleList(cos_key, zeroHarmonics(n_harmonics));
+    sin_out = cfg.getDoubleList(sin_key, zeroHarmonics(n_harmonics));
+    requireHarmonicLength(cos_out, n_harmonics, cos_key);
+    requireHarmonicLength(sin_out, n_harmonics, sin_key);
 }
 
 void applyWingAngleOverrides(
@@ -132,20 +96,9 @@ void applyWingAngleOverrides(
     const std::string mean_key = prefix + "_mean";
     const std::string cos_key = prefix + "_cos";
     const std::string sin_key = prefix + "_sin";
-    const std::string amp_key = prefix + "_amp";
-    const std::string phase_key = prefix + "_phase";
 
     const bool has_cos = findOverride(entry, cos_key) != nullptr;
     const bool has_sin = findOverride(entry, sin_key) != nullptr;
-    const bool has_amp = findOverride(entry, amp_key) != nullptr;
-    const bool has_phase = findOverride(entry, phase_key) != nullptr;
-
-    if ((has_cos || has_sin) && (has_amp || has_phase)) {
-        throw std::runtime_error(
-            "Wing '" + wing_label + "' mixes harmonic and legacy overrides for " + prefix +
-            " (use either " + cos_key + "/" + sin_key + " or " + amp_key + "/" + phase_key + ")"
-        );
-    }
 
     if (const std::string* mean_val = findOverride(entry, mean_key)) {
         mean = parseDoubleString(*mean_val, "wing '" + wing_label + "' key '" + mean_key + "'");
@@ -160,41 +113,6 @@ void applyWingAngleOverrides(
         sin_coeff = parseDoubleListString(*findOverride(entry, sin_key),
                                           "wing '" + wing_label + "' key '" + sin_key + "'");
         requireHarmonicLength(sin_coeff, n_harmonics, "wing '" + wing_label + "' key '" + sin_key + "'");
-    }
-
-    if (!has_amp && !has_phase) {
-        return;
-    }
-
-    if (prefix == "phi" && has_phase) {
-        throw std::runtime_error(
-            "Wing '" + wing_label + "': phi_phase is not supported; use phi_cos/phi_sin for phased phi"
-        );
-    }
-
-    const double c1 = firstOrZero(cos_coeff);
-    const double s1 = firstOrZero(sin_coeff);
-    double amp = std::hypot(c1, s1);
-    double phase = std::atan2(-s1, c1);
-
-    if (has_amp) {
-        amp = parseDoubleString(*findOverride(entry, amp_key),
-                                "wing '" + wing_label + "' key '" + amp_key + "'");
-    }
-    if (has_phase) {
-        phase = parseDoubleString(*findOverride(entry, phase_key),
-                                  "wing '" + wing_label + "' key '" + phase_key + "'");
-    }
-
-    if (cos_coeff.empty()) cos_coeff = zeroHarmonics(n_harmonics);
-    if (sin_coeff.empty()) sin_coeff = zeroHarmonics(n_harmonics);
-
-    if (prefix == "phi") {
-        cos_coeff[0] = amp;
-        sin_coeff[0] = 0.0;
-    } else {
-        cos_coeff[0] = amp * std::cos(phase);
-        sin_coeff[0] = -amp * std::sin(phase);
     }
 }
 
@@ -249,13 +167,13 @@ void populateWingMotion(
     out.hasCustomMotion = true;
 }
 
+}  // namespace
+
 bool hasWingMotionSeries(const WingConfig& w) {
     return !w.gamma_cos.empty() && !w.gamma_sin.empty() &&
            !w.phi_cos.empty() && !w.phi_sin.empty() &&
            !w.psi_cos.empty() && !w.psi_sin.empty();
 }
-
-}  // namespace
 
 SimKinematicParams readKinematicParams(const Config& cfg) {
     SimKinematicParams kin;
@@ -266,38 +184,20 @@ SimKinematicParams readKinematicParams(const Config& cfg) {
     }
 
     loadAngleSeries(
-        cfg, "gamma", kin.n_harmonics, cfg.getDouble("gamma_mean", 0.0), false,
-        [&](std::vector<double>& cos_coeff, std::vector<double>& sin_coeff) {
-            const double amp = cfg.getDouble("gamma_amp", 0.0);
-            const double phase = cfg.getDouble("gamma_phase", 0.0);
-            cos_coeff[0] = amp * std::cos(phase);
-            sin_coeff[0] = -amp * std::sin(phase);
-        },
+        cfg, "gamma", kin.n_harmonics, cfg.getDouble("gamma_mean", 0.0),
         kin.gamma_mean, kin.gamma_cos, kin.gamma_sin
     );
 
     loadAngleSeries(
-        cfg, "phi", kin.n_harmonics, cfg.getDouble("phi_mean", 0.0), false,
-        [&](std::vector<double>& cos_coeff, std::vector<double>& sin_coeff) {
-            const double amp = cfg.getDouble("phi_amp", 0.0);
-            cos_coeff[0] = amp;
-            sin_coeff[0] = 0.0;
-        },
+        cfg, "phi", kin.n_harmonics, cfg.getDouble("phi_mean", 0.0),
         kin.phi_mean, kin.phi_cos, kin.phi_sin
     );
 
     loadAngleSeries(
-        cfg, "psi", kin.n_harmonics, cfg.getDouble("psi_mean", 0.0), false,
-        [&](std::vector<double>& cos_coeff, std::vector<double>& sin_coeff) {
-            const double amp = cfg.getDouble("psi_amp", 0.0);
-            const double phase = cfg.getDouble("psi_phase", 0.0);
-            cos_coeff[0] = amp * std::cos(phase);
-            sin_coeff[0] = -amp * std::sin(phase);
-        },
+        cfg, "psi", kin.n_harmonics, cfg.getDouble("psi_mean", 0.0),
         kin.psi_mean, kin.psi_cos, kin.psi_sin
     );
 
-    setLegacyAliases(kin);
     return kin;
 }
 

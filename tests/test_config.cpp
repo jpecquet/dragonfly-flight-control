@@ -260,11 +260,12 @@ bool testWingMotionOverrides() {
 
     const std::string cfg_text =
         "omega = 10.0\n"
-        "phi_amp = 0.2\n"
+        "phi_cos = 0.2\n"
+        "phi_sin = 0.0\n"
         "gamma_mean = 1.0\n"
         "psi_mean = 0.5\n"
-        "psi_amp = 0.3\n"
-        "psi_phase = 0.0\n"
+        "psi_cos = 0.3\n"
+        "psi_sin = 0.0\n"
         "\n"
         "[[wing]]\n"
         "name = fore\n"
@@ -308,6 +309,37 @@ bool testWingMotionOverrides() {
     return passed;
 }
 
+bool testUnknownWingMotionKeysRejected() {
+    std::cout << "Test: [[wing]] rejects unknown motion keys\n";
+
+    const std::string cfg_text =
+        "omega = 10.0\n"
+        "phi_cos = 0.2\n"
+        "phi_sin = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd0 = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n"
+        "psi_scale = 0.3\n";
+
+    fs::path path = writeTempConfig(cfg_text);
+    bool passed = expectThrow([&]() {
+        (void)Config::load(path.string());
+    });
+    fs::remove(path);
+
+    if (!passed) {
+        std::cout << "  FAILED: expected unknown wing key to be rejected\n";
+    }
+    std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
+    return passed;
+}
+
 }  // namespace
 
 int main() {
@@ -315,7 +347,7 @@ int main() {
     std::cout << "===================\n\n";
 
     int passed = 0;
-    const int total = 7;
+    const int total = 8;
 
     if (testInlineComments()) passed++;
     if (testStrictGlobalNumeric()) passed++;
@@ -324,6 +356,7 @@ int main() {
     if (testDoubleListParsing()) passed++;
     if (testDoubleListStrictness()) passed++;
     if (testWingMotionOverrides()) passed++;
+    if (testUnknownWingMotionKeysRejected()) passed++;
 
     std::cout << "Summary: " << passed << "/" << total << " tests passed\n";
     return (passed == total) ? 0 : 1;

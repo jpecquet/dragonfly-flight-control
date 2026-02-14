@@ -19,13 +19,6 @@ struct SimKinematicParams {
     std::vector<double> phi_sin;
     std::vector<double> psi_cos;
     std::vector<double> psi_sin;
-
-    // Legacy aliases derived from the first harmonic for compatibility with existing tooling.
-    double gamma_amp = 0.0;
-    double gamma_phase = 0.0;
-    double phi_amp = 0.0;
-    double psi_amp = 0.0;
-    double psi_phase = 0.0;
 };
 
 struct SimulationOutput {

@@ -33,11 +33,9 @@ int runTrack(const Config& cfg) {
     auto output = initOutput(wingConfigs, kin, tp.nsteps);
 
     constexpr double EPS = 1e-12;
-    auto hasWingMotionSeries = [](const WingConfig& w) {
-        return !w.gamma_cos.empty() && !w.gamma_sin.empty() &&
-               !w.phi_cos.empty() && !w.phi_sin.empty() &&
-               !w.psi_cos.empty() && !w.psi_sin.empty();
-    };
+    const double kin_phi_c1 = kin.phi_cos.empty() ? 0.0 : kin.phi_cos[0];
+    const double kin_phi_s1 = kin.phi_sin.empty() ? 0.0 : kin.phi_sin[0];
+    const double kin_phi_amp = std::hypot(kin_phi_c1, kin_phi_s1);
 
     // Controller baseline is the average effective wing motion baseline.
     double gamma_mean_base = 0.0;
@@ -53,7 +51,7 @@ int runTrack(const Config& cfg) {
         } else {
             gamma_mean_base += kin.gamma_mean;
             psi_mean_base += kin.psi_mean;
-            phi_amp_base += kin.phi_amp;
+            phi_amp_base += kin_phi_amp;
         }
     }
     if (!wingConfigs.empty()) {
@@ -64,7 +62,7 @@ int runTrack(const Config& cfg) {
     } else {
         gamma_mean_base = kin.gamma_mean;
         psi_mean_base = kin.psi_mean;
-        phi_amp_base = kin.phi_amp;
+        phi_amp_base = kin_phi_amp;
     }
 
     // Controller-updated parameters shared by all pre-bound wing angle lambdas.

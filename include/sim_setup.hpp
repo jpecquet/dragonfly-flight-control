@@ -17,6 +17,7 @@ SimKinematicParams readKinematicParams(const Config& cfg);
 State readInitialState(const Config& cfg);
 TimeParams readTimeParams(const Config& cfg, double omega);
 std::vector<WingConfig> buildWingConfigs(const Config& cfg, const SimKinematicParams& default_kin);
+bool hasWingMotionSeries(const WingConfig& w);
 std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinematicParams& kin);
 SimulationOutput initOutput(const std::vector<WingConfig>& wc, const SimKinematicParams& kin, int nsteps);
 void storeTimestep(SimulationOutput& out, double t, const State& state,

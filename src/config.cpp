@@ -65,9 +65,9 @@ void validateWingSection(const WingRequiredFields& fields, int section_start_lin
 bool isWingMotionKey(const std::string& key) {
     static const std::set<std::string> kMotionKeys = {
         "omega",
-        "gamma_mean", "gamma_amp", "gamma_phase", "gamma_cos", "gamma_sin",
-        "phi_mean", "phi_amp", "phi_cos", "phi_sin",
-        "psi_mean", "psi_amp", "psi_phase", "psi_cos", "psi_sin"
+        "gamma_mean", "gamma_cos", "gamma_sin",
+        "phi_mean", "phi_cos", "phi_sin",
+        "psi_mean", "psi_cos", "psi_sin"
     };
     return kMotionKeys.find(key) != kMotionKeys.end();
 }

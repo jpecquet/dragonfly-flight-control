@@ -37,4 +37,4 @@ Global keys in `.cfg`:
 
 Per-wing `[[wing]]` blocks can override these values (`src/sim_setup.cpp`).
 
-Legacy first-harmonic parameters (`*_amp`, `*_phase`) are still supported and converted internally to first-harmonic coefficients.
+Simulation configs support harmonic keys only (`*_cos`, `*_sin`, optional `*_mean`).

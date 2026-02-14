@@ -129,12 +129,14 @@ KinematicParams KinematicParams::fromConfig(const Config& cfg) {
     KinematicParams params;
     params.omega = parseParam(cfg, "omega");
     params.gamma_mean = parseParam(cfg, "gamma_mean");
-    params.gamma_amp = parseParam(cfg, "gamma_amp", 0.0);
-    params.gamma_phase = parseParam(cfg, "gamma_phase", 0.0);
-    params.phi_amp = parseParam(cfg, "phi_amp");
+    params.gamma_cos = parseParam(cfg, "gamma_cos", 0.0);
+    params.gamma_sin = parseParam(cfg, "gamma_sin", 0.0);
+    params.phi_mean = parseParam(cfg, "phi_mean", 0.0);
+    params.phi_cos = parseParam(cfg, "phi_cos");
+    params.phi_sin = parseParam(cfg, "phi_sin", 0.0);
     params.psi_mean = parseParam(cfg, "psi_mean");
-    params.psi_amp = parseParam(cfg, "psi_amp");
-    params.psi_phase = parseParam(cfg, "psi_phase");
+    params.psi_cos = parseParam(cfg, "psi_cos");
+    params.psi_sin = parseParam(cfg, "psi_sin", 0.0);
     return params;
 }
 
@@ -160,19 +162,14 @@ static SimKinematicParams toSimParams(const KinematicParams& kin) {
     out.omega = kin.omega.value;
     out.n_harmonics = 1;
     out.gamma_mean = kin.gamma_mean.value;
-    out.phi_mean = 0.0;
+    out.phi_mean = kin.phi_mean.value;
     out.psi_mean = kin.psi_mean.value;
-    out.gamma_cos = {kin.gamma_amp.value * std::cos(kin.gamma_phase.value)};
-    out.gamma_sin = {-kin.gamma_amp.value * std::sin(kin.gamma_phase.value)};
-    out.phi_cos = {kin.phi_amp.value};
-    out.phi_sin = {0.0};
-    out.psi_cos = {kin.psi_amp.value * std::cos(kin.psi_phase.value)};
-    out.psi_sin = {-kin.psi_amp.value * std::sin(kin.psi_phase.value)};
-    out.gamma_amp = kin.gamma_amp.value;
-    out.gamma_phase = kin.gamma_phase.value;
-    out.phi_amp = kin.phi_amp.value;
-    out.psi_amp = kin.psi_amp.value;
-    out.psi_phase = kin.psi_phase.value;
+    out.gamma_cos = {kin.gamma_cos.value};
+    out.gamma_sin = {kin.gamma_sin.value};
+    out.phi_cos = {kin.phi_cos.value};
+    out.phi_sin = {kin.phi_sin.value};
+    out.psi_cos = {kin.psi_cos.value};
+    out.psi_sin = {kin.psi_sin.value};
     return out;
 }
 
@@ -193,12 +190,24 @@ void OptimBuffers::init(const KinematicParams& kin, const PhysicalParams& phys) 
 static void updateWingAngleFuncs(std::vector<Wing>& wings, const KinematicParams& kin,
                                   const PhysicalParams& phys) {
     double omega = kin.omega.value;
+    const HarmonicSeries gamma{
+        kin.gamma_mean.value,
+        {kin.gamma_cos.value},
+        {kin.gamma_sin.value},
+    };
+    const HarmonicSeries phi{
+        kin.phi_mean.value,
+        {kin.phi_cos.value},
+        {kin.phi_sin.value},
+    };
+    const HarmonicSeries psi{
+        kin.psi_mean.value,
+        {kin.psi_cos.value},
+        {kin.psi_sin.value},
+    };
     for (size_t i = 0; i < wings.size(); ++i) {
         const auto& wc = phys.wings[i];
-        auto angleFunc = makeAngleFunc(
-            kin.gamma_mean.value, kin.gamma_amp.value, kin.gamma_phase.value,
-            kin.phi_amp.value, kin.psi_mean.value,
-            kin.psi_amp.value, kin.psi_phase.value, wc.phaseOffset, omega);
+        auto angleFunc = makeAngleFunc(gamma, phi, psi, wc.phaseOffset, omega);
         wings[i].setAngleFunc(std::move(angleFunc));
     }
 }

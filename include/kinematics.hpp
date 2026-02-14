@@ -62,38 +62,3 @@ inline AngleFunc makeAngleFunc(const HarmonicSeries& gamma,
         };
     };
 }
-
-// Factory function for wing angle kinematics
-// Creates AngleFunc lambda with captured kinematic parameters
-//
-// Parameters:
-//   gamma_mean  - Mean stroke plane angle
-//   gamma_amp   - Stroke plane oscillation amplitude
-//   gamma_phase - Stroke plane phase offset
-//   phi_amp     - Flapping amplitude
-//   psi_mean    - Mean pitch angle
-//   psi_amp     - Pitch oscillation amplitude
-//   psi_phase   - Pitch phase offset
-//   phaseOffset - Per-wing phase offset (e.g., 0 for forewing, pi for hindwing)
-//   omega       - Wing beat frequency
-//
-inline AngleFunc makeAngleFunc(double gamma_mean, double gamma_amp, double gamma_phase,
-                               double phi_amp, double psi_mean,
-                               double psi_amp, double psi_phase, double phaseOffset, double omega) {
-    HarmonicSeries gamma;
-    gamma.mean = gamma_mean;
-    gamma.cos_coeff = {gamma_amp * std::cos(gamma_phase)};
-    gamma.sin_coeff = {-gamma_amp * std::sin(gamma_phase)};
-
-    HarmonicSeries phi;
-    phi.mean = 0.0;
-    phi.cos_coeff = {phi_amp};
-    phi.sin_coeff = {0.0};
-
-    HarmonicSeries psi;
-    psi.mean = psi_mean;
-    psi.cos_coeff = {psi_amp * std::cos(psi_phase)};
-    psi.sin_coeff = {-psi_amp * std::sin(psi_phase)};
-
-    return makeAngleFunc(gamma, phi, psi, phaseOffset, omega);
-}

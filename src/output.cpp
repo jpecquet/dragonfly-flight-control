@@ -50,9 +50,6 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     const std::pair<const char*, double> kin_params[] = {
         {"omega", k.omega}, {"gamma_mean", k.gamma_mean},
         {"phi_mean", k.phi_mean}, {"psi_mean", k.psi_mean},
-        {"gamma_amp", k.gamma_amp}, {"gamma_phase", k.gamma_phase},
-        {"phi_amp", k.phi_amp},
-        {"psi_amp", k.psi_amp}, {"psi_phase", k.psi_phase},
     };
     for (auto& [name, val] : kin_params) {
         H5Easy::dump(file, std::string("/parameters/") + name, val);

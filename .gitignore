@@ -116,6 +116,7 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+docs/media_build_manifest.json
 
 # PyBuilder
 .pybuilder/

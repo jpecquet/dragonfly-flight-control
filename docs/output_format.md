@@ -14,11 +14,6 @@ simulation_output.h5
 │   ├── gamma_mean           (scalar) - Mean stroke plane angle
 │   ├── phi_mean             (scalar) - Mean stroke angle
 │   ├── psi_mean             (scalar) - Mean pitch angle
-│   ├── gamma_amp            (scalar) - Stroke plane oscillation amplitude
-│   ├── gamma_phase          (scalar) - Stroke plane phase offset
-│   ├── phi_amp              (scalar) - Stroke amplitude
-│   ├── psi_amp              (scalar) - Pitch oscillation amplitude
-│   ├── psi_phase            (scalar) - Pitch phase offset
 │   ├── gamma_cos            (array)  - gamma cosine coefficients [N]
 │   ├── gamma_sin            (array)  - gamma sine coefficients [N]
 │   ├── phi_cos              (array)  - phi cosine coefficients [N]
@@ -85,7 +80,7 @@ Wing group names are constructed from the config-defined name combined with the 
 
 | Field | HDF5 Type | Description |
 |-------|-----------|-------------|
-| omega, means, amp/phase aliases | `H5T_NATIVE_DOUBLE` | Scalar 64-bit floats |
+| omega, means | `H5T_NATIVE_DOUBLE` | Scalar 64-bit floats |
 | n_harmonics | `H5T_NATIVE_INT` | Number of harmonics in coefficient arrays |
 | *_cos, *_sin | `H5T_NATIVE_DOUBLE` | 1D arrays of length N |
 | names | Variable-length string | Wing name strings |

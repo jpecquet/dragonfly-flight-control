@@ -4,6 +4,7 @@
 Usage examples:
   python scripts/update_docs_media.py --list
   python scripts/update_docs_media.py
+  python scripts/update_docs_media.py --only wang2007_animation_light
   python scripts/update_docs_media.py --only wang2007_animation_dark
   python scripts/update_docs_media.py --dry-run
 """
@@ -22,7 +23,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REGISTRY = REPO_ROOT / "docs" / "media_registry.json"
-DEFAULT_LOG = REPO_ROOT / "docs" / "media_build_manifest.json"
+DEFAULT_LOG = REPO_ROOT / "docs" / "_build" / "media_build_manifest.json"
 
 
 def now_utc_iso() -> str:
