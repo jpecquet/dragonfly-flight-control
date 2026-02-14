@@ -1,23 +1,8 @@
 #include "config.hpp"
 
 #include <fstream>
-#include <sstream>
 #include <set>
 #include <vector>
-
-static double parseDouble(const std::string& value, const std::string& key, int line_num) {
-    try {
-        size_t idx = 0;
-        double parsed = std::stod(value, &idx);
-        if (idx != value.size()) {
-            throw std::runtime_error("trailing characters");
-        }
-        return parsed;
-    } catch (const std::exception&) {
-        throw std::runtime_error("Invalid value for '" + key + "' at line " +
-                                 std::to_string(line_num) + ": " + value);
-    }
-}
 
 namespace {
 
@@ -72,56 +57,19 @@ bool isWingMotionKey(const std::string& key) {
     return kMotionKeys.find(key) != kMotionKeys.end();
 }
 
-}  // namespace
-
-std::string Config::trim(const std::string& s) {
-    size_t start = s.find_first_not_of(" \t");
-    if (start == std::string::npos) return "";
-    size_t end = s.find_last_not_of(" \t");
-    return s.substr(start, end - start + 1);
+double parseDoubleAtLine(const std::string& value, const std::string& key, int line_num) {
+    try {
+        return parseutil::parseDoubleStrict(value, "'" + key + "'");
+    } catch (const std::exception&) {
+        throw std::runtime_error("Invalid value for '" + key + "' at line " +
+                                 std::to_string(line_num) + ": " + value);
+    }
 }
 
+}  // namespace
+
 std::vector<double> Config::getDoubleList(const std::string& key) const {
-    std::string raw = getString(key);
-    std::string val = trim(raw);
-
-    // Optional bracket syntax: [1, 2, 3]
-    if (val.size() >= 2 && val.front() == '[' && val.back() == ']') {
-        val = trim(val.substr(1, val.size() - 2));
-    }
-
-    if (val.empty()) {
-        throw std::runtime_error("Invalid value for '" + key + "': expected comma-separated numbers, got empty");
-    }
-
-    std::vector<double> values;
-    std::stringstream ss(val);
-    std::string token;
-    int token_index = 0;
-    while (std::getline(ss, token, ',')) {
-        token = trim(token);
-        if (token.empty()) {
-            throw std::runtime_error("Invalid value for '" + key + "': empty token at position " +
-                                     std::to_string(token_index));
-        }
-        try {
-            size_t idx = 0;
-            double parsed = std::stod(token, &idx);
-            if (idx != token.size()) {
-                throw std::runtime_error("trailing characters");
-            }
-            values.push_back(parsed);
-        } catch (const std::exception&) {
-            throw std::runtime_error("Invalid value for '" + key +
-                                     "': expected number in token '" + token + "'");
-        }
-        token_index++;
-    }
-
-    if (values.empty()) {
-        throw std::runtime_error("Invalid value for '" + key + "': no values parsed");
-    }
-    return values;
+    return parseutil::parseDoubleListStrict(getString(key), "'" + key + "'");
 }
 
 Config Config::load(const std::string& filename) {
@@ -143,7 +91,7 @@ Config Config::load(const std::string& filename) {
 
         // Strip inline comments, then skip empty lines
         std::string uncommented = stripInlineComment(line);
-        std::string trimmed = trim(uncommented);
+        std::string trimmed = parseutil::trimCopy(uncommented);
         if (trimmed.empty()) {
             continue;
         }
@@ -170,8 +118,8 @@ Config Config::load(const std::string& filename) {
         }
 
         // Extract key and value
-        std::string key = trim(uncommented.substr(0, eq));
-        std::string value = trim(uncommented.substr(eq + 1));
+        std::string key = parseutil::trimCopy(uncommented.substr(0, eq));
+        std::string value = parseutil::trimCopy(uncommented.substr(eq + 1));
 
         if (key.empty()) {
             throw std::runtime_error("Empty key at line " + std::to_string(line_num));
@@ -186,19 +134,19 @@ Config Config::load(const std::string& filename) {
                 current_wing.side = value;
                 wing_fields.side = true;
             } else if (key == "mu0") {
-                current_wing.mu0 = parseDouble(value, key, line_num);
+                current_wing.mu0 = parseDoubleAtLine(value, key, line_num);
                 wing_fields.mu0 = true;
             } else if (key == "lb0") {
-                current_wing.lb0 = parseDouble(value, key, line_num);
+                current_wing.lb0 = parseDoubleAtLine(value, key, line_num);
                 wing_fields.lb0 = true;
             } else if (key == "Cd0") {
-                current_wing.Cd0 = parseDouble(value, key, line_num);
+                current_wing.Cd0 = parseDoubleAtLine(value, key, line_num);
                 wing_fields.Cd0 = true;
             } else if (key == "Cl0") {
-                current_wing.Cl0 = parseDouble(value, key, line_num);
+                current_wing.Cl0 = parseDoubleAtLine(value, key, line_num);
                 wing_fields.Cl0 = true;
             } else if (key == "phase") {
-                current_wing.phase = parseDouble(value, key, line_num);
+                current_wing.phase = parseDoubleAtLine(value, key, line_num);
             } else if (isWingMotionKey(key)) {
                 current_wing.motion_overrides[key] = value;
             } else {

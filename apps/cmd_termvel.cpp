@@ -1,6 +1,7 @@
 #include "cmd_termvel.hpp"
 #include "eom.hpp"
 #include "integrator.hpp"
+#include "parse_utils.hpp"
 #include "terminal_velocity.hpp"
 #include "wing.hpp"
 
@@ -49,11 +50,7 @@ struct TimeSeries {
 };
 
 double parseDouble(const char* str, const char* flag) {
-    try {
-        return std::stod(str);
-    } catch (const std::exception&) {
-        throw std::runtime_error(std::string("Invalid value for ") + flag + ": " + str);
-    }
+    return parseutil::parseDoubleStrict(str, flag);
 }
 
 } // namespace

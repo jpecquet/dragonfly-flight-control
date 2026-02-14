@@ -1,5 +1,6 @@
 #include "optimize.hpp"
 #include "eom.hpp"
+#include "parse_utils.hpp"
 #include "sim_setup.hpp"
 #include "wing.hpp"
 
@@ -110,15 +111,7 @@ static KinematicParam parseParam(const Config& cfg, const std::string& name,
         param.value = (param.min_bound + param.max_bound) / 2.0;
     } else {
         param.is_variable = false;
-        try {
-            size_t idx = 0;
-            param.value = std::stod(val, &idx);
-            if (idx != val.size()) {
-                throw std::runtime_error("trailing characters");
-            }
-        } catch (const std::exception&) {
-            throw std::runtime_error("Invalid value for '" + name + "': expected number, got '" + val + "'");
-        }
+        param.value = parseutil::parseDoubleStrict(val, "'" + name + "'");
         param.min_bound = param.value;
         param.max_bound = param.value;
     }

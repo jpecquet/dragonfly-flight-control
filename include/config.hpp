@@ -1,5 +1,7 @@
 #pragma once
 
+#include "parse_utils.hpp"
+
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -50,17 +52,7 @@ public:
     }
 
     double getDouble(const std::string& key) const {
-        std::string val = getString(key);
-        try {
-            size_t idx = 0;
-            double parsed = std::stod(val, &idx);
-            if (idx != val.size()) {
-                throw std::runtime_error("trailing characters");
-            }
-            return parsed;
-        } catch (const std::exception&) {
-            throw std::runtime_error("Invalid value for '" + key + "': expected number, got '" + val + "'");
-        }
+        return parseutil::parseDoubleStrict(getString(key), "'" + key + "'");
     }
 
     double getDouble(const std::string& key, double default_val) const {
@@ -75,17 +67,7 @@ public:
     }
 
     int getInt(const std::string& key) const {
-        std::string val = getString(key);
-        try {
-            size_t idx = 0;
-            int parsed = std::stoi(val, &idx);
-            if (idx != val.size()) {
-                throw std::runtime_error("trailing characters");
-            }
-            return parsed;
-        } catch (const std::exception&) {
-            throw std::runtime_error("Invalid value for '" + key + "': expected integer, got '" + val + "'");
-        }
+        return parseutil::parseIntStrict(getString(key), "'" + key + "'");
     }
 
     int getInt(const std::string& key, int default_val) const {
@@ -103,6 +85,4 @@ public:
 private:
     std::map<std::string, std::string> values_;
     std::vector<WingConfigEntry> wings_;
-
-    static std::string trim(const std::string& s);
 };

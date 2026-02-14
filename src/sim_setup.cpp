@@ -1,10 +1,10 @@
 #include "sim_setup.hpp"
+#include "parse_utils.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <limits>
-#include <sstream>
 #include <string>
 #include <stdexcept>
 
@@ -20,50 +20,6 @@ void requireHarmonicLength(const std::vector<double>& values, int expected,
         throw std::runtime_error(key + " expects " + std::to_string(expected) +
                                  " values, got " + std::to_string(values.size()));
     }
-}
-
-std::string trimToken(const std::string& s) {
-    size_t start = s.find_first_not_of(" \t");
-    if (start == std::string::npos) return "";
-    size_t end = s.find_last_not_of(" \t");
-    return s.substr(start, end - start + 1);
-}
-
-double parseDoubleString(const std::string& value, const std::string& context) {
-    std::string token = trimToken(value);
-    try {
-        size_t idx = 0;
-        double parsed = std::stod(token, &idx);
-        if (idx != token.size()) {
-            throw std::runtime_error("trailing characters");
-        }
-        return parsed;
-    } catch (const std::exception&) {
-        throw std::runtime_error("Invalid value for " + context + ": expected number, got '" + value + "'");
-    }
-}
-
-std::vector<double> parseDoubleListString(const std::string& raw_value, const std::string& context) {
-    std::string value = trimToken(raw_value);
-    if (value.size() >= 2 && value.front() == '[' && value.back() == ']') {
-        value = trimToken(value.substr(1, value.size() - 2));
-    }
-    if (value.empty()) {
-        throw std::runtime_error("Invalid value for " + context +
-                                 ": expected comma-separated numbers, got empty");
-    }
-
-    std::vector<double> values;
-    std::stringstream ss(value);
-    std::string token;
-    while (std::getline(ss, token, ',')) {
-        token = trimToken(token);
-        if (token.empty()) {
-            throw std::runtime_error("Invalid value for " + context + ": empty list item");
-        }
-        values.push_back(parseDoubleString(token, context));
-    }
-    return values;
 }
 
 const std::string* findOverride(const WingConfigEntry& entry, const std::string& key) {
@@ -101,17 +57,17 @@ void applyWingAngleOverrides(
     const bool has_sin = findOverride(entry, sin_key) != nullptr;
 
     if (const std::string* mean_val = findOverride(entry, mean_key)) {
-        mean = parseDoubleString(*mean_val, "wing '" + wing_label + "' key '" + mean_key + "'");
+        mean = parseutil::parseDoubleStrict(*mean_val, "wing '" + wing_label + "' key '" + mean_key + "'");
     }
 
     if (has_cos) {
-        cos_coeff = parseDoubleListString(*findOverride(entry, cos_key),
-                                          "wing '" + wing_label + "' key '" + cos_key + "'");
+        cos_coeff = parseutil::parseDoubleListStrict(*findOverride(entry, cos_key),
+                                                     "wing '" + wing_label + "' key '" + cos_key + "'");
         requireHarmonicLength(cos_coeff, n_harmonics, "wing '" + wing_label + "' key '" + cos_key + "'");
     }
     if (has_sin) {
-        sin_coeff = parseDoubleListString(*findOverride(entry, sin_key),
-                                          "wing '" + wing_label + "' key '" + sin_key + "'");
+        sin_coeff = parseutil::parseDoubleListStrict(*findOverride(entry, sin_key),
+                                                     "wing '" + wing_label + "' key '" + sin_key + "'");
         requireHarmonicLength(sin_coeff, n_harmonics, "wing '" + wing_label + "' key '" + sin_key + "'");
     }
 }
@@ -154,7 +110,7 @@ void populateWingMotion(
 
     std::string wing_label = entry.name + "_" + entry.side;
     if (const std::string* omega_override = findOverride(entry, "omega")) {
-        out.omega = parseDoubleString(*omega_override, "wing '" + wing_label + "' key 'omega'");
+        out.omega = parseutil::parseDoubleStrict(*omega_override, "wing '" + wing_label + "' key 'omega'");
     }
 
     applyWingAngleOverrides(entry, wing_label, "gamma", n_harmonics,
