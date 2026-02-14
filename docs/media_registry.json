@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "wang2007_fit_translate_sim",
+      "description": "Regenerate Wang 2007 fit outputs, translated config, and simulation data.",
+      "env": {
+        "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "scripts/wang2007_pipeline.py",
+          "fit",
+          "--run-dir",
+          "runs/wang2007/demo"
+        ],
+        [
+          "python",
+          "scripts/wang2007_pipeline.py",
+          "translate",
+          "--run-dir",
+          "runs/wang2007/demo"
+        ],
+        [
+          "python",
+          "scripts/wang2007_pipeline.py",
+          "sim",
+          "--run-dir",
+          "runs/wang2007/demo"
+        ]
+      ],
+      "outputs": [
+        "runs/wang2007/demo/manifest.json",
+        "runs/wang2007/demo/fit/fit_params.json",
+        "runs/wang2007/demo/fit/kinematics.pdf",
+        "runs/wang2007/demo/fit/fit_sinusoids.pdf",
+        "runs/wang2007/demo/fit/compare_alpha.pdf",
+        "runs/wang2007/demo/fit/force.pdf",
+        "runs/wang2007/demo/sim/sim_wang2007.cfg",
+        "runs/wang2007/demo/sim/translate_summary.json",
+        "runs/wang2007/demo/sim/output.h5"
+      ],
+      "sync": [
+        {
+          "from": "runs/wang2007/demo/manifest.json",
+          "to": "docs/case_studies/wang2007/artifacts/manifest.json"
+        },
+        {
+          "from": "runs/wang2007/demo/fit/fit_params.json",
+          "to": "docs/case_studies/wang2007/artifacts/fit/fit_params.json"
+        },
+        {
+          "from": "runs/wang2007/demo/fit/kinematics.pdf",
+          "to": "docs/case_studies/wang2007/artifacts/fit/kinematics.pdf"
+        },
+        {
+          "from": "runs/wang2007/demo/fit/fit_sinusoids.pdf",
+          "to": "docs/case_studies/wang2007/artifacts/fit/fit_sinusoids.pdf"
+        },
+        {
+          "from": "runs/wang2007/demo/fit/compare_alpha.pdf",
+          "to": "docs/case_studies/wang2007/artifacts/fit/compare_alpha.pdf"
+        },
+        {
+          "from": "runs/wang2007/demo/fit/force.pdf",
+          "to": "docs/case_studies/wang2007/artifacts/fit/force.pdf"
+        },
+        {
+          "from": "runs/wang2007/demo/sim/sim_wang2007.cfg",
+          "to": "docs/case_studies/wang2007/artifacts/sim/sim_wang2007.cfg"
+        },
+        {
+          "from": "runs/wang2007/demo/sim/translate_summary.json",
+          "to": "docs/case_studies/wang2007/artifacts/sim/translate_summary.json"
+        },
+        {
+          "from": "runs/wang2007/demo/sim/output.h5",
+          "to": "docs/case_studies/wang2007/artifacts/sim/output.h5"
+        }
+      ]
+    },
+    {
+      "id": "wang2007_animation_light",
+      "description": "Regenerate Wang 2007 Blender animation for docs (light theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_simulation",
+          "runs/wang2007/demo/sim/output.h5",
+          "docs/_static/media/wang2007/simulation.light.mp4",
+          "--config",
+          "docs/case_studies/wang2007/render_config.dark.json",
+          "--theme",
+          "light",
+          "--frame-step",
+          "3"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/wang2007/simulation.light.mp4"
+      ],
+      "sync": []
+    },
+    {
+      "id": "wang2007_animation_dark",
+      "description": "Regenerate Wang 2007 Blender animation for docs (dark theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_simulation",
+          "runs/wang2007/demo/sim/output.h5",
+          "docs/_static/media/wang2007/simulation.dark.mp4",
+          "--config",
+          "docs/case_studies/wang2007/render_config.dark.json",
+          "--theme",
+          "dark",
+          "--frame-step",
+          "3"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/wang2007/simulation.dark.mp4"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/wang2007/simulation.dark.mp4",
+          "to": "docs/case_studies/wang2007/artifacts/post/simulation.mp4"
+        }
+      ]
+    }
+  ]
+}

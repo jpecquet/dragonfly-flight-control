@@ -358,6 +358,13 @@ def run_blender_render_parallel(
     if n_workers is None or n_workers <= 0:
         n_workers = os.cpu_count() or 4
 
+    if n_workers == 1:
+        run_blender_render(
+            states, wing_vectors, output_dir, config_file, data_file,
+            start_frame=0, end_frame=n_frames
+        )
+        return
+
     # Extract and save frame data (shared by all workers)
     frame_data = extract_frame_data(states, wing_vectors)
     with open(data_file, 'w') as f:
@@ -495,7 +502,7 @@ def render_hybrid(
 
     # Compute exact ortho_scale and center offset from matplotlib projection
     ortho_scale, (offset_x, offset_y) = compute_blender_ortho_scale(
-        config.camera, config.viewport
+        config.camera, config.viewport, config.style
     )
     config.blender.computed_ortho_scale = ortho_scale
     config.blender.center_offset_x = offset_x

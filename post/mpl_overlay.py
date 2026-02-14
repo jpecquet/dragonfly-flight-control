@@ -29,6 +29,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from mpl_toolkits.mplot3d.proj3d import proj_transform
 import numpy as np
+from matplotlib.colors import to_rgba
 
 from .constants import (
     FW_X0, HW_X0, DEFAULT_LB0,
@@ -37,11 +38,13 @@ from .constants import (
     RIGHT_WING_Y_OFFSET, LEFT_WING_Y_OFFSET,
 )
 from .hybrid_config import CameraConfig, StyleConfig, ViewportConfig, HybridConfig
+from .style import apply_matplotlib_style
 
 
 def compute_blender_ortho_scale(
     camera: CameraConfig,
-    viewport: ViewportConfig
+    viewport: ViewportConfig,
+    style: Optional[StyleConfig] = None,
 ) -> Tuple[float, Tuple[float, float]]:
     """
     Compute the exact ortho_scale for Blender to match matplotlib projection.
@@ -61,8 +64,10 @@ def compute_blender_ortho_scale(
     """
     import math
 
-    fig, ax = create_overlay_figure(camera)
-    setup_axes(ax, viewport, camera)
+    resolved_style = style if style is not None else StyleConfig.themed('light')
+    apply_matplotlib_style(resolved_style)
+    fig, ax = create_overlay_figure(camera, resolved_style)
+    setup_axes(ax, viewport, camera, resolved_style)
     fig.canvas.draw()  # Force projection matrix update
 
     proj = ax.get_proj()
@@ -102,15 +107,7 @@ def compute_blender_ortho_scale(
     return ortho_scale, (center_offset_x, center_offset_y)
 
 
-def apply_style(style: StyleConfig):
-    """Apply matplotlib style settings."""
-    plt.rcParams["font.family"] = style.font_family
-    plt.rcParams["font.serif"] = [style.font_serif]
-    plt.rcParams["mathtext.fontset"] = style.mathtext_fontset
-    plt.rcParams["font.size"] = style.font_size
-
-
-def create_overlay_figure(camera: CameraConfig) -> Tuple[plt.Figure, Axes3D]:
+def create_overlay_figure(camera: CameraConfig, style: StyleConfig) -> Tuple[plt.Figure, Axes3D]:
     """
     Create matplotlib figure with transparent 3D axes.
 
@@ -124,11 +121,11 @@ def create_overlay_figure(camera: CameraConfig) -> Tuple[plt.Figure, Axes3D]:
     fig = plt.figure(
         figsize=camera.figsize,
         dpi=camera.dpi,
-        facecolor='white'
+        facecolor=style.figure_facecolor,
     )
 
     # Create 3D axes
-    ax = fig.add_subplot(111, projection='3d', facecolor='white')
+    ax = fig.add_subplot(111, projection='3d', facecolor=style.axes_facecolor)
 
     # Set view to match Blender camera
     ax.view_init(elev=camera.elevation, azim=camera.azimuth)
@@ -139,7 +136,7 @@ def create_overlay_figure(camera: CameraConfig) -> Tuple[plt.Figure, Axes3D]:
     return fig, ax
 
 
-def setup_axes(ax: Axes3D, viewport: ViewportConfig, camera: CameraConfig):
+def setup_axes(ax: Axes3D, viewport: ViewportConfig, camera: CameraConfig, style: StyleConfig):
     """
     Configure axes limits and appearance.
 
@@ -156,9 +153,9 @@ def setup_axes(ax: Axes3D, viewport: ViewportConfig, camera: CameraConfig):
     ax.set_zlim(viewport.center[2] - half_extent, viewport.center[2] + half_extent)
 
     # Labels
-    ax.set_xlabel('X (forward)', fontsize=10)
-    ax.set_ylabel('Y (left)', fontsize=10)
-    ax.set_zlabel('Z (up)', fontsize=10)
+    ax.set_xlabel('X (forward)', fontsize=10, color=style.text_color)
+    ax.set_ylabel('Y (left)', fontsize=10, color=style.text_color)
+    ax.set_zlabel('Z (up)', fontsize=10, color=style.text_color)
 
     # Equal aspect ratio (as close as matplotlib allows)
     ax.set_box_aspect([1, 1, 1])
@@ -167,14 +164,16 @@ def setup_axes(ax: Axes3D, viewport: ViewportConfig, camera: CameraConfig):
     ax.xaxis.pane.fill = False
     ax.yaxis.pane.fill = False
     ax.zaxis.pane.fill = False
-    ax.xaxis.pane.set_edgecolor('gray')
-    ax.yaxis.pane.set_edgecolor('gray')
-    ax.zaxis.pane.set_edgecolor('gray')
+    pane_edge = to_rgba(style.axes_edge_color, alpha=0.8)
+    ax.xaxis.pane.set_edgecolor(pane_edge)
+    ax.yaxis.pane.set_edgecolor(pane_edge)
+    ax.zaxis.pane.set_edgecolor(pane_edge)
 
     # Lighter grid
-    ax.xaxis._axinfo['grid']['color'] = (0.8, 0.8, 0.8, 0.5)
-    ax.yaxis._axinfo['grid']['color'] = (0.8, 0.8, 0.8, 0.5)
-    ax.zaxis._axinfo['grid']['color'] = (0.8, 0.8, 0.8, 0.5)
+    grid_color = to_rgba(style.grid_color, alpha=0.45)
+    ax.xaxis._axinfo['grid']['color'] = grid_color
+    ax.yaxis._axinfo['grid']['color'] = grid_color
+    ax.zaxis._axinfo['grid']['color'] = grid_color
 
 
 def _draw_forces(ax, xb, wing_vectors, wing_lb0, config):
@@ -196,26 +195,30 @@ def _draw_forces(ax, xb, wing_vectors, wing_lb0, config):
                         color=color, linewidth=style.force_linewidth)
 
 
-def _draw_body_and_wings(ax, xb, wing_vectors, wing_lb0):
+def _draw_body_and_wings(ax, xb, wing_vectors, wing_lb0, style: StyleConfig):
     """
     Draw simplified dragonfly body and wing geometry in matplotlib 3D.
 
     This is intended for matplotlib-only fallback rendering where Blender meshes
     are unavailable.
     """
-    wing_color = '#cccccc'
-    wing_edge = '#2e2e2e'
+    wing_color = style.wing_color
+    wing_edge = style.wing_edge_color
 
     # Body as a black stick with a hollow head marker.
     tail = xb + np.array([A_XC - La / 2.0, 0.0, 0.0])
     head = xb + np.array([H_XC + Lh / 2.0, 0.0, 0.0])
     ax.plot(
         [tail[0], head[0]], [tail[1], head[1]], [tail[2], head[2]],
-        color='black', linewidth=2.0, solid_capstyle='round', zorder=2,
+        color=style.body_color, linewidth=2.0, solid_capstyle='round', zorder=2,
     )
     ax.scatter(
         [head[0]], [head[1]], [head[2]],
-        s=30, facecolors='white', edgecolors='black', linewidths=2.0, zorder=3,
+        s=30,
+        facecolors=style.axes_facecolor,
+        edgecolors=style.body_color,
+        linewidths=2.0,
+        zorder=3,
     )
 
     # Wings as thin oriented plates.
@@ -285,9 +288,10 @@ def render_simulation_frame(
     Returns:
         Path to rendered PNG file
     """
-    apply_style(config.style)
-    fig, ax = create_overlay_figure(config.camera)
-    setup_axes(ax, config.viewport, config.camera)
+    apply_matplotlib_style(config.style)
+    style = config.style
+    fig, ax = create_overlay_figure(config.camera, style)
+    setup_axes(ax, config.viewport, config.camera, style)
 
     wing_lb0 = params.get('wing_lb0', {})
 
@@ -296,13 +300,15 @@ def render_simulation_frame(
     v = wing_vectors[frame_idx]
 
     if draw_models:
-        _draw_body_and_wings(ax, xb, v, wing_lb0)
+        _draw_body_and_wings(ax, xb, v, wing_lb0, style)
 
     # Draw trajectory trail (full history)
     if frame_idx > 0:
         trail_points = np.array([s[0:3] for s in states[0:frame_idx + 1]])
         ax.plot(trail_points[:, 0], trail_points[:, 1], trail_points[:, 2],
-                color='black', linewidth=0.5, alpha=0.7)
+                color=style.trajectory_color,
+                linewidth=style.trajectory_linewidth,
+                alpha=0.7)
 
     if config.show_forces:
         _draw_forces(ax, xb, v, wing_lb0, config)
@@ -310,7 +316,8 @@ def render_simulation_frame(
     # Add velocity text
     ux, uz = states[frame_idx][3], states[frame_idx][5]
     ax.text2D(0.02, 0.98, f"$u_x$ = {ux:.2f}, $u_z$ = {uz:.2f}",
-              transform=ax.transAxes, fontsize=10, verticalalignment='top')
+              transform=ax.transAxes, fontsize=10, verticalalignment='top',
+              color=style.text_color)
 
     # Save to file
     output_file = output_path / f"mpl_{frame_idx:06d}.png"
@@ -347,18 +354,18 @@ def render_tracking_frame(
     Returns:
         Path to rendered PNG file
     """
-    apply_style(config.style)
-    fig, ax = create_overlay_figure(config.camera)
-    setup_axes(ax, config.viewport, config.camera)
-
+    apply_matplotlib_style(config.style)
     style = config.style
+    fig, ax = create_overlay_figure(config.camera, style)
+    setup_axes(ax, config.viewport, config.camera, style)
+
     wing_lb0 = params.get('wing_lb0', {})
 
     # Current state
     xb = states[frame_idx][0:3]
     v = wing_vectors[frame_idx]
     if draw_models:
-        _draw_body_and_wings(ax, xb, v, wing_lb0)
+        _draw_body_and_wings(ax, xb, v, wing_lb0, style)
 
     target = controller['target_position'][frame_idx]
     error = controller['position_error'][frame_idx]
@@ -375,7 +382,9 @@ def render_tracking_frame(
     if frame_idx > 0:
         trail_points = np.array([s[0:3] for s in states[0:frame_idx + 1]])
         ax.plot(trail_points[:, 0], trail_points[:, 1], trail_points[:, 2],
-                color='black', linewidth=0.5, alpha=0.7)
+                color=style.trajectory_color,
+                linewidth=style.trajectory_linewidth,
+                alpha=0.7)
 
     # Draw current target marker
     ax.scatter([target[0]], [target[1]], [target[2]],
@@ -396,7 +405,8 @@ def render_tracking_frame(
             f"Actual: ({xb[0]:.2f}, {xb[1]:.2f}, {xb[2]:.2f})\n"
             f"$u_x$={ux:.2f}, $u_z$={uz:.2f}")
     ax.text2D(0.02, 0.98, text, transform=ax.transAxes, fontsize=9,
-              verticalalignment='top', family='monospace')
+              verticalalignment='top', family='monospace',
+              color=style.text_color)
 
     # Legend
     ax.text2D(0.85, 0.98, "Target", color=style.target_color,
@@ -409,7 +419,7 @@ def render_tracking_frame(
     # Frame counter
     n_frames = len(states)
     ax.text2D(0.98, 0.02, f"Frame {frame_idx + 1}/{n_frames}",
-              transform=ax.transAxes, fontsize=8, color='gray',
+              transform=ax.transAxes, fontsize=8, color=style.muted_text_color,
               verticalalignment='bottom', horizontalalignment='right')
 
     # Save to file
@@ -518,6 +528,12 @@ def render_all_frames_parallel(
 
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
+
+    if n_workers == 1:
+        return render_all_frames(
+            states, wing_vectors, params, config, output_path,
+            controller=controller, draw_models=draw_models,
+        )
 
     n_frames = len(states)
     config_dict = config.to_dict()

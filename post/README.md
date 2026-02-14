@@ -70,6 +70,9 @@ python -m post.plot_simulation output.h5 output.mp4 --config my_config.json
 
 # Force matplotlib-only fallback (skip Blender)
 python -m post.plot_simulation output.h5 output.mp4 --no-blender
+
+# Use dark theme
+python -m post.plot_simulation output.h5 output.mp4 --theme dark
 ```
 
 ### plot_tracking.py
@@ -88,6 +91,9 @@ python -m post.plot_tracking track.h5 tracking.png
 
 # Force matplotlib-only fallback (skip Blender)
 python -m post.plot_tracking track.h5 tracking.mp4 --no-blender
+
+# Dark theme for animation + summary
+python -m post.plot_tracking track.h5 tracking.mp4 --theme dark
 ```
 
 ### plot_landscape.py
@@ -96,6 +102,7 @@ Plot optimizer objective function landscape (1D or 2D).
 
 ```bash
 python -m post.plot_landscape optim_landscape.h5 landscape.png
+python -m post.plot_landscape optim_landscape.h5 landscape_dark.png --theme dark
 ```
 
 ### plot_wing_rotation.py
@@ -104,6 +111,7 @@ Animate wing basis vectors through rotation phases.
 
 ```bash
 python -m post.plot_wing_rotation wingtest.h5 rotation.mp4
+python -m post.plot_wing_rotation wingtest.h5 rotation_dark.mp4 --theme dark
 ```
 
 ### plot_stick.py
@@ -116,6 +124,9 @@ python -m post.plot_stick output.h5 fore_left stroke.mp4
 
 # List available wings
 python -m post.plot_stick output.h5
+
+# Dark theme
+python -m post.plot_stick output.h5 fore_left stroke_dark.mp4 --theme dark
 ```
 
 ### plot_terminal_velocity.py
@@ -128,6 +139,9 @@ python -m post.plot_terminal_velocity --psi 45 output.png
 
 # Animation
 python -m post.plot_terminal_velocity --psi 45 output.mp4
+
+# Dark theme
+python -m post.plot_terminal_velocity --psi 45 --theme dark output.mp4
 ```
 
 ## Custom Configuration
@@ -145,15 +159,18 @@ The hybrid renderer accepts a JSON configuration file:
     "dpi": 300
   },
   "style": {
+    "theme": "dark",
     "font_family": "serif",
     "font_serif": "Times New Roman",
-    "trajectory_color": "blue",
-    "target_color": "green",
-    "error_color": "red"
+    "trajectory_color": "#4aa3ff",
+    "target_color": "#56d68b",
+    "error_color": "#ff6b6b",
+    "figure_facecolor": "#101418",
+    "axes_facecolor": "#101418"
   },
   "framerate": 30,
   "trail_length": 100,
-  "show_forces": true,
+  "show_forces": false,
   "force_scale": 0.05
 }
 ```

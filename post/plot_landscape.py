@@ -3,19 +3,19 @@
 Visualize objective function landscape from optimizer.
 
 Usage:
-    python -m post.plot_landscape <input.h5> [output.png]
+    python -m post.plot_landscape <input.h5> [output.png] [--theme light|dark]
 """
 
-import sys
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Import package to set matplotlib config
-import post
+from post.hybrid_config import StyleConfig
 from post.io import read_landscape
+from post.style import apply_matplotlib_style, resolve_style
 
 
-def plot_1d_landscape(data, output_file=None):
+def plot_1d_landscape(data, style: StyleConfig, output_file=None):
     """Plot 1D landscape (single variable parameter)."""
     fig, ax = plt.subplots(figsize=(8, 5))
 
@@ -23,17 +23,20 @@ def plot_1d_landscape(data, output_file=None):
     param_deg = np.rad2deg(data['param1_values'])
     obj = data['objective'][:, 0]
 
-    ax.plot(param_deg, obj, 'b-', linewidth=2)
-    ax.axhline(y=0, color='k', linestyle='--', alpha=0.3)
+    ax.plot(param_deg, obj, color=style.trajectory_color, linewidth=2)
+    ax.axhline(y=0, color=style.muted_text_color, linestyle='--', alpha=0.4)
 
     # Mark minimum
     min_idx = np.argmin(obj)
-    ax.plot(param_deg[min_idx], obj[min_idx], 'ro', markersize=10,
-            label=f'min: {param_deg[min_idx]:.1f} deg, obj={obj[min_idx]:.2e}')
+    ax.plot(
+        param_deg[min_idx], obj[min_idx], 'o',
+        color=style.landscape_min_marker_color, markersize=10,
+        label=f'min: {param_deg[min_idx]:.1f} deg, obj={obj[min_idx]:.2e}',
+    )
 
-    ax.set_xlabel(f'{data["param_names"][0]} (deg)', fontsize=12)
-    ax.set_ylabel('Objective (acceleration magnitude)', fontsize=12)
-    ax.set_title(f'Objective Landscape at ux = {data["ux"]:.2f}', fontsize=14)
+    ax.set_xlabel(f'{data["param_names"][0]} (deg)')
+    ax.set_ylabel('Objective (acceleration magnitude)')
+    ax.set_title(f'Objective Landscape at ux = {data["ux"]:.2f}')
     ax.legend()
     ax.grid(True, alpha=0.3)
 
@@ -46,7 +49,7 @@ def plot_1d_landscape(data, output_file=None):
         plt.show()
 
 
-def plot_2d_landscape(data, output_file=None):
+def plot_2d_landscape(data, style: StyleConfig, output_file=None):
     """Plot 2D landscape (two variable parameters)."""
     fig, ax = plt.subplots(figsize=(10, 8))
 
@@ -63,22 +66,28 @@ def plot_2d_landscape(data, output_file=None):
 
     # Contour plot
     levels = 30
-    cf = ax.contourf(P1, P2, obj_log, levels=levels, cmap='viridis')
-    ax.contour(P1, P2, obj_log, levels=10, colors='white', alpha=0.3, linewidths=0.5)
+    cf = ax.contourf(P1, P2, obj_log, levels=levels, cmap=style.landscape_colormap)
+    ax.contour(
+        P1, P2, obj_log, levels=10,
+        colors=style.landscape_contour_color, alpha=0.35, linewidths=0.5,
+    )
 
     # Colorbar
     cbar = plt.colorbar(cf, ax=ax)
-    cbar.set_label('log10(acceleration magnitude)', fontsize=11)
+    cbar.set_label('log10(acceleration magnitude)')
 
     # Mark global minimum
     min_idx = np.unravel_index(np.argmin(obj), obj.shape)
-    ax.plot(p1_deg[min_idx[0]], p2_deg[min_idx[1]], 'r*', markersize=15,
-            markeredgecolor='white', markeredgewidth=1.5,
-            label=f'min: ({p1_deg[min_idx[0]]:.1f}, {p2_deg[min_idx[1]]:.1f}) deg')
+    ax.plot(
+        p1_deg[min_idx[0]], p2_deg[min_idx[1]], '*',
+        markersize=15, color=style.landscape_min_marker_color,
+        markeredgecolor=style.figure_facecolor, markeredgewidth=1.5,
+        label=f'min: ({p1_deg[min_idx[0]]:.1f}, {p2_deg[min_idx[1]]:.1f}) deg',
+    )
 
-    ax.set_xlabel(f'{data["param_names"][0]} (deg)', fontsize=12)
-    ax.set_ylabel(f'{data["param_names"][1]} (deg)', fontsize=12)
-    ax.set_title(f'Objective Landscape at ux = {data["ux"]:.2f}', fontsize=14)
+    ax.set_xlabel(f'{data["param_names"][0]} (deg)')
+    ax.set_ylabel(f'{data["param_names"][1]} (deg)')
+    ax.set_title(f'Objective Landscape at ux = {data["ux"]:.2f}')
     ax.legend(loc='upper right')
 
     plt.tight_layout()
@@ -91,25 +100,33 @@ def plot_2d_landscape(data, output_file=None):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Visualize objective function landscape")
+    parser.add_argument("input", help="Input HDF5 file")
+    parser.add_argument("output", nargs="?", help="Output image file (optional)")
+    parser.add_argument(
+        "--theme",
+        choices=["light", "dark"],
+        default="light",
+        help="Plot theme (default: light)",
+    )
+    args = parser.parse_args()
 
-    input_file = sys.argv[1]
-    output_file = sys.argv[2] if len(sys.argv) > 2 else None
+    style = resolve_style(theme=args.theme)
+    apply_matplotlib_style(style)
 
-    print(f'Loading {input_file}...')
-    data = read_landscape(input_file)
+    print(f'Loading {args.input}...')
+    data = read_landscape(args.input)
 
     print(f'Forward velocity: ux = {data["ux"]:.2f}')
     print(f'Parameters: {", ".join(data["param_names"])}')
+    print(f'Theme: {style.theme}')
 
     if 'param2_values' in data and len(data['param2_values']) > 0:
         print('Generating 2D contour plot...')
-        plot_2d_landscape(data, output_file)
+        plot_2d_landscape(data, style, args.output)
     else:
         print('Generating 1D plot...')
-        plot_1d_landscape(data, output_file)
+        plot_1d_landscape(data, style, args.output)
 
 
 if __name__ == '__main__':

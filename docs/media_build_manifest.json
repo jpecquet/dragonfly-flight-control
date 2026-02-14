@@ -1,0 +1,34 @@
+{
+  "generated_at_utc": "2026-02-14T02:42:44+00:00",
+  "registry": "docs/media_registry.json",
+  "entries": [
+    {
+      "id": "wang2007_animation_dark",
+      "completed_at_utc": "2026-02-14T02:43:31+00:00",
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_simulation",
+          "runs/wang2007/demo/sim/output.h5",
+          "docs/_static/media/wang2007/simulation.dark.mp4",
+          "--config",
+          "docs/case_studies/wang2007/render_config.dark.json",
+          "--theme",
+          "dark",
+          "--frame-step",
+          "3"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/wang2007/simulation.dark.mp4"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/wang2007/simulation.dark.mp4",
+          "to": "docs/case_studies/wang2007/artifacts/post/simulation.mp4"
+        }
+      ]
+    }
+  ]
+}

@@ -6,19 +6,20 @@ Shows the wing chordline as a line with a hollow circle at the leading edge,
 projected onto a sphere of radius 2/3*lb0, viewed from the side.
 
 Usage:
-    python -m post.plot_stick <input.h5> <wing_name> <output.mp4|gif>
+    python -m post.plot_stick <input.h5> <wing_name> <output.mp4|gif> [--theme light|dark]
 
 Example:
-    python -m post.plot_stick output.h5 fore_left stroke.mp4
+    python -m post.plot_stick output.h5 fore_left stroke.mp4 --theme dark
 """
 
+import argparse
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as ani
 
-import post
 from post.io import read_simulation
+from post.style import apply_matplotlib_style, resolve_style
 
 
 def cart_to_spherical(v):
@@ -58,15 +59,17 @@ def vec_to_spherical(e_r, vec):
     return dtheta, dphi
 
 
-def animate_stroke(params, time, wings, wing_name, outfile):
+def animate_stroke(time, wings, wing_name, outfile, style=None):
     """Create animation of wing stroke on sphere, equirectangular projection."""
+    style = resolve_style(style)
+    apply_matplotlib_style(style)
+
     fig, ax = plt.subplots(figsize=(4, 4))
 
     n_frames = len(time)
-    lb0 = params['wing_lb0'][wing_name]
     chord_len = 8  # visual chord length in degrees
-    
-    traj_theta, traj_phi = np.zeros(n_frames+1), np.zeros(n_frames+1)
+
+    traj_theta, traj_phi = np.zeros(n_frames + 1), np.zeros(n_frames + 1)
     for i in range(n_frames):
         e_r_i = wings[i][wing_name]['e_r']
         traj_theta[i], traj_phi[i] = cart_to_spherical(e_r_i)
@@ -99,11 +102,14 @@ def animate_stroke(params, time, wings, wing_name, outfile):
         te_phi = phi_deg - chord_len * chord_dir[1]
 
         # Draw chordline
-        ax.plot([te_theta, le_theta], [te_phi, le_phi], 'k-', linewidth=2)
+        ax.plot([te_theta, le_theta], [te_phi, le_phi], '-', color=style.body_color, linewidth=2)
 
         # Draw hollow circle at leading edge
-        ax.plot(le_theta, le_phi, 'o', markersize=4, markerfacecolor='white',
-                markeredgecolor='black', markeredgewidth=2)
+        ax.plot(
+            le_theta, le_phi, 'o', markersize=4,
+            markerfacecolor=style.axes_facecolor,
+            markeredgecolor=style.body_color, markeredgewidth=2
+        )
 
         # Draw lift and drag vectors (scaled, converted to degrees)
         force_scale = 0.05 * np.degrees(1)  # scale factor to degrees
@@ -111,13 +117,20 @@ def animate_stroke(params, time, wings, wing_name, outfile):
         lift_dtheta, lift_dphi = vec_to_spherical(e_r, lift)
         drag_dtheta, drag_dphi = vec_to_spherical(e_r, drag)
 
-        ax.arrow(theta_deg, phi_deg, lift_dtheta * force_scale, lift_dphi * force_scale,
-                 head_width=1, head_length=2, fc='blue', ec='blue', linewidth=1.5)
-        ax.arrow(theta_deg, phi_deg, drag_dtheta * force_scale, drag_dphi * force_scale,
-                 head_width=1, head_length=2, fc='red', ec='red', linewidth=1.5)
-        
+        ax.arrow(
+            theta_deg, phi_deg, lift_dtheta * force_scale, lift_dphi * force_scale,
+            head_width=1, head_length=2, fc=style.lift_color, ec=style.lift_color, linewidth=1.5
+        )
+        ax.arrow(
+            theta_deg, phi_deg, drag_dtheta * force_scale, drag_dphi * force_scale,
+            head_width=1, head_length=2, fc=style.drag_color, ec=style.drag_color, linewidth=1.5
+        )
+
         # Plot trajectory over wingbeat
-        ax.plot(np.degrees(traj_theta), np.degrees(traj_phi), '-', color='k', linewidth=0.5, zorder=-1)
+        ax.plot(
+            np.degrees(traj_theta), np.degrees(traj_phi), '-',
+            color=style.trajectory_color, linewidth=0.7, zorder=-1
+        )
 
         # Axis settings
         ax.set_xlim([45, 135])
@@ -145,22 +158,30 @@ def animate_stroke(params, time, wings, wing_name, outfile):
 
 
 def main():
-    if len(sys.argv) < 4:
-        print(__doc__)
-        print("\nAvailable wings are listed when you run with just the input file.")
-        if len(sys.argv) == 2:
-            params, time, states, wings = read_simulation(sys.argv[1])
-            print(f"\nWings in {sys.argv[1]}:")
-            for name in wings[0].keys():
-                print(f"  {name}")
+    parser = argparse.ArgumentParser(description="Visualize wing stroke on sphere")
+    parser.add_argument("input", help="Input HDF5 simulation file")
+    parser.add_argument("wing", nargs="?", help="Wing name (e.g., fore_left)")
+    parser.add_argument("output", nargs="?", help="Output animation (.mp4 or .gif)")
+    parser.add_argument(
+        "--theme",
+        choices=["light", "dark"],
+        default="light",
+        help="Plot theme (default: light)",
+    )
+    args = parser.parse_args()
+
+    print(f"Reading {args.input}...")
+    params, time, states, wings = read_simulation(args.input)
+
+    if not args.wing or not args.output:
+        print("\nUsage: python -m post.plot_stick <input.h5> <wing_name> <output.mp4|gif> [--theme light|dark]")
+        print("\nAvailable wings:")
+        for name in wings[0].keys():
+            print(f"  {name}")
         sys.exit(1)
 
-    infile = sys.argv[1]
-    wing_name = sys.argv[2]
-    outfile = sys.argv[3]
-
-    print(f"Reading {infile}...")
-    params, time, states, wings = read_simulation(infile)
+    wing_name = args.wing
+    outfile = args.output
 
     if wing_name not in wings[0]:
         print(f"Error: Wing '{wing_name}' not found.")
@@ -172,11 +193,14 @@ def main():
     lb0 = params['wing_lb0'][wing_name]
     print(f"Wing: {wing_name}")
     print(f"lb0: {lb0}")
-    print(f"Sphere radius: {(2.0/3.0)*lb0:.4f}")
+    print(f"Sphere radius: {(2.0 / 3.0) * lb0:.4f}")
     print(f"Frames: {len(time)}")
 
+    style = resolve_style(theme=args.theme)
+    print(f"Theme: {style.theme}")
+
     print("Creating animation...")
-    animate_stroke(params, time, wings, wing_name, outfile)
+    animate_stroke(time, wings, wing_name, outfile, style=style)
 
 
 if __name__ == "__main__":

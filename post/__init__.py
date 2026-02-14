@@ -10,12 +10,9 @@ Scripts:
 # Matplotlib configuration for consistent styling
 # Guarded so that importing post.* from Blender's Python (no matplotlib) works
 try:
-    import matplotlib.pyplot as plt
+    from .style import apply_matplotlib_style
 
-    plt.rcParams["font.family"] = "serif"
-    plt.rcParams["font.serif"] = ["Times New Roman"]
-    plt.rcParams["mathtext.fontset"] = "stix"
-    plt.rcParams["font.size"] = 12
+    apply_matplotlib_style()
 except ImportError:
     pass
 except Exception:

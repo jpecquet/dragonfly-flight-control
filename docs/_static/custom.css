@@ -8,3 +8,11 @@ table.docutils td,
 table.docutils th {
   vertical-align: top;
 }
+
+/* Keep embedded media inside the main content column */
+.case-study-video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}

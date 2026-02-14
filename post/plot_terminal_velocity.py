@@ -13,6 +13,7 @@ Options:
     --tmax VALUE Maximum simulation time (default: 50)
     --fps VALUE  Animation frames per second (default: 30)
     --skip N     Use every Nth frame for animation (default: 1)
+    --theme MODE Plot theme: light or dark (default: light)
 """
 
 import argparse
@@ -23,12 +24,16 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as plticker
 import matplotlib.animation as ani
 
-import post
+from post.hybrid_config import StyleConfig
 from post.io import read_terminal_velocity, run_termvel_simulation
+from post.style import apply_matplotlib_style, resolve_style
 
 
-def plot_terminal_velocity(data, output_file=None):
+def plot_terminal_velocity(data, output_file=None, style: StyleConfig = None):
     """Plot terminal velocity time series."""
+    style = resolve_style(style)
+    apply_matplotlib_style(style)
+
     time = data['time']
     ux = data['ux']
     uz = data['uz']
@@ -36,24 +41,23 @@ def plot_terminal_velocity(data, output_file=None):
 
     fig, ax = plt.subplots(figsize=(4, 3))
 
-    ax.plot(time, ux, 'k-', linewidth=1, label='Physics solver')
-    ax.plot(time, uz, 'k-', linewidth=1)
-    ax.axhline(y=ux[-1], color='k', linestyle=':', linewidth=1, label='Steady-state solution')
-    ax.axhline(y=uz[-1], color='k', linestyle=':', linewidth=1)
+    ax.plot(time, ux, '-', color=style.trajectory_color, linewidth=1, label='Physics solver')
+    ax.plot(time, uz, '-', color=style.trajectory_color, linewidth=1)
+    ax.axhline(y=ux[-1], color=style.muted_text_color, linestyle=':', linewidth=1, label='Steady-state solution')
+    ax.axhline(y=uz[-1], color=style.muted_text_color, linestyle=':', linewidth=1)
 
     ax.set_xlim(time[0], time[-1])
 
     # Labels at right edge of frame, offset above lines
     from matplotlib.transforms import offset_copy
     trans = offset_copy(ax.transData, fig=fig, x=-4, y=4, units='points')
-    ax.text(time[-1], ux[-1], r'$\tilde{u}_x$', ha='right', va='bottom', transform=trans, fontsize=12)
-    ax.text(time[-1], uz[-1], r'$\tilde{u}_z$', ha='right', va='bottom', transform=trans, fontsize=12)
-    ax.set_xlabel(r'$\tilde{t}$', fontsize=12)
-    ax.set_ylabel(r'$\tilde{u}_i$', fontsize=12)
-    ax.set_title(f'Fixed orientation freefall $(\\psi$ = {psi_deg:.0f}°)', fontsize=12)
-    ax.tick_params(labelsize=12)
+    ax.text(time[-1], ux[-1], r'$\tilde{u}_x$', ha='right', va='bottom', transform=trans)
+    ax.text(time[-1], uz[-1], r'$\tilde{u}_z$', ha='right', va='bottom', transform=trans)
+    ax.set_xlabel(r'$\tilde{t}$')
+    ax.set_ylabel(r'$\tilde{u}_i$')
+    ax.set_title(f'Fixed orientation freefall $(\\psi$ = {psi_deg:.0f}°)')
     ax.margins(0.2)
-    plt.legend(fontsize=12)
+    plt.legend()
 
     plt.tight_layout()
 
@@ -64,8 +68,11 @@ def plot_terminal_velocity(data, output_file=None):
         plt.show()
 
 
-def animate_terminal_velocity(data, outfile, fps=30, skip=1):
+def animate_terminal_velocity(data, outfile, fps=30, skip=1, style: StyleConfig = None):
     """Create animation of falling wing, centered on wing with lift/drag vectors."""
+    style = resolve_style(style)
+    apply_matplotlib_style(style)
+
     time = data['time'][::skip]
     x = data['x'][::skip]
     z = data['z'][::skip]
@@ -108,33 +115,39 @@ def animate_terminal_velocity(data, outfile, fps=30, skip=1):
         drag = np.array([drag_x[frame], drag_z[frame]])
 
         # Draw trajectory up to current frame
-        ax.plot(x[:frame+1], z[:frame+1], '-', color='k', linewidth=0.5, alpha=0.5)
+        ax.plot(
+            x[:frame+1], z[:frame+1], '-',
+            color=style.trajectory_color, linewidth=0.5, alpha=0.5
+        )
 
         # Draw lift vector (blue)
         ax.arrow(px, pz, lift[0] * force_scale, lift[1] * force_scale,
-                 head_width=1.2*0.11, head_length=2*0.11, fc='blue', ec='blue', linewidth=1.5,
+                 head_width=1.2*0.11, head_length=2*0.11,
+                 fc=style.lift_color, ec=style.lift_color, linewidth=1.5,
                  label='Lift')
 
         # Draw drag vector (red)
         ax.arrow(px, pz, drag[0] * force_scale, drag[1] * force_scale,
-                 head_width=1.2*0.11, head_length=2*0.11, fc='red', ec='red', linewidth=1.5,
+                 head_width=1.2*0.11, head_length=2*0.11,
+                 fc=style.drag_color, ec=style.drag_color, linewidth=1.5,
                  label='Drag')
 
         # Draw chord line
-        ax.plot([te_x, le_x], [te_z, le_z], 'k-', linewidth=2)
+        ax.plot([te_x, le_x], [te_z, le_z], '-', color=style.body_color, linewidth=2)
 
         # Draw hollow circle at leading edge
-        ax.plot(le_x, le_z, 'o', markersize=4, markerfacecolor='white',
-                markeredgecolor='black', markeredgewidth=2)
+        ax.plot(
+            le_x, le_z, 'o', markersize=4, markerfacecolor=style.axes_facecolor,
+            markeredgecolor=style.body_color, markeredgewidth=2
+        )
 
         # Axis settings (view centered on wing, but showing absolute coords)
         ax.set_xlim(px - view_size, px + view_size)
         ax.set_ylim(pz - view_size, pz + view_size)
         ax.set_aspect('equal')
-        ax.set_xlabel(r'$\tilde{x}$', fontsize=12)
-        ax.set_ylabel(r'$\tilde{z}$', fontsize=12)
-        ax.set_title(f'Terminal Velocity ($\\psi = {psi_deg:.0f}$°)', fontsize=12)
-        ax.tick_params(labelsize=12)
+        ax.set_xlabel(r'$\tilde{x}$')
+        ax.set_ylabel(r'$\tilde{z}$')
+        ax.set_title(f'Terminal Velocity ($\\psi = {psi_deg:.0f}$°)')
         ax.grid(True, alpha=0.3)
 
         ax.legend(loc='upper right')
@@ -168,8 +181,15 @@ def main():
     parser.add_argument('--tmax', type=float, default=50.0, help='Max simulation time')
     parser.add_argument('--fps', type=int, default=30, help='Animation frames per second')
     parser.add_argument('--skip', type=int, default=1, help='Skip frames (use every Nth frame)')
+    parser.add_argument(
+        '--theme', choices=['light', 'dark'], default='light',
+        help='Plot theme (default: light)'
+    )
     parser.add_argument('output', nargs='?', help='Output file (png/pdf/svg for plot, mp4/gif for animation)')
     args = parser.parse_args()
+
+    style = resolve_style(theme=args.theme)
+    apply_matplotlib_style(style)
 
     print(f'Running simulation (psi = {args.psi} deg)...')
     data = run_termvel_simulation(args.psi, args.dt, args.tmax)
@@ -181,11 +201,11 @@ def main():
         ext = Path(args.output).suffix.lower()
         if ext in ('.mp4', '.gif'):
             print(f'Creating animation ({len(data["time"][::args.skip])} frames)...')
-            animate_terminal_velocity(data, args.output, fps=args.fps, skip=args.skip)
+            animate_terminal_velocity(data, args.output, fps=args.fps, skip=args.skip, style=style)
         else:
-            plot_terminal_velocity(data, args.output)
+            plot_terminal_velocity(data, args.output, style=style)
     else:
-        plot_terminal_velocity(data)
+        plot_terminal_velocity(data, style=style)
 
 
 if __name__ == '__main__':

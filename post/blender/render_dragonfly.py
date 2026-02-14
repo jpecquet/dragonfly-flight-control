@@ -156,6 +156,39 @@ def setup_lighting():
     fill_obj.rotation_euler = (math.radians(30), 0, math.radians(135))
 
 
+def _parse_rgba(color, default_rgba):
+    """
+    Parse a color token into Blender RGBA tuple.
+
+    Accepts #RRGGBB, [r,g,b], [r,g,b,a], or returns default for unknown input.
+    """
+    if isinstance(color, str):
+        value = color.strip()
+        if value.startswith('#') and len(value) == 7:
+            try:
+                r = int(value[1:3], 16) / 255.0
+                g = int(value[3:5], 16) / 255.0
+                b = int(value[5:7], 16) / 255.0
+                return (r, g, b, 1.0)
+            except ValueError:
+                return default_rgba
+        return default_rgba
+
+    if isinstance(color, (list, tuple)):
+        if len(color) == 3:
+            try:
+                return (float(color[0]), float(color[1]), float(color[2]), 1.0)
+            except (TypeError, ValueError):
+                return default_rgba
+        if len(color) == 4:
+            try:
+                return (float(color[0]), float(color[1]), float(color[2]), float(color[3]))
+            except (TypeError, ValueError):
+                return default_rgba
+
+    return default_rgba
+
+
 def create_ellipsoid(name, radii, location):
     """
     Create an ellipsoid mesh.
@@ -212,21 +245,23 @@ def create_cylinder(name, radius, height, location, direction=(1, 0, 0)):
     return obj
 
 
-def create_body_material():
+def create_body_material(style_cfg=None):
     """Create material for dragonfly body (Workbench-compatible)."""
     mat = bpy.data.materials.new(name="DragonBody")
-    mat.diffuse_color = (0.88, 0.88, 0.88, 1.0)  # light gray
+    body_color = None if style_cfg is None else style_cfg.get('body_color')
+    mat.diffuse_color = _parse_rgba(body_color, (0.88, 0.88, 0.88, 1.0))
     return mat
 
 
-def create_wing_material():
+def create_wing_material(style_cfg=None):
     """Create opaque material for wings (Workbench-compatible)."""
     mat = bpy.data.materials.new(name="DragonWing")
-    mat.diffuse_color = (0.92, 0.92, 0.92, 1.0)  # lighter gray, opaque
+    wing_color = None if style_cfg is None else style_cfg.get('wing_color')
+    mat.diffuse_color = _parse_rgba(wing_color, (0.92, 0.92, 0.92, 1.0))
     return mat
 
 
-def create_body_mesh():
+def create_body_mesh(style_cfg=None):
     """
     Create dragonfly body mesh at origin.
 
@@ -261,13 +296,13 @@ def create_body_mesh():
     bpy.context.scene.cursor.location = saved_cursor
 
     # Apply material
-    mat = create_body_material()
+    mat = create_body_material(style_cfg)
     body.data.materials.append(mat)
 
     return body
 
 
-def load_wing_mesh(filepath, name):
+def load_wing_mesh(filepath, name, style_cfg=None):
     """
     Load wing mesh from OBJ file.
 
@@ -284,7 +319,7 @@ def load_wing_mesh(filepath, name):
 
     # Apply wing material
     obj.data.materials.clear()
-    mat = create_wing_material()
+    mat = create_wing_material(style_cfg)
     obj.data.materials.append(mat)
 
     return obj
@@ -371,6 +406,7 @@ def main():
     camera_cfg = config.get('camera', {})
     viewport_cfg = config.get('viewport', {})
     blender_cfg = config.get('blender', {})
+    style_cfg = config.get('style', {})
 
     # Load pre-extracted frame data
     with open(args.data, 'r') as f:
@@ -433,7 +469,7 @@ def main():
     setup_lighting()
 
     # Create body (will be moved each frame)
-    body = create_body_mesh()
+    body = create_body_mesh(style_cfg=style_cfg)
 
     # Load wing meshes
     assets_dir = script_dir / "assets"
@@ -441,7 +477,7 @@ def main():
     for base_name in ['fore', 'hind']:
         filepath = assets_dir / f"{base_name}wing.obj"
         if filepath.exists():
-            mesh = load_wing_mesh(filepath, f"{base_name}_template")
+            mesh = load_wing_mesh(filepath, f"{base_name}_template", style_cfg=style_cfg)
             wing_templates[base_name] = mesh
             # Hide template
             mesh.hide_render = True

@@ -9,6 +9,7 @@ Usage:
 
 Options:
     --config <file.json>  Custom visualization config
+    --theme <light|dark>  Override plot theme
     --no-blender          Force matplotlib-only fallback rendering
     --frame-step N        Render every Nth frame (default: 1)
 """
@@ -19,9 +20,10 @@ from pathlib import Path
 import numpy as np
 
 from post.io import read_tracking
+from post.style import apply_matplotlib_style, resolve_style
 
 
-def plot_tracking_summary(states, controller, time, outfile):
+def plot_tracking_summary(states, controller, time, outfile, style=None):
     """
     Create a static summary plot showing trajectories and control parameters.
 
@@ -33,6 +35,9 @@ def plot_tracking_summary(states, controller, time, outfile):
     """
     import matplotlib.pyplot as plt
 
+    style = resolve_style(style)
+    apply_matplotlib_style(style)
+
     actual_pos = states[:, 0:3]
     target_pos = controller['target_position']
     errors = controller['position_error']
@@ -43,11 +48,11 @@ def plot_tracking_summary(states, controller, time, outfile):
     # 3D trajectory plot
     ax1 = fig.add_subplot(2, 3, 1, projection='3d')
     ax1.plot(actual_pos[:, 0], actual_pos[:, 1], actual_pos[:, 2],
-             'b-', linewidth=1.5, label='Actual')
+             color=style.trajectory_color, linewidth=1.5, label='Actual')
     ax1.plot(target_pos[:, 0], target_pos[:, 1], target_pos[:, 2],
-             'g--', linewidth=1.5, label='Target')
-    ax1.scatter(*actual_pos[0], c='b', s=50, marker='o', label='Start')
-    ax1.scatter(*actual_pos[-1], c='r', s=50, marker='x', label='End')
+             color=style.target_color, linestyle='--', linewidth=1.5, label='Target')
+    ax1.scatter(*actual_pos[0], c=style.trajectory_color, s=50, marker='o', label='Start')
+    ax1.scatter(*actual_pos[-1], c=style.error_color, s=50, marker='x', label='End')
     ax1.set_xlabel('X')
     ax1.set_ylabel('Y')
     ax1.set_zlabel('Z')
@@ -56,8 +61,8 @@ def plot_tracking_summary(states, controller, time, outfile):
 
     # XZ projection
     ax2 = fig.add_subplot(2, 3, 2)
-    ax2.plot(actual_pos[:, 0], actual_pos[:, 2], 'b-', linewidth=1.5, label='Actual')
-    ax2.plot(target_pos[:, 0], target_pos[:, 2], 'g--', linewidth=1.5, label='Target')
+    ax2.plot(actual_pos[:, 0], actual_pos[:, 2], color=style.trajectory_color, linewidth=1.5, label='Actual')
+    ax2.plot(target_pos[:, 0], target_pos[:, 2], color=style.target_color, linestyle='--', linewidth=1.5, label='Target')
     ax2.set_xlabel('X (forward)')
     ax2.set_ylabel('Z (up)')
     ax2.set_title('XZ Projection')
@@ -67,8 +72,8 @@ def plot_tracking_summary(states, controller, time, outfile):
 
     # XY projection
     ax3 = fig.add_subplot(2, 3, 3)
-    ax3.plot(actual_pos[:, 0], actual_pos[:, 1], 'b-', linewidth=1.5, label='Actual')
-    ax3.plot(target_pos[:, 0], target_pos[:, 1], 'g--', linewidth=1.5, label='Target')
+    ax3.plot(actual_pos[:, 0], actual_pos[:, 1], color=style.trajectory_color, linewidth=1.5, label='Actual')
+    ax3.plot(target_pos[:, 0], target_pos[:, 1], color=style.target_color, linestyle='--', linewidth=1.5, label='Target')
     ax3.set_xlabel('X (forward)')
     ax3.set_ylabel('Y (left)')
     ax3.set_title('XY Projection')
@@ -78,18 +83,18 @@ def plot_tracking_summary(states, controller, time, outfile):
 
     # Position error over time
     ax4 = fig.add_subplot(2, 3, 4)
-    ax4.plot(time, error_mag, 'r-', linewidth=1.5)
+    ax4.plot(time, error_mag, color=style.error_color, linewidth=1.5)
     ax4.set_xlabel('Time')
     ax4.set_ylabel('Position Error')
     ax4.set_title('Tracking Error')
     ax4.grid(True, alpha=0.3)
-    ax4.axhline(y=0.1, color='k', linestyle='--', alpha=0.5, label='Target (<0.1)')
+    ax4.axhline(y=0.1, color=style.muted_text_color, linestyle='--', alpha=0.5, label='Target (<0.1)')
     ax4.legend()
 
     # Control parameters
     ax5 = fig.add_subplot(2, 3, 5)
-    ax5.plot(time, controller['gamma_mean'], 'b-', label='gamma_mean')
-    ax5.plot(time, controller['psi_mean'], 'r-', label='psi_mean')
+    ax5.plot(time, controller['gamma_mean'], color=style.trajectory_color, label='gamma_mean')
+    ax5.plot(time, controller['psi_mean'], color=style.error_color, label='psi_mean')
     ax5.set_xlabel('Time')
     ax5.set_ylabel('Angle (rad)')
     ax5.set_title('Control Parameters (angles)')
@@ -97,7 +102,7 @@ def plot_tracking_summary(states, controller, time, outfile):
     ax5.grid(True, alpha=0.3)
 
     ax6 = fig.add_subplot(2, 3, 6)
-    ax6.plot(time, controller['phi_amp'], 'g-', label='phi_amp')
+    ax6.plot(time, controller['phi_amp'], color=style.target_color, label='phi_amp')
     ax6.set_xlabel('Time')
     ax6.set_ylabel('Amplitude (rad)')
     ax6.set_title('Control Parameters (amplitude)')
@@ -118,6 +123,11 @@ def main():
     parser.add_argument(
         "--config",
         help="Custom visualization config JSON"
+    )
+    parser.add_argument(
+        "--theme",
+        choices=["light", "dark"],
+        help="Override visualization theme"
     )
     parser.add_argument(
         "--no-blender",
@@ -153,17 +163,18 @@ def main():
     print(f"Loaded {len(states)} timesteps, {len(params['wing_lb0'])} wings")
     print(f"Final position error: {np.linalg.norm(controller['position_error'][-1]):.4f}")
 
+    from post.hybrid_config import HybridConfig
+    from post.style import apply_theme_to_config
+
+    config = HybridConfig.load(args.config) if args.config else None
+    config = apply_theme_to_config(config, args.theme)
+
     def _render_tracking(out):
         from post.composite import (
             check_blender_available,
             render_hybrid,
             render_mpl_only
         )
-        from post.hybrid_config import HybridConfig
-
-        config = None
-        if args.config:
-            config = HybridConfig.load(args.config)
 
         if args.no_blender:
             print("Blender disabled via --no-blender; using matplotlib-only fallback")
@@ -192,11 +203,11 @@ def main():
         # Also create summary plot
         summary_file = output_file.replace('.mp4', '_summary.png')
         print(f"Creating summary plot: {summary_file}")
-        plot_tracking_summary(states, controller, time, summary_file)
+        plot_tracking_summary(states, controller, time, summary_file, style=config.style)
 
     elif output_file.endswith('.png'):
         print(f"Creating summary plot: {output_file}")
-        plot_tracking_summary(states, controller, time, output_file)
+        plot_tracking_summary(states, controller, time, output_file, style=config.style)
     else:
         print(f"Unknown output format. Creating animation: {output_file}")
         _render_tracking(output_file)

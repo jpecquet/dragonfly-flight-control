@@ -7,6 +7,7 @@ Usage:
 
 Options:
     --config <file.json>  Custom visualization config
+    --theme <light|dark>  Override plot theme
     --no-blender          Force matplotlib-only fallback rendering
     --frame-step N        Render every Nth frame (default: 1)
 """
@@ -25,6 +26,11 @@ def main():
     parser.add_argument(
         "--config",
         help="Custom visualization config JSON"
+    )
+    parser.add_argument(
+        "--theme",
+        choices=["light", "dark"],
+        help="Override visualization theme"
     )
     parser.add_argument(
         "--no-blender",
@@ -58,11 +64,11 @@ def main():
         render_mpl_only
     )
     from post.hybrid_config import HybridConfig
+    from post.style import apply_theme_to_config
 
     # Load custom config if provided
-    config = None
-    if args.config:
-        config = HybridConfig.load(args.config)
+    config = HybridConfig.load(args.config) if args.config else None
+    config = apply_theme_to_config(config, args.theme)
 
     if args.no_blender:
         print("Blender disabled via --no-blender; using matplotlib-only fallback")
