@@ -38,14 +38,14 @@ TrajectoryFunc circle(const Vec3& center, double radius, double omega) {
 
 TrajectoryFunc waypoints(const std::vector<Vec3>& pts, const std::vector<double>& times) {
     if (pts.empty()) {
-        throw std::invalid_argument("waypoints: empty point list");
+        throw std::runtime_error("waypoints: empty point list");
     }
     if (pts.size() != times.size()) {
-        throw std::invalid_argument("waypoints: pts and times must have same length");
+        throw std::runtime_error("waypoints: pts and times must have same length");
     }
     for (size_t i = 0; i + 1 < times.size(); ++i) {
         if (times[i + 1] <= times[i]) {
-            throw std::invalid_argument("waypoints: times must be strictly increasing");
+            throw std::runtime_error("waypoints: times must be strictly increasing");
         }
     }
 
@@ -87,7 +87,7 @@ Vec3 parseVec3(const std::string& s) {
     double x, y, z;
     char comma1, comma2;
     if (!(iss >> x >> comma1 >> y >> comma2 >> z) || comma1 != ',' || comma2 != ',') {
-        throw std::invalid_argument("Invalid Vec3 format: " + s);
+        throw std::runtime_error("Invalid Vec3 format: " + s);
     }
     return Vec3(x, y, z);
 }
@@ -102,7 +102,7 @@ TrajectoryFunc parse(const std::string& spec) {
     if (type == "hover") {
         double x, y, z;
         if (!(iss >> x >> y >> z)) {
-            throw std::invalid_argument("hover requires: x y z");
+            throw std::runtime_error("hover requires: x y z");
         }
         return hover(Vec3(x, y, z));
     }
@@ -110,7 +110,7 @@ TrajectoryFunc parse(const std::string& spec) {
     if (type == "circle") {
         double cx, cy, cz, radius, omega;
         if (!(iss >> cx >> cy >> cz >> radius >> omega)) {
-            throw std::invalid_argument("circle requires: center_x center_y center_z radius omega");
+            throw std::runtime_error("circle requires: center_x center_y center_z radius omega");
         }
         return circle(Vec3(cx, cy, cz), radius, omega);
     }
@@ -124,27 +124,27 @@ TrajectoryFunc parse(const std::string& spec) {
             // Format: x,y,z@time
             size_t at = token.find('@');
             if (at == std::string::npos) {
-                throw std::invalid_argument("waypoint format: x,y,z@time, got: " + token);
+                throw std::runtime_error("waypoint format: x,y,z@time, got: " + token);
             }
             Vec3 pt = parseVec3(token.substr(0, at));
             double t;
             try {
                 t = std::stod(token.substr(at + 1));
             } catch (const std::exception&) {
-                throw std::invalid_argument("Invalid time in waypoint: " + token);
+                throw std::runtime_error("Invalid time in waypoint: " + token);
             }
             pts.push_back(pt);
             times.push_back(t);
         }
 
         if (pts.empty()) {
-            throw std::invalid_argument("waypoints requires at least one point");
+            throw std::runtime_error("waypoints requires at least one point");
         }
 
         return waypoints(pts, times);
     }
 
-    throw std::invalid_argument("Unknown trajectory type: " + type);
+    throw std::runtime_error("Unknown trajectory type: " + type);
 }
 
 } // namespace trajectories

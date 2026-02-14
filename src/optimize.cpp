@@ -46,7 +46,7 @@ std::vector<double> KinematicParams::variableValues() const {
 
 void KinematicParams::setVariableValues(const std::vector<double>& x) {
     if (x.size() != numVariable()) {
-        throw std::invalid_argument("setVariableValues: expected " +
+        throw std::runtime_error("setVariableValues: expected " +
             std::to_string(numVariable()) + " values, got " + std::to_string(x.size()));
     }
     size_t i = 0;
@@ -182,25 +182,12 @@ void OptimBuffers::init(const KinematicParams& kin, const PhysicalParams& phys) 
 // Update angle functions on pre-allocated wings
 static void updateWingAngleFuncs(std::vector<Wing>& wings, const KinematicParams& kin,
                                   const PhysicalParams& phys) {
-    double omega = kin.omega.value;
-    const HarmonicSeries gamma{
-        kin.gamma_mean.value,
-        {kin.gamma_cos.value},
-        {kin.gamma_sin.value},
-    };
-    const HarmonicSeries phi{
-        kin.phi_mean.value,
-        {kin.phi_cos.value},
-        {kin.phi_sin.value},
-    };
-    const HarmonicSeries psi{
-        kin.psi_mean.value,
-        {kin.psi_cos.value},
-        {kin.psi_sin.value},
-    };
+    const SimKinematicParams sim_kin = toSimParams(kin);
+    const auto series = sim_kin.toHarmonicSeries();
+    const double omega = sim_kin.omega;
     for (size_t i = 0; i < wings.size(); ++i) {
         const auto& wc = phys.wings[i];
-        auto angleFunc = makeAngleFunc(gamma, phi, psi, wc.phaseOffset, omega);
+        auto angleFunc = makeAngleFunc(series.gamma, series.phi, series.psi, wc.phase_offset, omega);
         wings[i].setAngleFunc(std::move(angleFunc));
     }
 }

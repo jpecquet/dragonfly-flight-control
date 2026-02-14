@@ -140,3 +140,25 @@ add_dragonfly_test(test_sampling          Sampling         dragonfly_sampling)
 add_dragonfly_test(test_terminal_velocity TerminalVelocity dragonfly_physics)
 add_dragonfly_test(test_pid              PID              dragonfly_controller)
 add_dragonfly_test(test_config           Config           dragonfly_physics)
+
+add_executable(test_tracking
+    tests/test_tracking.cpp
+    apps/cmd_track.cpp
+    src/output.cpp
+)
+target_include_directories(test_tracking PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/apps
+    ${HDF5_INCLUDE_DIRS}
+)
+target_link_libraries(test_tracking PRIVATE
+    dragonfly_optim
+    dragonfly_controller
+    NLopt::nlopt
+    HighFive
+    ${HDF5_LIBRARIES}
+)
+set_target_properties(test_tracking PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+add_test(NAME Tracking COMMAND test_tracking)

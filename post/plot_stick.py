@@ -18,6 +18,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as ani
 
+from post.animation import save_animation
 from post.io import read_simulation
 from post.style import apply_matplotlib_style, resolve_style
 
@@ -146,12 +147,7 @@ def animate_stroke(time, wings, wing_name, outfile, style=None):
     # Create animation
     anim = ani.FuncAnimation(fig, update, frames=n_frames, interval=50, blit=False)
 
-    # Save
-    if outfile.endswith('.mp4'):
-        writer = ani.FFMpegWriter(fps=20, bitrate=2000)
-        anim.save(outfile, writer=writer)
-    elif outfile.endswith('.gif'):
-        anim.save(outfile, writer='pillow', fps=20)
+    save_animation(anim, outfile, fps=20)
 
     plt.close()
     print(f"Saved: {outfile}")

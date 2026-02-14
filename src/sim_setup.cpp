@@ -104,7 +104,7 @@ void populateWingMotion(
     ensure_size(out.psi_sin);
 
     if (entry.motion_overrides.empty()) {
-        out.hasCustomMotion = false;
+        out.has_custom_motion = false;
         return;
     }
 
@@ -120,7 +120,7 @@ void populateWingMotion(
     applyWingAngleOverrides(entry, wing_label, "psi", n_harmonics,
                             out.psi_mean, out.psi_cos, out.psi_sin);
 
-    out.hasCustomMotion = true;
+    out.has_custom_motion = true;
 }
 
 }  // namespace
@@ -210,20 +210,22 @@ std::vector<WingConfig> buildWingConfigs(const Config& cfg, const SimKinematicPa
 std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinematicParams& kin) {
     std::vector<Wing> wings;
     wings.reserve(wc.size());
+    const auto kin_series = kin.toHarmonicSeries();
     for (const auto& w : wc) {
-        HarmonicSeries gamma{kin.gamma_mean, kin.gamma_cos, kin.gamma_sin};
-        HarmonicSeries phi{kin.phi_mean, kin.phi_cos, kin.phi_sin};
-        HarmonicSeries psi{kin.psi_mean, kin.psi_cos, kin.psi_sin};
+        HarmonicSeries gamma = kin_series.gamma;
+        HarmonicSeries phi = kin_series.phi;
+        HarmonicSeries psi = kin_series.psi;
         double omega = kin.omega;
 
         if (hasWingMotionSeries(w)) {
-            gamma = {w.gamma_mean, w.gamma_cos, w.gamma_sin};
-            phi = {w.phi_mean, w.phi_cos, w.phi_sin};
-            psi = {w.psi_mean, w.psi_cos, w.psi_sin};
+            const auto wing_series = w.toHarmonicSeries();
+            gamma = wing_series.gamma;
+            phi = wing_series.phi;
+            psi = wing_series.psi;
             omega = w.omega;
         }
 
-        auto angleFunc = makeAngleFunc(gamma, phi, psi, w.phaseOffset, omega);
+        auto angleFunc = makeAngleFunc(gamma, phi, psi, w.phase_offset, omega);
         wings.emplace_back(w.name, w.mu0, w.lb0, w.side, w.Cd0, w.Cl0, angleFunc);
     }
     return wings;

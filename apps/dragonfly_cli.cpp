@@ -6,7 +6,6 @@
 #include "cmd_wingtest.hpp"
 #include "config.hpp"
 
-#include <cstring>
 #include <iostream>
 #include <string>
 

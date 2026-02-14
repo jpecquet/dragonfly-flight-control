@@ -36,6 +36,13 @@ RIGHT_WING_Y_OFFSET = -0.02
 LEFT_WING_Y_OFFSET = 0.02
 
 
+def get_wing_offsets(wname):
+    """Return (xoffset, yoffset) for a wing name."""
+    xoffset = FW_X0 if 'fore' in wname else HW_X0
+    yoffset = RIGHT_WING_Y_OFFSET if 'right' in wname else LEFT_WING_Y_OFFSET
+    return xoffset, yoffset
+
+
 def get_wing_info(wing_vectors, wing_params):
     """
     Build wing info list from wing vectors and parameters.
@@ -50,7 +57,6 @@ def get_wing_info(wing_vectors, wing_params):
     wing_info = []
     for wname in wing_vectors:
         lb0 = wing_params.get(wname, DEFAULT_LB0)
-        xoffset = FW_X0 if 'fore' in wname else HW_X0
-        yoffset = RIGHT_WING_Y_OFFSET if 'right' in wname else LEFT_WING_Y_OFFSET
+        xoffset, yoffset = get_wing_offsets(wname)
         wing_info.append((wname, xoffset, yoffset, lb0))
     return wing_info

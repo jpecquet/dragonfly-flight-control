@@ -104,8 +104,7 @@ int runTermvel(int argc, char* argv[]) {
     std::cout << "\n";
 
     // Create wing with fixed orientation (gam = 90° so psi = 0 means horizontal chord)
-    auto fixedAngles = [psi](double t) -> WingAngles {
-        (void)t;
+    auto fixedAngles = [psi]([[maybe_unused]] double t) -> WingAngles {
         return {M_PI / 2.0, 0.0, 0.0, 0.0, psi};
     };
 

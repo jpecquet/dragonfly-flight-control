@@ -1,24 +1,14 @@
 #pragma once
 
-#include "eom.hpp"
+#include "kinematics.hpp"
 #include "wing.hpp"
 
 #include <string>
 #include <vector>
 
 // Kinematic values read from config (plain doubles, distinct from optimizer's KinematicParam)
-struct SimKinematicParams {
-    double omega = 0.0;
+struct SimKinematicParams : MotionParams {
     int n_harmonics = 1;
-    double gamma_mean = 0.0;
-    double phi_mean = 0.0;
-    double psi_mean = 0.0;
-    std::vector<double> gamma_cos;
-    std::vector<double> gamma_sin;
-    std::vector<double> phi_cos;
-    std::vector<double> phi_sin;
-    std::vector<double> psi_cos;
-    std::vector<double> psi_sin;
 };
 
 struct SimulationOutput {

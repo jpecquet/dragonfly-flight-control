@@ -37,6 +37,14 @@ std::string wingGroupName(const Wing& wing) {
     return wing.name() + suffix;
 }
 
+void writeMatrixRow(Eigen::MatrixXd& matrix, Eigen::Index row,
+                    const std::vector<double>& values) {
+    const Eigen::Index ncols = matrix.cols();
+    for (Eigen::Index col = 0; col < ncols; ++col) {
+        matrix(row, col) = values[static_cast<size_t>(col)];
+    }
+}
+
 } // namespace
 
 void writeHDF5(const std::string& filename, const SimulationOutput& output,
@@ -78,7 +86,7 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
         lb0_vals.push_back(wc.lb0);
         Cd0_vals.push_back(wc.Cd0);
         Cl0_vals.push_back(wc.Cl0);
-        phase_vals.push_back(wc.phaseOffset);
+        phase_vals.push_back(wc.phase_offset);
     }
 
     H5Easy::dump(file, "/parameters/wings/names", names);
@@ -121,19 +129,18 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
 
         for (size_t i = 0; i < num_configs; ++i) {
             const auto& wc = output.wingConfigs[i];
-            has_custom_motion.push_back(wc.hasCustomMotion ? 1 : 0);
+            has_custom_motion.push_back(wc.has_custom_motion ? 1 : 0);
             omega_vals.push_back(wc.omega);
             gamma_mean_vals.push_back(wc.gamma_mean);
             phi_mean_vals.push_back(wc.phi_mean);
             psi_mean_vals.push_back(wc.psi_mean);
-            for (size_t k = 0; k < n_harmonics; ++k) {
-                gamma_cos_mat(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(k)) = wc.gamma_cos[k];
-                gamma_sin_mat(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(k)) = wc.gamma_sin[k];
-                phi_cos_mat(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(k)) = wc.phi_cos[k];
-                phi_sin_mat(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(k)) = wc.phi_sin[k];
-                psi_cos_mat(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(k)) = wc.psi_cos[k];
-                psi_sin_mat(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(k)) = wc.psi_sin[k];
-            }
+            const Eigen::Index row = static_cast<Eigen::Index>(i);
+            writeMatrixRow(gamma_cos_mat, row, wc.gamma_cos);
+            writeMatrixRow(gamma_sin_mat, row, wc.gamma_sin);
+            writeMatrixRow(phi_cos_mat, row, wc.phi_cos);
+            writeMatrixRow(phi_sin_mat, row, wc.phi_sin);
+            writeMatrixRow(psi_cos_mat, row, wc.psi_cos);
+            writeMatrixRow(psi_sin_mat, row, wc.psi_sin);
         }
 
         H5Easy::dump(file, "/parameters/wings/has_custom_motion", has_custom_motion);

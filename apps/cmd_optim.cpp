@@ -29,8 +29,7 @@ struct NLoptContext {
     double uz;
 };
 
-double nloptObjective(const std::vector<double>& x, std::vector<double>& grad, void* data) {
-    (void)grad;
+double nloptObjective(const std::vector<double>& x, [[maybe_unused]] std::vector<double>& grad, void* data) {
     auto* ctx = static_cast<NLoptContext*>(data);
     ctx->kin->setVariableValues(x);
     return wingBeatAccel(*ctx->kin, *ctx->phys, *ctx->buffers, ctx->ux, ctx->uz);

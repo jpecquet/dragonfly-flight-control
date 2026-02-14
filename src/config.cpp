@@ -85,6 +85,10 @@ Config Config::load(const std::string& filename) {
     int wing_section_start_line = -1;
     WingConfigEntry current_wing;
     WingRequiredFields wing_fields;
+    auto finalizeWingSection = [&]() {
+        validateWingSection(wing_fields, wing_section_start_line);
+        config.wings_.push_back(current_wing);
+    };
 
     while (std::getline(file, line)) {
         line_num++;
@@ -100,8 +104,7 @@ Config Config::load(const std::string& filename) {
         if (trimmed == "[[wing]]") {
             // Save previous wing if we were in a section
             if (in_wing_section) {
-                validateWingSection(wing_fields, wing_section_start_line);
-                config.wings_.push_back(current_wing);
+                finalizeWingSection();
             }
             // Start new wing section
             in_wing_section = true;
@@ -160,8 +163,7 @@ Config Config::load(const std::string& filename) {
 
     // Save last wing if we were in a section
     if (in_wing_section) {
-        validateWingSection(wing_fields, wing_section_start_line);
-        config.wings_.push_back(current_wing);
+        finalizeWingSection();
     }
 
     return config;

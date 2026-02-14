@@ -32,10 +32,10 @@ import numpy as np
 from matplotlib.colors import to_rgba
 
 from .constants import (
-    FW_X0, HW_X0, DEFAULT_LB0,
+    DEFAULT_LB0,
     Lh, Lt, La, Rh, Rt, Ra, H_XC, T_XC, A_XC,
     FORCE_CENTER_FRACTION, FORCE_THRESHOLD,
-    RIGHT_WING_Y_OFFSET, LEFT_WING_Y_OFFSET,
+    get_wing_offsets,
 )
 from .hybrid_config import CameraConfig, StyleConfig, ViewportConfig, HybridConfig
 from .style import apply_matplotlib_style
@@ -181,8 +181,7 @@ def _draw_forces(ax, xb, wing_vectors, wing_lb0, config):
     style = config.style
     for wname, wdata in wing_vectors.items():
         lb0 = wing_lb0.get(wname, DEFAULT_LB0)
-        xoffset = FW_X0 if 'fore' in wname else HW_X0
-        yoffset = RIGHT_WING_Y_OFFSET if 'right' in wname else LEFT_WING_Y_OFFSET
+        xoffset, yoffset = get_wing_offsets(wname)
 
         origin = xb + np.array([xoffset, yoffset, 0])
         cp = origin + FORCE_CENTER_FRACTION * lb0 * wdata['e_r']
@@ -224,8 +223,7 @@ def _draw_body_and_wings(ax, xb, wing_vectors, wing_lb0, style: StyleConfig):
     # Wings as thin oriented plates.
     for wname, wdata in wing_vectors.items():
         lb0 = wing_lb0.get(wname, DEFAULT_LB0)
-        xoffset = FW_X0 if 'fore' in wname else HW_X0
-        yoffset = RIGHT_WING_Y_OFFSET if 'right' in wname else LEFT_WING_Y_OFFSET
+        xoffset, yoffset = get_wing_offsets(wname)
         root = xb + np.array([xoffset, yoffset, 0.0])
 
         e_r = np.asarray(wdata['e_r'], dtype=float)

@@ -2,8 +2,8 @@
 
 #include "linalg.hpp"
 #include "blade_element.hpp"
+#include "kinematics.hpp"
 #include "rotation.hpp"
-#include "eom.hpp"
 
 #include <stdexcept>
 #include <string>
@@ -19,33 +19,23 @@ inline WingSide parseSide(const std::string& s) {
 }
 
 // Configuration for a single wing (used for variable wing count support)
-struct WingConfig {
+struct WingConfig : MotionParams {
     std::string name;       // Wing identifier (e.g., "fore", "hind", "aux")
     WingSide side;          // Left or Right
     double mu0 = 0.0;             // Mass parameter
     double lb0 = 0.0;             // Span length
     double Cd0 = 0.0;             // Drag coefficient
     double Cl0 = 0.0;             // Lift coefficient
-    double phaseOffset = 0.0;     // Phase offset from reference (radians)
+    double phase_offset = 0.0;    // Phase offset from reference (radians)
 
     // Optional per-wing kinematic parameters (if empty, global simulation parameters are used).
-    bool hasCustomMotion = false;
-    double omega = 0.0;
-    double gamma_mean = 0.0;
-    double phi_mean = 0.0;
-    double psi_mean = 0.0;
-    std::vector<double> gamma_cos;
-    std::vector<double> gamma_sin;
-    std::vector<double> phi_cos;
-    std::vector<double> phi_sin;
-    std::vector<double> psi_cos;
-    std::vector<double> psi_sin;
+    bool has_custom_motion = false;
 
     WingConfig() = default;
     WingConfig(const std::string& name_, WingSide side_, double mu0_, double lb0_,
-               double Cd0_, double Cl0_, double phaseOffset_ = 0.0)
+               double Cd0_, double Cl0_, double phase_offset_ = 0.0)
         : name(name_), side(side_), mu0(mu0_), lb0(lb0_),
-          Cd0(Cd0_), Cl0(Cl0_), phaseOffset(phaseOffset_) {}
+          Cd0(Cd0_), Cl0(Cl0_), phase_offset(phase_offset_) {}
 };
 
 class Wing {

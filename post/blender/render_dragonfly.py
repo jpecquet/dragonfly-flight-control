@@ -35,9 +35,9 @@ script_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(script_dir))
 
 from post.constants import (
-    Lh, Lt, La, Rh, Rt, Ra, DW, FW_X0, HW_X0,
+    Lh, Lt, La, Rh, Rt, Ra, DW,
     A_XC, T_XC, H_XC,
-    RIGHT_WING_Y_OFFSET, LEFT_WING_Y_OFFSET,
+    get_wing_offsets,
 )
 
 
@@ -489,8 +489,7 @@ def main():
     wing_info = {}
     for wname in wing_names:
         base = 'fore' if 'fore' in wname else 'hind'
-        xoffset = FW_X0 if 'fore' in wname else HW_X0
-        yoffset = RIGHT_WING_Y_OFFSET if 'right' in wname else LEFT_WING_Y_OFFSET
+        xoffset, yoffset = get_wing_offsets(wname)
         wing_info[wname] = {
             'base': base,
             'offset': np.array([xoffset, yoffset, 0]),

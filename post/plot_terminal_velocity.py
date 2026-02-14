@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as plticker
 import matplotlib.animation as ani
 
+from post.animation import save_animation
 from post.hybrid_config import StyleConfig
 from post.io import read_terminal_velocity, run_termvel_simulation
 from post.style import apply_matplotlib_style, resolve_style
@@ -163,12 +164,7 @@ def animate_terminal_velocity(data, outfile, fps=30, skip=1, style: StyleConfig 
     # Create animation
     anim = ani.FuncAnimation(fig, update, frames=n_frames, interval=1000/fps, blit=False)
 
-    # Save based on extension
-    if outfile.endswith('.mp4'):
-        writer = ani.FFMpegWriter(fps=fps, bitrate=2000)
-        anim.save(outfile, writer=writer)
-    elif outfile.endswith('.gif'):
-        anim.save(outfile, writer='pillow', fps=fps)
+    save_animation(anim, outfile, fps=fps)
 
     plt.close()
     print(f"Saved: {outfile}")

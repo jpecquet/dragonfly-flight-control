@@ -18,6 +18,7 @@ import math
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,89 @@ DEFAULT_SMOOTHED_N_HARMONICS = 7
 MOTION_SOURCE_FIT = "fit"
 MOTION_SOURCE_SMOOTHED = "smoothed"
 MOTION_SOURCES = (MOTION_SOURCE_FIT, MOTION_SOURCE_SMOOTHED)
+
+
+@dataclass(frozen=True)
+class PipelineParams:
+    n_wingbeats: int
+    steps_per_wingbeat: int
+    tether: bool
+    output_name: str
+    wing_mu0: float | None
+    wing_lb0: float | None
+    wing_cd0: float
+    wing_cl0: float
+    auto_fit: bool
+    fit_plots: bool
+    body_length_mm: float
+    wing_length_mm: float
+    wing_area_mm2: float
+    frequency_hz: float
+    body_mass_mg: float
+    rho_air: float
+    gravity: float
+    motion_source: str
+    smoothed_n_harmonics: int
+
+    @classmethod
+    def from_args(cls, args: argparse.Namespace, fit_plots: bool) -> "PipelineParams":
+        return cls(
+            n_wingbeats=args.n_wingbeats,
+            steps_per_wingbeat=args.steps_per_wingbeat,
+            tether=args.tether,
+            output_name=args.output_name,
+            wing_mu0=args.wing_mu0,
+            wing_lb0=args.wing_lb0,
+            wing_cd0=args.wing_cd0,
+            wing_cl0=args.wing_cl0,
+            auto_fit=True,
+            fit_plots=fit_plots,
+            body_length_mm=args.body_length_mm,
+            wing_length_mm=args.wing_length_mm,
+            wing_area_mm2=args.wing_area_mm2,
+            frequency_hz=args.frequency_hz,
+            body_mass_mg=args.body_mass_mg,
+            rho_air=args.rho_air,
+            gravity=args.gravity,
+            motion_source=args.wing_motion_source,
+            smoothed_n_harmonics=args.smoothed_n_harmonics,
+        )
+
+    def fit_kwargs(self) -> dict[str, Any]:
+        return {
+            "make_plots": self.fit_plots,
+            "body_length_mm": self.body_length_mm,
+            "wing_length_mm": self.wing_length_mm,
+            "wing_area_mm2": self.wing_area_mm2,
+            "frequency_hz": self.frequency_hz,
+            "body_mass_mg": self.body_mass_mg,
+            "rho_air": self.rho_air,
+            "gravity": self.gravity,
+            "smoothed_n_harmonics": self.smoothed_n_harmonics,
+        }
+
+    def translate_kwargs(self) -> dict[str, Any]:
+        return {
+            "n_wingbeats": self.n_wingbeats,
+            "steps_per_wingbeat": self.steps_per_wingbeat,
+            "tether": self.tether,
+            "output_name": self.output_name,
+            "wing_mu0": self.wing_mu0,
+            "wing_lb0": self.wing_lb0,
+            "wing_cd0": self.wing_cd0,
+            "wing_cl0": self.wing_cl0,
+            "auto_fit": self.auto_fit,
+            "fit_plots": self.fit_plots,
+            "body_length_mm": self.body_length_mm,
+            "wing_length_mm": self.wing_length_mm,
+            "wing_area_mm2": self.wing_area_mm2,
+            "frequency_hz": self.frequency_hz,
+            "body_mass_mg": self.body_mass_mg,
+            "rho_air": self.rho_air,
+            "gravity": self.gravity,
+            "motion_source": self.motion_source,
+            "smoothed_n_harmonics": self.smoothed_n_harmonics,
+        }
 
 
 def now_utc_iso() -> str:
@@ -832,50 +916,14 @@ def stage_translate(
 def stage_sim(
     run_dir: Path,
     binary: str,
-    n_wingbeats: int,
-    steps_per_wingbeat: int,
-    tether: bool,
-    output_name: str,
-    wing_mu0: float | None,
-    wing_lb0: float | None,
-    wing_cd0: float,
-    wing_cl0: float,
-    auto_fit: bool,
-    fit_plots: bool,
-    body_length_mm: float,
-    wing_length_mm: float,
-    wing_area_mm2: float,
-    frequency_hz: float,
-    body_mass_mg: float,
-    rho_air: float,
-    gravity: float,
-    motion_source: str,
-    smoothed_n_harmonics: int,
+    params: PipelineParams,
 ) -> Path:
     cfg_path = run_dir / "sim" / "sim_wang2007.cfg"
-    output_h5 = run_dir / "sim" / output_name
+    output_h5 = run_dir / "sim" / params.output_name
     if not cfg_path.exists():
         cfg_path, output_h5 = stage_translate(
             run_dir=run_dir,
-            n_wingbeats=n_wingbeats,
-            steps_per_wingbeat=steps_per_wingbeat,
-            tether=tether,
-            output_name=output_name,
-            wing_mu0=wing_mu0,
-            wing_lb0=wing_lb0,
-            wing_cd0=wing_cd0,
-            wing_cl0=wing_cl0,
-            auto_fit=auto_fit,
-            fit_plots=fit_plots,
-            body_length_mm=body_length_mm,
-            wing_length_mm=wing_length_mm,
-            wing_area_mm2=wing_area_mm2,
-            frequency_hz=frequency_hz,
-            body_mass_mg=body_mass_mg,
-            rho_air=rho_air,
-            gravity=gravity,
-            motion_source=motion_source,
-            smoothed_n_harmonics=smoothed_n_harmonics,
+            **params.translate_kwargs(),
         )
 
     binary_path = Path(binary).expanduser()
@@ -907,26 +955,8 @@ def stage_post(
     no_blender: bool,
     frame_step: int,
     binary: str,
-    n_wingbeats: int,
-    steps_per_wingbeat: int,
-    tether: bool,
-    output_name: str,
-    wing_mu0: float | None,
-    wing_lb0: float | None,
-    wing_cd0: float,
-    wing_cl0: float,
-    auto_fit: bool,
-    fit_plots: bool,
     skip_stick: bool,
-    body_length_mm: float,
-    wing_length_mm: float,
-    wing_area_mm2: float,
-    frequency_hz: float,
-    body_mass_mg: float,
-    rho_air: float,
-    gravity: float,
-    motion_source: str,
-    smoothed_n_harmonics: int,
+    params: PipelineParams,
 ) -> list[Path]:
     if frame_step < 1:
         raise ValueError(f"frame_step must be >= 1, got {frame_step}")
@@ -937,30 +967,12 @@ def stage_post(
         if not h5_path.is_absolute():
             h5_path = REPO_ROOT / h5_path
     else:
-        h5_path = run_dir / "sim" / output_name
+        h5_path = run_dir / "sim" / params.output_name
         if not h5_path.exists():
             h5_path = stage_sim(
                 run_dir=run_dir,
                 binary=binary,
-                n_wingbeats=n_wingbeats,
-                steps_per_wingbeat=steps_per_wingbeat,
-                tether=tether,
-                output_name=output_name,
-                wing_mu0=wing_mu0,
-                wing_lb0=wing_lb0,
-                wing_cd0=wing_cd0,
-                wing_cl0=wing_cl0,
-                auto_fit=auto_fit,
-                fit_plots=fit_plots,
-                body_length_mm=body_length_mm,
-                wing_length_mm=wing_length_mm,
-                wing_area_mm2=wing_area_mm2,
-                frequency_hz=frequency_hz,
-                body_mass_mg=body_mass_mg,
-                rho_air=rho_air,
-                gravity=gravity,
-                motion_source=motion_source,
-                smoothed_n_harmonics=smoothed_n_harmonics,
+                params=params,
             )
 
     if not h5_path.exists():
@@ -1234,28 +1246,12 @@ def main() -> int:
         print(f"[done] run_dir: {run_dir}")
         return 0
 
+    params = PipelineParams.from_args(args, fit_plots=make_fit_plots)
+
     if args.stage == "translate":
         cfg_path, output_h5 = stage_translate(
             run_dir=run_dir,
-            n_wingbeats=args.n_wingbeats,
-            steps_per_wingbeat=args.steps_per_wingbeat,
-            tether=args.tether,
-            output_name=args.output_name,
-            wing_mu0=args.wing_mu0,
-            wing_lb0=args.wing_lb0,
-            wing_cd0=args.wing_cd0,
-            wing_cl0=args.wing_cl0,
-            auto_fit=True,
-            fit_plots=make_fit_plots,
-            body_length_mm=args.body_length_mm,
-            wing_length_mm=args.wing_length_mm,
-            wing_area_mm2=args.wing_area_mm2,
-            frequency_hz=args.frequency_hz,
-            body_mass_mg=args.body_mass_mg,
-            rho_air=args.rho_air,
-            gravity=args.gravity,
-            motion_source=args.wing_motion_source,
-            smoothed_n_harmonics=args.smoothed_n_harmonics,
+            **params.translate_kwargs(),
         )
         print(f"[done] cfg: {cfg_path}")
         print(f"[done] sim_output: {output_h5}")
@@ -1266,25 +1262,7 @@ def main() -> int:
         output_h5 = stage_sim(
             run_dir=run_dir,
             binary=args.binary,
-            n_wingbeats=args.n_wingbeats,
-            steps_per_wingbeat=args.steps_per_wingbeat,
-            tether=args.tether,
-            output_name=args.output_name,
-            wing_mu0=args.wing_mu0,
-            wing_lb0=args.wing_lb0,
-            wing_cd0=args.wing_cd0,
-            wing_cl0=args.wing_cl0,
-            auto_fit=True,
-            fit_plots=make_fit_plots,
-            body_length_mm=args.body_length_mm,
-            wing_length_mm=args.wing_length_mm,
-            wing_area_mm2=args.wing_area_mm2,
-            frequency_hz=args.frequency_hz,
-            body_mass_mg=args.body_mass_mg,
-            rho_air=args.rho_air,
-            gravity=args.gravity,
-            motion_source=args.wing_motion_source,
-            smoothed_n_harmonics=args.smoothed_n_harmonics,
+            params=params,
         )
         print(f"[done] sim_output: {output_h5}")
         print(f"[done] run_dir: {run_dir}")
@@ -1297,26 +1275,8 @@ def main() -> int:
             no_blender=args.no_blender,
             frame_step=args.frame_step,
             binary=args.binary,
-            n_wingbeats=args.n_wingbeats,
-            steps_per_wingbeat=args.steps_per_wingbeat,
-            tether=args.tether,
-            output_name=args.output_name,
-            wing_mu0=args.wing_mu0,
-            wing_lb0=args.wing_lb0,
-            wing_cd0=args.wing_cd0,
-            wing_cl0=args.wing_cl0,
-            auto_fit=True,
-            fit_plots=make_fit_plots,
-            skip_stick=True,
-            body_length_mm=args.body_length_mm,
-            wing_length_mm=args.wing_length_mm,
-            wing_area_mm2=args.wing_area_mm2,
-            frequency_hz=args.frequency_hz,
-            body_mass_mg=args.body_mass_mg,
-            rho_air=args.rho_air,
-            gravity=args.gravity,
-            motion_source=args.wing_motion_source,
-            smoothed_n_harmonics=args.smoothed_n_harmonics,
+            skip_stick=args.skip_stick,
+            params=params,
         )
         print("[done] post artifacts:")
         for p in artifacts:
@@ -1327,60 +1287,16 @@ def main() -> int:
     if args.stage == "all":
         stage_fit(
             run_dir=run_dir,
-            make_plots=make_fit_plots,
-            body_length_mm=args.body_length_mm,
-            wing_length_mm=args.wing_length_mm,
-            wing_area_mm2=args.wing_area_mm2,
-            frequency_hz=args.frequency_hz,
-            body_mass_mg=args.body_mass_mg,
-            rho_air=args.rho_air,
-            gravity=args.gravity,
-            smoothed_n_harmonics=args.smoothed_n_harmonics,
+            **params.fit_kwargs(),
         )
         stage_translate(
             run_dir=run_dir,
-            n_wingbeats=args.n_wingbeats,
-            steps_per_wingbeat=args.steps_per_wingbeat,
-            tether=args.tether,
-            output_name=args.output_name,
-            wing_mu0=args.wing_mu0,
-            wing_lb0=args.wing_lb0,
-            wing_cd0=args.wing_cd0,
-            wing_cl0=args.wing_cl0,
-            auto_fit=True,
-            fit_plots=make_fit_plots,
-            body_length_mm=args.body_length_mm,
-            wing_length_mm=args.wing_length_mm,
-            wing_area_mm2=args.wing_area_mm2,
-            frequency_hz=args.frequency_hz,
-            body_mass_mg=args.body_mass_mg,
-            rho_air=args.rho_air,
-            gravity=args.gravity,
-            motion_source=args.wing_motion_source,
-            smoothed_n_harmonics=args.smoothed_n_harmonics,
+            **params.translate_kwargs(),
         )
         stage_sim(
             run_dir=run_dir,
             binary=args.binary,
-            n_wingbeats=args.n_wingbeats,
-            steps_per_wingbeat=args.steps_per_wingbeat,
-            tether=args.tether,
-            output_name=args.output_name,
-            wing_mu0=args.wing_mu0,
-            wing_lb0=args.wing_lb0,
-            wing_cd0=args.wing_cd0,
-            wing_cl0=args.wing_cl0,
-            auto_fit=True,
-            fit_plots=make_fit_plots,
-            body_length_mm=args.body_length_mm,
-            wing_length_mm=args.wing_length_mm,
-            wing_area_mm2=args.wing_area_mm2,
-            frequency_hz=args.frequency_hz,
-            body_mass_mg=args.body_mass_mg,
-            rho_air=args.rho_air,
-            gravity=args.gravity,
-            motion_source=args.wing_motion_source,
-            smoothed_n_harmonics=args.smoothed_n_harmonics,
+            params=params,
         )
         artifacts = stage_post(
             run_dir=run_dir,
@@ -1388,26 +1304,8 @@ def main() -> int:
             no_blender=args.no_blender,
             frame_step=args.frame_step,
             binary=args.binary,
-            n_wingbeats=args.n_wingbeats,
-            steps_per_wingbeat=args.steps_per_wingbeat,
-            tether=args.tether,
-            output_name=args.output_name,
-            wing_mu0=args.wing_mu0,
-            wing_lb0=args.wing_lb0,
-            wing_cd0=args.wing_cd0,
-            wing_cl0=args.wing_cl0,
-            auto_fit=True,
-            fit_plots=make_fit_plots,
-            skip_stick=True,
-            body_length_mm=args.body_length_mm,
-            wing_length_mm=args.wing_length_mm,
-            wing_area_mm2=args.wing_area_mm2,
-            frequency_hz=args.frequency_hz,
-            body_mass_mg=args.body_mass_mg,
-            rho_air=args.rho_air,
-            gravity=args.gravity,
-            motion_source=args.wing_motion_source,
-            smoothed_n_harmonics=args.smoothed_n_harmonics,
+            skip_stick=args.skip_stick,
+            params=params,
         )
         print("[done] pipeline artifacts:")
         for p in artifacts:

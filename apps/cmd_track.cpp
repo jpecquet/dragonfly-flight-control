@@ -9,6 +9,30 @@
 #include <iostream>
 #include <string>
 
+namespace {
+
+void applyControlOutput(const ControlOutput& ctrl,
+                        double& gamma_mean_cmd,
+                        double& psi_mean_cmd,
+                        double& phi_amp_cmd) {
+    gamma_mean_cmd = ctrl.gamma_mean;
+    psi_mean_cmd = ctrl.psi_mean;
+    phi_amp_cmd = ctrl.phi_amp;
+}
+
+void appendControllerState(SimulationOutput& output,
+                           const TrajectoryController& controller,
+                           const ControlOutput& ctrl) {
+    const auto& cs = controller.lastState();
+    output.target_positions.push_back(cs.target_pos);
+    output.position_errors.push_back(cs.pos_error);
+    output.param_gamma_mean.push_back(ctrl.gamma_mean);
+    output.param_psi_mean.push_back(ctrl.psi_mean);
+    output.param_phi_amp.push_back(ctrl.phi_amp);
+}
+
+}  // namespace
+
 int runTrack(const Config& cfg) {
     auto kin = readKinematicParams(cfg);
     auto state = readInitialState(cfg);
@@ -72,67 +96,33 @@ int runTrack(const Config& cfg) {
     for (size_t w = 0; w < wings.size(); ++w) {
         const auto& wcfg = wingConfigs[w];
         const bool use_local = hasWingMotionSeries(wcfg);
-        const double omega_w = use_local ? wcfg.omega : kin.omega;
-        const HarmonicSeries gamma_base{
-            use_local ? wcfg.gamma_mean : kin.gamma_mean,
-            use_local ? wcfg.gamma_cos : kin.gamma_cos,
-            use_local ? wcfg.gamma_sin : kin.gamma_sin
-        };
-        const HarmonicSeries phi_base{
-            use_local ? wcfg.phi_mean : kin.phi_mean,
-            use_local ? wcfg.phi_cos : kin.phi_cos,
-            use_local ? wcfg.phi_sin : kin.phi_sin
-        };
-        const HarmonicSeries psi_base{
-            use_local ? wcfg.psi_mean : kin.psi_mean,
-            use_local ? wcfg.psi_cos : kin.psi_cos,
-            use_local ? wcfg.psi_sin : kin.psi_sin
-        };
+        const MotionParams* base_motion = use_local
+            ? static_cast<const MotionParams*>(&wcfg)
+            : static_cast<const MotionParams*>(&kin);
+        const auto base_series = base_motion->toHarmonicSeries();
+        const double omega_w = base_motion->omega;
+        const HarmonicSeries gamma_base = base_series.gamma;
+        const HarmonicSeries phi_base = base_series.phi;
+        const HarmonicSeries psi_base = base_series.psi;
         const double phi_c1 = phi_base.cos_coeff.empty() ? 0.0 : phi_base.cos_coeff[0];
         const double phi_s1 = phi_base.sin_coeff.empty() ? 0.0 : phi_base.sin_coeff[0];
         const double wing_phi_amp_base = std::hypot(phi_c1, phi_s1);
-        const double phase_offset = wingConfigs[w].phaseOffset;
-        auto angleFunc = [&gamma_mean_cmd, &psi_mean_cmd, &phi_amp_cmd,
-                          omega_w,
-                          gamma_mean_base,
-                          psi_mean_base,
-                          phi_amp_base,
-                          wing_phi_amp_base,
-                          gamma_base,
-                          phi_base,
-                          psi_base,
-                          eps = EPS,
-                          phase_offset](double t) -> WingAngles {
-            const double phase = omega_w * t + phase_offset;
-            const double gamma_shift = gamma_mean_cmd - gamma_mean_base;
-            const double psi_shift = psi_mean_cmd - psi_mean_base;
-
-            const double phi_ref_amp = (std::abs(phi_amp_base) > eps) ? phi_amp_base : wing_phi_amp_base;
-            double phi_scale = 1.0;
-            if (std::abs(phi_ref_amp) > eps) {
-                phi_scale = phi_amp_cmd / phi_ref_amp;
-            }
-
-            double gam = evaluateHarmonicValue(gamma_base, phase) + gamma_shift;
-            double gam_dot = evaluateHarmonicRate(gamma_base, phase, omega_w);
-            double phi = evaluateHarmonicValue(phi_base, phase, phi_scale);
-            double phi_dot = evaluateHarmonicRate(phi_base, phase, omega_w, phi_scale);
-
-            // If both baseline references are zero, allow controller to inject a first harmonic.
-            if (std::abs(phi_ref_amp) <= eps && std::abs(phi_amp_cmd) > eps) {
-                phi += phi_amp_cmd * std::cos(phase);
-                phi_dot += -phi_amp_cmd * omega_w * std::sin(phase);
-            }
-
-            double psi = evaluateHarmonicValue(psi_base, phase) + psi_shift;
-            return {
-                gam,
-                gam_dot,
-                phi,
-                phi_dot,
-                psi
-            };
-        };
+        const double phase_offset = wingConfigs[w].phase_offset;
+        auto angleFunc = makeControlledAngleFunc(
+            gamma_base,
+            phi_base,
+            psi_base,
+            phase_offset,
+            omega_w,
+            gamma_mean_base,
+            psi_mean_base,
+            phi_amp_base,
+            wing_phi_amp_base,
+            gamma_mean_cmd,
+            psi_mean_cmd,
+            phi_amp_cmd,
+            EPS
+        );
         wings[w].setAngleFunc(std::move(angleFunc));
     }
 
@@ -162,26 +152,19 @@ int runTrack(const Config& cfg) {
 
     // Initial controller state
     auto ctrl = controller.compute(t, tp.dt, state);
-    gamma_mean_cmd = ctrl.gamma_mean;
-    psi_mean_cmd = ctrl.psi_mean;
-    phi_amp_cmd = ctrl.phi_amp;
-    const auto& cs = controller.lastState();
-    output.target_positions.push_back(cs.target_pos);
-    output.position_errors.push_back(cs.pos_error);
-    output.param_gamma_mean.push_back(ctrl.gamma_mean);
-    output.param_psi_mean.push_back(ctrl.psi_mean);
-    output.param_phi_amp.push_back(ctrl.phi_amp);
+    applyControlOutput(ctrl, gamma_mean_cmd, psi_mean_cmd, phi_amp_cmd);
+    appendControllerState(output, controller, ctrl);
 
     // Time integration with controller
     std::cout << "Running trajectory tracking for " << cfg.getInt("n_wingbeats", 5)
               << " wingbeats..." << std::endl;
 
     for (int i = 0; i < tp.nsteps; ++i) {
-        // 1. Controller update
-        ctrl = controller.compute(t, tp.dt, state);
-        gamma_mean_cmd = ctrl.gamma_mean;
-        psi_mean_cmd = ctrl.psi_mean;
-        phi_amp_cmd = ctrl.phi_amp;
+        // Controller is already computed for i=0 at t=0.
+        if (i > 0) {
+            ctrl = controller.compute(t, tp.dt, state);
+            applyControlOutput(ctrl, gamma_mean_cmd, psi_mean_cmd, phi_amp_cmd);
+        }
 
         // 2. Physics step
         state = stepRK4(t, tp.dt, state, wings, scratch);
@@ -191,12 +174,7 @@ int runTrack(const Config& cfg) {
         storeTimestep(output, t, state, wings, wing_data);
 
         // Store controller state
-        const auto& cs2 = controller.lastState();
-        output.target_positions.push_back(cs2.target_pos);
-        output.position_errors.push_back(cs2.pos_error);
-        output.param_gamma_mean.push_back(ctrl.gamma_mean);
-        output.param_psi_mean.push_back(ctrl.psi_mean);
-        output.param_phi_amp.push_back(ctrl.phi_amp);
+        appendControllerState(output, controller, ctrl);
     }
 
     // Report final tracking error

@@ -61,14 +61,15 @@ def sorted_xy(name):
 
 def break_discontinuities(x, y, threshold=50):
     """Insert NaN where consecutive y-values jump by more than threshold."""
-    xout, yout = [x[0]], [y[0]]
-    for i in range(1, len(y)):
-        if abs(y[i] - y[i - 1]) > threshold:
-            xout.append(np.nan)
-            yout.append(np.nan)
-        xout.append(x[i])
-        yout.append(y[i])
-    return np.array(xout), np.array(yout)
+    x_arr = np.asarray(x)
+    y_arr = np.asarray(y)
+    if x_arr.size == 0 or y_arr.size == 0:
+        return x_arr.copy(), y_arr.copy()
+
+    jump_idx = np.where(np.abs(np.diff(y_arr)) > threshold)[0] + 1
+    x_out = np.insert(x_arr, jump_idx, np.nan)
+    y_out = np.insert(y_arr, jump_idx, np.nan)
+    return x_out, y_out
 
 
 def fourier_smooth(t_raw, y_raw, n_harmonics=7, n_points=2000):
