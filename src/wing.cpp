@@ -15,10 +15,13 @@ Vec3 Wing::computeForce(
 ) const {
     // Get angles from the angle function
     WingAngles angles = angleFunc_(t);
+    // Simulator convention update: interpreted stroke-plane angle is pi - gamma.
+    const double gam = M_PI - angles.gam;
+    const double gam_dot = -angles.gam_dot;
 
     // Compute wing orientation using shared rotation logic
     WingOrientation orient = computeWingOrientation(
-        angles.gam, angles.phi, angles.psi, side_ == WingSide::Left);
+        gam, angles.phi, angles.psi, side_ == WingSide::Left);
 
     // Store orientation vectors
     vecs.e_s = orient.e_s;
@@ -35,7 +38,7 @@ Vec3 Wing::computeForce(
     // Note: v_gam is proportional to sin(phi) since e_r depends on phi
     double gam_sign = (side_ == WingSide::Left) ? -1.0 : 1.0;
     Vec3 ey(0, 1, 0);
-    Vec3 omega_gam = gam_sign * angles.gam_dot * ey;
+    Vec3 omega_gam = gam_sign * gam_dot * ey;
     Vec3 r = SPAN_EVAL_POINT * lb0_ * orient.e_r;
     Vec3 v_gam = omega_gam.cross(r);
 

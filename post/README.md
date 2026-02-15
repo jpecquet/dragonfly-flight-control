@@ -116,17 +116,20 @@ python -m post.plot_wing_rotation wingtest.h5 rotation_dark.mp4 --theme dark
 
 ### plot_stick.py
 
-Visualize wing stroke motion projected onto a sphere (equirectangular projection).
+Visualize right fore/hind wing stick motion in the nondimensional `(X,Z)` plane.
 
 ```bash
-# Animate a specific wing
-python -m post.plot_stick output.h5 fore_left stroke.mp4
+# Animate right fore/hind sticks
+python -m post.plot_stick output.h5 stroke.mp4
 
-# List available wings
+# Use a custom span station (default is 2/3)
+python -m post.plot_stick output.h5 stroke_s25.mp4 --station 0.25
+
+# List available wings and usage
 python -m post.plot_stick output.h5
 
 # Dark theme
-python -m post.plot_stick output.h5 fore_left stroke_dark.mp4 --theme dark
+python -m post.plot_stick output.h5 stroke_dark.mp4 --theme dark
 ```
 
 ### plot_terminal_velocity.py
@@ -144,6 +147,16 @@ python -m post.plot_terminal_velocity --psi 45 output.mp4
 python -m post.plot_terminal_velocity --psi 45 --theme dark output.mp4
 ```
 
+### plot_force_comparison.py
+
+Compare one or more vertical force time series from simulation outputs.
+
+```bash
+python -m post.plot_force_comparison runs/wang2007/demo/post/force_comparison.png --omega-nondim 14.982242894657686 --series runs/wang2007/demo/sim/output_7harm.h5 "Run A" --series runs/wang2007/demo/sim/output_1harm.h5 "Run B"
+python -m post.plot_force_comparison runs/wang2007/demo/post/force_comparison.dark.png --omega-nondim 14.982242894657686 --series runs/wang2007/demo/sim/output_7harm.h5 "Run A" --series runs/wang2007/demo/sim/output_1harm.h5 "Run B" --theme dark
+python -m post.plot_force_comparison runs/wang2007/demo/post/force_plus_cfd.png --omega-nondim 14.982242894657686 --series runs/wang2007/demo/sim/output_7harm.h5 "7 harmonics/wingbeat (35 components)" --series runs/wang2007/demo/sim/output_1harm.h5 "1 harmonic" --series-csv data/kinematics/wang2007/cfd_data.csv t Fz "CFD"
+```
+
 ## Custom Configuration
 
 The hybrid renderer accepts a JSON configuration file:
@@ -154,8 +167,8 @@ The hybrid renderer accepts a JSON configuration file:
     "elevation": 30.0,
     "azimuth": -60.0,
     "ortho_scale": 3.0,
-    "figsize_width": 6.0,
-    "figsize_height": 4.0,
+    "figsize_width": 6.5,
+    "figsize_height": 4.333333333333333,
     "dpi": 300
   },
   "style": {
@@ -175,7 +188,10 @@ The hybrid renderer accepts a JSON configuration file:
 }
 ```
 
-Resolution is computed as `figsize * dpi` (default: 6x4 inches at 300 dpi = 1800x1200 pixels).
+Resolution is computed as `figsize * dpi` (default: 6.5x4.3333 inches at 300 dpi = 1950x1300 pixels).
+
+Most matplotlib plot scripts use a shared default width parameter in `post/style.py`:
+`DEFAULT_FIGURE_WIDTH_IN = 6.5`. Update this value to retune plot widths globally.
 
 ## Module Structure
 
@@ -194,8 +210,10 @@ post/
 ├── plot_tracking.py         # CLI: trajectory tracking visualization
 ├── plot_landscape.py        # CLI: optimizer landscape
 ├── plot_wing_rotation.py    # CLI: wing rotation animation
-├── plot_stick.py            # CLI: wing stroke sphere projection
-└── plot_terminal_velocity.py # CLI: terminal velocity visualization
+├── plot_stick.py            # CLI: right fore/hind stick animation in (X,Z)
+├── plot_terminal_velocity.py # CLI: terminal velocity visualization
+├── plot_force_comparison.py # CLI: compare vertical force time series
+└── time_series.py           # Shared static time-series plotting template
 ```
 
 ## Library Usage

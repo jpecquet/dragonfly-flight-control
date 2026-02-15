@@ -85,7 +85,7 @@ def main() -> int:
         "--only",
         nargs="*",
         default=[],
-        help="Optional entry ids to run. If omitted, runs all entries.",
+        help="Entry ids or prefixes to run (e.g. 'wang2007' matches all wang2007_* entries). If omitted, runs all.",
     )
     parser.add_argument("--list", action="store_true", help="List available entry ids and exit.")
     parser.add_argument("--dry-run", action="store_true", help="Print actions without executing.")
@@ -103,12 +103,12 @@ def main() -> int:
             print(f"{entry['id']}: {entry.get('description', '')}")
         return 0
 
-    selected_ids = set(args.only)
-    if selected_ids:
-        selected = [e for e in entries if e["id"] in selected_ids]
-        missing = sorted(selected_ids - {e["id"] for e in selected})
-        if missing:
-            raise ValueError(f"Unknown entry id(s): {', '.join(missing)}")
+    filters = args.only
+    if filters:
+        selected = [e for e in entries if any(e["id"] == f or e["id"].startswith(f + "_") for f in filters)]
+        unmatched = [f for f in filters if not any(e["id"] == f or e["id"].startswith(f + "_") for e in entries)]
+        if unmatched:
+            raise ValueError(f"No entries matched: {', '.join(unmatched)}")
     else:
         selected = entries
 

@@ -37,16 +37,17 @@ int main() {
     double tol = 1e-10;
     bool all_passed = true;
 
-    // With all angles = 0 for a left wing:
-    //   Rs = rotY(0) * rotZ(0) = I
-    //   e_s = (1, 0, 0)  - stroke direction
-    //   e_r = (0, 1, 0)  - radial/span direction
-    //   Rp = I * rotY(0) = I
-    //   e_c = -ez = (0, 0, -1)  - chord direction (negated for left wing)
+    // With all angles = 0 for a left wing, simulator now interprets
+    // gamma as (pi - gamma), so effective gamma is pi:
+    //   Rs = rotY(-pi) * rotZ(0)
+    //   e_s = (-1, 0, 0)  - stroke direction
+    //   e_r = (0, 1, 0)   - radial/span direction
+    //   Rp = Rs * rotY(0)
+    //   e_c = +ez = (0, 0, 1)  - chord direction (left-wing sign convention)
 
-    Vec3 expected_e_s(1, 0, 0);
+    Vec3 expected_e_s(-1, 0, 0);
     Vec3 expected_e_r(0, 1, 0);
-    Vec3 expected_e_c(0, 0, -1);
+    Vec3 expected_e_c(0, 0, 1);
 
     // ========== Test 1: Orientation vectors ==========
     std::cout << "Test 1: Orientation vectors with zero angles\n";
@@ -60,18 +61,18 @@ int main() {
         bool t3 = vecNear(vecs.e_c, expected_e_c, tol);
 
         std::cout << "  e_s = (" << vecs.e_s.x() << ", " << vecs.e_s.y() << ", " << vecs.e_s.z() << ")";
-        std::cout << " expected (1, 0, 0): " << (t1 ? "PASS" : "FAIL") << "\n";
+        std::cout << " expected (-1, 0, 0): " << (t1 ? "PASS" : "FAIL") << "\n";
         std::cout << "  e_r = (" << vecs.e_r.x() << ", " << vecs.e_r.y() << ", " << vecs.e_r.z() << ")";
         std::cout << " expected (0, 1, 0): " << (t2 ? "PASS" : "FAIL") << "\n";
         std::cout << "  e_c = (" << vecs.e_c.x() << ", " << vecs.e_c.y() << ", " << vecs.e_c.z() << ")";
-        std::cout << " expected (0, 0, -1): " << (t3 ? "PASS" : "FAIL") << "\n";
+        std::cout << " expected (0, 0, 1): " << (t3 ? "PASS" : "FAIL") << "\n";
 
         all_passed &= t1 && t2 && t3;
     }
 
     // ========== Test 2: Flow along X (perpendicular to chord) ==========
     // Flow along X-axis: u = (U, 0, 0)
-    // Chord is e_c = (0, 0, -1)
+    // Chord is e_c = (0, 0, 1)
     // Angle of attack α = 90° (flow perpendicular to chord)
     //
     // At α = 90°:
@@ -108,10 +109,10 @@ int main() {
         all_passed &= t1 && t2 && t3;
     }
 
-    // ========== Test 3: Flow along -Z (aligned with chord) ==========
+    // ========== Test 3: Flow along -Z (anti-aligned with chord) ==========
     // Flow along -Z: u = (0, 0, -U)
-    // Chord is e_c = (0, 0, -1), so flow is aligned with chord
-    // Angle of attack α = 0°
+    // Chord is e_c = (0, 0, 1), so flow is anti-aligned with chord
+    // Angle of attack α = 180° (same drag as α = 0° in this model)
     //
     // At α = 0°:
     //   c_alpha = cos(0) = 1
@@ -120,7 +121,7 @@ int main() {
     //   Cl = 0
     //
     // Drag direction: e_d = -u/|u| = (0, 0, 1)
-    std::cout << "\nTest 3: Flow along -Z (α = 0°, minimum drag)\n";
+    std::cout << "\nTest 3: Flow along -Z (α = 180°, minimum drag)\n";
     {
         double U = 2.0;
         Vec3 ub(0, 0, -U);
@@ -149,8 +150,8 @@ int main() {
 
     // ========== Test 4: Flow at 45° to chord (maximum lift) ==========
     // Flow direction: u = U/√2 * (e_c + e_perp) where e_perp ⊥ e_c and e_r
-    // With e_c = (0,0,-1) and e_r = (0,1,0), e_perp = (1,0,0)
-    // So u = U/√2 * ((0,0,-1) + (1,0,0)) = U/√2 * (1, 0, -1)
+    // With e_c = (0,0,1) and e_r = (0,1,0), e_perp = (1,0,0)
+    // So u = U/√2 * (-(0,0,1) + (1,0,0)) = U/√2 * (1, 0, -1)
     //
     // At α = 45°:
     //   c_alpha = cos(45°) = 1/√2

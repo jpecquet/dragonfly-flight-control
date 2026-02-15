@@ -9,6 +9,19 @@ from typing import Optional
 
 from .hybrid_config import HybridConfig, StyleConfig
 
+DEFAULT_FIGURE_WIDTH_IN = 6.5
+
+
+def figure_size(height_over_width: float = 1.0, width_in: float = DEFAULT_FIGURE_WIDTH_IN) -> tuple[float, float]:
+    """Return a `(width, height)` tuple with a standardized default width."""
+    width = float(width_in)
+    ratio = float(height_over_width)
+    if width <= 0.0:
+        raise ValueError("width_in must be > 0")
+    if ratio <= 0.0:
+        raise ValueError("height_over_width must be > 0")
+    return (width, width * ratio)
+
 
 def resolve_style(style: Optional[StyleConfig] = None, theme: Optional[str] = None) -> StyleConfig:
     """
@@ -81,8 +94,8 @@ def apply_matplotlib_style(style: Optional[StyleConfig] = None) -> None:
 
         plt.rcParams["axes.prop_cycle"] = cycler(color=[
             resolved.trajectory_color,
-            resolved.target_color,
             resolved.error_color,
+            resolved.target_color,
             resolved.lift_color,
             resolved.drag_color,
         ])

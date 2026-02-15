@@ -587,15 +587,16 @@ def render_mpl_only(
         config.viewport = compute_viewport(states, targets=targets)
 
     n_frames = len(states)
+    n_workers = config.n_workers if config.n_workers > 0 else (os.cpu_count() or 4)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
 
-        print("Rendering matplotlib frames...")
+        print(f"Rendering matplotlib frames ({n_workers} workers)...")
         print("  Using simplified matplotlib body/wing models")
-        render_all_frames(
+        render_all_frames_parallel(
             states, wing_vectors, params, config, tmpdir, controller=controller,
-            draw_models=True,
+            draw_models=True, n_workers=n_workers,
         )
 
         # Rename files to match expected pattern for ffmpeg

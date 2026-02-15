@@ -153,6 +153,7 @@ PhysicalParams PhysicalParams::fromConfig(const Config& cfg) {
 static SimKinematicParams toSimParams(const KinematicParams& kin) {
     SimKinematicParams out;
     out.omega = kin.omega.value;
+    out.harmonic_period_wingbeats = 1.0;
     out.n_harmonics = 1;
     out.gamma_mean = kin.gamma_mean.value;
     out.phi_mean = kin.phi_mean.value;
@@ -185,9 +186,12 @@ static void updateWingAngleFuncs(std::vector<Wing>& wings, const KinematicParams
     const SimKinematicParams sim_kin = toSimParams(kin);
     const auto series = sim_kin.toHarmonicSeries();
     const double omega = sim_kin.omega;
+    const double harmonic_period_wingbeats = sim_kin.harmonic_period_wingbeats;
     for (size_t i = 0; i < wings.size(); ++i) {
         const auto& wc = phys.wings[i];
-        auto angleFunc = makeAngleFunc(series.gamma, series.phi, series.psi, wc.phase_offset, omega);
+        auto angleFunc = makeAngleFunc(
+            series.gamma, series.phi, series.psi, wc.phase_offset, omega, harmonic_period_wingbeats
+        );
         wings[i].setAngleFunc(std::move(angleFunc));
     }
 }

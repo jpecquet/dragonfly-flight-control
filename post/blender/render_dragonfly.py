@@ -426,8 +426,8 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Get render resolution from camera config (match matplotlib output)
-    figsize_width = camera_cfg.get('figsize_width', 6.0)
-    figsize_height = camera_cfg.get('figsize_height', 4.0)
+    figsize_width = camera_cfg.get('figsize_width', 6.5)
+    figsize_height = camera_cfg.get('figsize_height', 4.333333333333333)
     dpi = camera_cfg.get('dpi', 300)
     render_width = int(figsize_width * dpi)
     render_height = int(figsize_height * dpi)

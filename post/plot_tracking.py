@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 
 from post.io import read_tracking
-from post.style import apply_matplotlib_style, resolve_style
+from post.style import apply_matplotlib_style, figure_size, resolve_style
 
 
 def plot_tracking_summary(states, controller, time, outfile, style=None):
@@ -43,7 +43,7 @@ def plot_tracking_summary(states, controller, time, outfile, style=None):
     errors = controller['position_error']
     error_mag = np.linalg.norm(errors, axis=1)
 
-    fig = plt.figure(figsize=(16, 10))
+    fig = plt.figure(figsize=figure_size(5.0 / 8.0))
 
     # 3D trajectory plot
     ax1 = fig.add_subplot(2, 3, 1, projection='3d')

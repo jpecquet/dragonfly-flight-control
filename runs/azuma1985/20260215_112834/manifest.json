@@ -1,0 +1,31 @@
+{
+  "created_at_utc": "2026-02-15T16:28:34+00:00",
+  "git_commit": "0e4a553c376e5238b93b54843f76f54f519dd62e",
+  "repo_root": "/Users/jean/Code/dragonfly-flight-control",
+  "stages": {
+    "sim": {
+      "artifacts": [
+        "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/20260215_112834/sim/sim_azuma1985.cfg",
+        "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/20260215_112834/sim/output.h5"
+      ],
+      "completed_at_utc": "2026-02-15T16:28:34+00:00",
+      "metadata": {
+        "binary": "/Users/jean/Code/dragonfly-flight-control/build/bin/dragonfly",
+        "config": "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/20260215_112834/sim/sim_azuma1985.cfg",
+        "output_h5": "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/20260215_112834/sim/output.h5"
+      }
+    },
+    "translate": {
+      "artifacts": [
+        "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/20260215_112834/sim/sim_azuma1985.cfg",
+        "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/20260215_112834/sim/translate_summary.json"
+      ],
+      "completed_at_utc": "2026-02-15T16:28:34+00:00",
+      "metadata": {
+        "sim_config_path": "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/20260215_112834/sim/sim_azuma1985.cfg",
+        "sim_output_path": "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/20260215_112834/sim/output.h5"
+      }
+    }
+  },
+  "updated_at_utc": "2026-02-15T16:28:34+00:00"
+}

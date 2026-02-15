@@ -27,7 +27,7 @@ import matplotlib.animation as ani
 from post.animation import save_animation
 from post.hybrid_config import StyleConfig
 from post.io import read_terminal_velocity, run_termvel_simulation
-from post.style import apply_matplotlib_style, resolve_style
+from post.style import apply_matplotlib_style, figure_size, resolve_style
 
 
 def plot_terminal_velocity(data, output_file=None, style: StyleConfig = None):
@@ -40,7 +40,7 @@ def plot_terminal_velocity(data, output_file=None, style: StyleConfig = None):
     uz = data['uz']
     psi_deg = data['psi_deg']
 
-    fig, ax = plt.subplots(figsize=(4, 3))
+    fig, ax = plt.subplots(figsize=figure_size(3.0 / 4.0))
 
     ax.plot(time, ux, '-', color=style.trajectory_color, linewidth=1, label='Physics solver')
     ax.plot(time, uz, '-', color=style.trajectory_color, linewidth=1)
@@ -97,7 +97,7 @@ def animate_terminal_velocity(data, outfile, fps=30, skip=1, style: StyleConfig 
     view_size = 10.0  # half-width of view window
     force_scale = 5  # scale for force vectors
 
-    fig, ax = plt.subplots(figsize=(4, 4))
+    fig, ax = plt.subplots(figsize=figure_size(1.0))
 
     def update(frame):
         ax.cla()

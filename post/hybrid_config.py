@@ -21,8 +21,8 @@ class CameraConfig:
     elevation: float = 30.0  # degrees
     azimuth: float = -60.0   # degrees (isometric-style view)
     ortho_scale: float = 3.0  # world units visible
-    figsize_width: float = 6.0   # inches
-    figsize_height: float = 4.0  # inches
+    figsize_width: float = 6.5   # inches
+    figsize_height: float = 4.333333333333333  # inches
     dpi: int = 300  # dots per inch
 
     @property

@@ -21,6 +21,7 @@ struct MotionHarmonicSeries {
 
 struct MotionParams {
     double omega = 0.0;
+    double harmonic_period_wingbeats = 1.0;
     double gamma_mean = 0.0;
     double phi_mean = 0.0;
     double psi_mean = 0.0;
@@ -76,6 +77,7 @@ inline AngleFunc makeControlledAngleFunc(
     const HarmonicSeries& psi_base,
     double phase_offset,
     double omega,
+    double harmonic_period_wingbeats,
     double gamma_mean_base,
     double psi_mean_base,
     double phi_amp_base,
@@ -88,11 +90,15 @@ inline AngleFunc makeControlledAngleFunc(
     const double* gamma_mean_cmd_ptr = &gamma_mean_cmd;
     const double* psi_mean_cmd_ptr = &psi_mean_cmd;
     const double* phi_amp_cmd_ptr = &phi_amp_cmd;
+    if (harmonic_period_wingbeats <= 0.0) {
+        throw std::runtime_error("harmonic_period_wingbeats must be > 0");
+    }
+    const double basis_omega = omega / harmonic_period_wingbeats;
 
     return [gamma_mean_cmd_ptr,
             psi_mean_cmd_ptr,
             phi_amp_cmd_ptr,
-            omega,
+            basis_omega,
             gamma_mean_base,
             psi_mean_base,
             phi_amp_base,
@@ -102,7 +108,7 @@ inline AngleFunc makeControlledAngleFunc(
             psi_base,
             eps,
             phase_offset](double t) -> WingAngles {
-        const double phase = omega * t + phase_offset;
+        const double phase = basis_omega * t + phase_offset;
         const double gamma_shift = *gamma_mean_cmd_ptr - gamma_mean_base;
         const double psi_shift = *psi_mean_cmd_ptr - psi_mean_base;
 
@@ -113,14 +119,14 @@ inline AngleFunc makeControlledAngleFunc(
         }
 
         double gam = evaluateHarmonicValue(gamma_base, phase) + gamma_shift;
-        double gam_dot = evaluateHarmonicRate(gamma_base, phase, omega);
+        double gam_dot = evaluateHarmonicRate(gamma_base, phase, basis_omega);
         double phi = evaluateHarmonicValue(phi_base, phase, phi_scale);
-        double phi_dot = evaluateHarmonicRate(phi_base, phase, omega, phi_scale);
+        double phi_dot = evaluateHarmonicRate(phi_base, phase, basis_omega, phi_scale);
 
         // If both baseline references are zero, allow controller to inject a first harmonic.
         if (std::abs(phi_ref_amp) <= eps && std::abs(*phi_amp_cmd_ptr) > eps) {
             phi += *phi_amp_cmd_ptr * std::cos(phase);
-            phi_dot += -*phi_amp_cmd_ptr * omega * std::sin(phase);
+            phi_dot += -*phi_amp_cmd_ptr * basis_omega * std::sin(phase);
         }
 
         const double psi = evaluateHarmonicValue(psi_base, phase) + psi_shift;
@@ -137,18 +143,23 @@ inline AngleFunc makeControlledAngleFunc(
 inline AngleFunc makeAngleFunc(const HarmonicSeries& gamma,
                                const HarmonicSeries& phi,
                                const HarmonicSeries& psi,
-                               double phaseOffset, double omega) {
+                               double phaseOffset, double omega,
+                               double harmonic_period_wingbeats = 1.0) {
     validateHarmonicSeries(gamma, "gamma");
     validateHarmonicSeries(phi, "phi");
     validateHarmonicSeries(psi, "psi");
+    if (harmonic_period_wingbeats <= 0.0) {
+        throw std::runtime_error("harmonic_period_wingbeats must be > 0");
+    }
+    const double basis_omega = omega / harmonic_period_wingbeats;
 
     return [=](double t) -> WingAngles {
-        const double phase = omega * t + phaseOffset;
+        const double phase = basis_omega * t + phaseOffset;
         return {
             evaluateHarmonicValue(gamma, phase),
-            evaluateHarmonicRate(gamma, phase, omega),
+            evaluateHarmonicRate(gamma, phase, basis_omega),
             evaluateHarmonicValue(phi, phase),
-            evaluateHarmonicRate(phi, phase, omega),
+            evaluateHarmonicRate(phi, phase, basis_omega),
             evaluateHarmonicValue(psi, phase)
         };
     };

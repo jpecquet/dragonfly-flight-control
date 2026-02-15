@@ -56,7 +56,9 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     const auto& k = output.kin;
     H5Easy::dump(file, "/parameters/n_harmonics", k.n_harmonics);
     const std::pair<const char*, double> kin_params[] = {
-        {"omega", k.omega}, {"gamma_mean", k.gamma_mean},
+        {"omega", k.omega},
+        {"harmonic_period_wingbeats", k.harmonic_period_wingbeats},
+        {"gamma_mean", k.gamma_mean},
         {"phi_mean", k.phi_mean}, {"psi_mean", k.psi_mean},
     };
     for (auto& [name, val] : kin_params) {
@@ -113,9 +115,10 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
 
     if (have_wing_motion) {
         std::vector<int> has_custom_motion;
-        std::vector<double> omega_vals, gamma_mean_vals, phi_mean_vals, psi_mean_vals;
+        std::vector<double> omega_vals, harmonic_period_vals, gamma_mean_vals, phi_mean_vals, psi_mean_vals;
         has_custom_motion.reserve(num_configs);
         omega_vals.reserve(num_configs);
+        harmonic_period_vals.reserve(num_configs);
         gamma_mean_vals.reserve(num_configs);
         phi_mean_vals.reserve(num_configs);
         psi_mean_vals.reserve(num_configs);
@@ -131,6 +134,7 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
             const auto& wc = output.wingConfigs[i];
             has_custom_motion.push_back(wc.has_custom_motion ? 1 : 0);
             omega_vals.push_back(wc.omega);
+            harmonic_period_vals.push_back(wc.harmonic_period_wingbeats);
             gamma_mean_vals.push_back(wc.gamma_mean);
             phi_mean_vals.push_back(wc.phi_mean);
             psi_mean_vals.push_back(wc.psi_mean);
@@ -145,6 +149,7 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
 
         H5Easy::dump(file, "/parameters/wings/has_custom_motion", has_custom_motion);
         H5Easy::dump(file, "/parameters/wings/omega", omega_vals);
+        H5Easy::dump(file, "/parameters/wings/harmonic_period_wingbeats", harmonic_period_vals);
         H5Easy::dump(file, "/parameters/wings/gamma_mean", gamma_mean_vals);
         H5Easy::dump(file, "/parameters/wings/phi_mean", phi_mean_vals);
         H5Easy::dump(file, "/parameters/wings/psi_mean", psi_mean_vals);

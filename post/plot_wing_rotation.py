@@ -17,7 +17,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from post.animation import save_animation
 from post.io import read_wing_rotation
-from post.style import apply_matplotlib_style, resolve_style
+from post.style import apply_matplotlib_style, figure_size, resolve_style
 
 
 def animate_vectors(data, outfile, style=None):
@@ -25,7 +25,7 @@ def animate_vectors(data, outfile, style=None):
     style = resolve_style(style)
     apply_matplotlib_style(style)
 
-    fig = plt.figure(figsize=(4, 4))
+    fig = plt.figure(figsize=figure_size(1.0))
     ax = fig.add_subplot(111, projection='3d', facecolor=style.axes_facecolor)
 
     n_frames = data['total_frames']

@@ -1,0 +1,764 @@
+#!/usr/bin/env python3
+"""Convenience pipeline: Azuma 1985 parameters -> sim -> 3D animation.
+
+Stages:
+  translate Generate a simulator config from Azuma (1985) parameters.
+  sim       Run dragonfly simulation for generated config.
+  post      Run 3D postprocessing animation from simulation output.
+  all       Run translate -> sim -> post.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import subprocess
+import sys
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+try:
+    from experimental_conventions import azuma1985_adapter, build_sim_wing_motion
+except ModuleNotFoundError:
+    from scripts.experimental_conventions import azuma1985_adapter, build_sim_wing_motion
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+RUNS_ROOT = REPO_ROOT / "runs" / "azuma1985"
+DEFAULT_BINARY = REPO_ROOT / "build" / "bin" / "dragonfly"
+
+# Azuma (1985) specimen parameters from docs/case_studies/azuma1985.md
+DEFAULT_BODY_LENGTH_M = 4.0e-2
+DEFAULT_BODY_MASS_KG = 2.6e-4
+DEFAULT_R_FW_M = 3.35e-2
+DEFAULT_S_FW_M2 = 2.21e-4
+DEFAULT_R_HW_M = 3.25e-2
+DEFAULT_S_HW_M2 = 2.72e-4
+DEFAULT_FREQUENCY_HZ = 41.5
+DEFAULT_RHO_AIR = 1.225
+DEFAULT_GRAVITY = 9.81
+DEFAULT_CD0 = 0.4
+DEFAULT_CL0 = 1.2
+
+
+@dataclass(frozen=True)
+class PipelineParams:
+    n_wingbeats: int
+    steps_per_wingbeat: int
+    tether: bool
+    output_name: str
+    wing_cd0: float
+    wing_cl0: float
+    body_length_m: float
+    body_mass_kg: float
+    fore_span_m: float
+    fore_area_m2: float
+    hind_span_m: float
+    hind_area_m2: float
+    frequency_hz: float
+    stroke_plane_deg: float | None
+    fore_stroke_plane_deg: float | None
+    hind_stroke_plane_deg: float | None
+    rho_air: float
+    gravity: float
+
+    @classmethod
+    def from_args(cls, args: argparse.Namespace) -> "PipelineParams":
+        return cls(
+            n_wingbeats=args.n_wingbeats,
+            steps_per_wingbeat=args.steps_per_wingbeat,
+            tether=args.tether,
+            output_name=args.output_name,
+            wing_cd0=args.wing_cd0,
+            wing_cl0=args.wing_cl0,
+            body_length_m=args.body_length_m,
+            body_mass_kg=args.body_mass_kg,
+            fore_span_m=args.fore_span_m,
+            fore_area_m2=args.fore_area_m2,
+            hind_span_m=args.hind_span_m,
+            hind_area_m2=args.hind_area_m2,
+            frequency_hz=args.frequency_hz,
+            stroke_plane_deg=args.stroke_plane_deg,
+            fore_stroke_plane_deg=args.fore_stroke_plane_deg,
+            hind_stroke_plane_deg=args.hind_stroke_plane_deg,
+            rho_air=args.rho_air,
+            gravity=args.gravity,
+        )
+
+
+def now_utc_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def ensure_dir(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def write_json(path: Path, data: dict[str, Any]) -> None:
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def run_cmd(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
+    printable = " ".join(str(x) for x in cmd)
+    print(f"[cmd] {printable}")
+    cmd_env = os.environ.copy()
+    if env:
+        cmd_env.update(env)
+    subprocess.run(cmd, cwd=str(cwd) if cwd else None, check=True, env=cmd_env)
+
+
+def resolve_run_dir(run_dir_arg: str | None) -> Path:
+    if run_dir_arg:
+        p = Path(run_dir_arg).expanduser()
+        if not p.is_absolute():
+            p = REPO_ROOT / p
+        return p
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return RUNS_ROOT / run_id
+
+
+def get_git_commit() -> str:
+    try:
+        out = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(REPO_ROOT),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        return out.strip()
+    except Exception:
+        return "unknown"
+
+
+def update_manifest(run_dir: Path, stage: str, artifacts: list[Path], metadata: dict[str, Any]) -> None:
+    manifest_path = run_dir / "manifest.json"
+    if manifest_path.exists():
+        manifest = read_json(manifest_path)
+    else:
+        manifest = {
+            "created_at_utc": now_utc_iso(),
+            "repo_root": str(REPO_ROOT),
+            "git_commit": get_git_commit(),
+            "stages": {},
+        }
+
+    manifest["updated_at_utc"] = now_utc_iso()
+    manifest["stages"][stage] = {
+        "completed_at_utc": now_utc_iso(),
+        "artifacts": [str(p.resolve()) for p in artifacts],
+        "metadata": metadata,
+    }
+    write_json(manifest_path, manifest)
+
+
+def build_plot_env(run_dir: Path) -> dict[str, str]:
+    cache_root = ensure_dir(run_dir / ".cache")
+    mpl_cache = ensure_dir(cache_root / "matplotlib")
+    return {
+        "MPLCONFIGDIR": str(mpl_cache.resolve()),
+        "XDG_CACHE_HOME": str(cache_root.resolve()),
+    }
+
+
+def omega_nondim(frequency_hz: float, body_length_m: float, gravity: float) -> float:
+    if frequency_hz <= 0.0:
+        raise ValueError("frequency_hz must be > 0")
+    if body_length_m <= 0.0:
+        raise ValueError("body_length_m must be > 0")
+    if gravity <= 0.0:
+        raise ValueError("gravity must be > 0")
+    return 2.0 * math.pi * frequency_hz * math.sqrt(body_length_m / gravity)
+
+
+def wing_scales(
+    wing_span_m: float,
+    wing_area_m2: float,
+    body_length_m: float,
+    body_mass_kg: float,
+    rho_air: float,
+) -> tuple[float, float]:
+    if wing_span_m <= 0.0:
+        raise ValueError("wing_span_m must be > 0")
+    if wing_area_m2 <= 0.0:
+        raise ValueError("wing_area_m2 must be > 0")
+    if body_length_m <= 0.0:
+        raise ValueError("body_length_m must be > 0")
+    if body_mass_kg <= 0.0:
+        raise ValueError("body_mass_kg must be > 0")
+    if rho_air <= 0.0:
+        raise ValueError("rho_air must be > 0")
+    lb0 = wing_span_m / body_length_m
+    mu0 = rho_air * wing_area_m2 * wing_span_m / body_mass_kg
+    return lb0, mu0
+
+
+def azuma_wing_motion(
+    n_harmonics: int,
+    stroke_plane_deg: float | None,
+    fore_stroke_plane_deg: float | None,
+    hind_stroke_plane_deg: float | None,
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    adapter = azuma1985_adapter()
+    gamma_overrides: dict[str, float] = {}
+    if stroke_plane_deg is not None:
+        gamma_overrides["fore"] = float(stroke_plane_deg)
+        gamma_overrides["hind"] = float(stroke_plane_deg)
+    if fore_stroke_plane_deg is not None:
+        gamma_overrides["fore"] = float(fore_stroke_plane_deg)
+    if hind_stroke_plane_deg is not None:
+        gamma_overrides["hind"] = float(hind_stroke_plane_deg)
+
+    resolved_adapter = adapter.with_gamma_overrides(gamma_overrides if gamma_overrides else None)
+    sim_motion = build_sim_wing_motion(resolved_adapter, n_harmonics=n_harmonics)
+
+    wing_motion: dict[str, dict[str, Any]] = {}
+    for wing_name, motion in sim_motion.items():
+        wing_motion[wing_name] = {
+            "gamma_mean": motion.gamma_mean,
+            "gamma_cos": list(motion.gamma_cos),
+            "gamma_sin": list(motion.gamma_sin),
+            "phi_mean": motion.phi_mean,
+            "phi_cos": list(motion.phi_cos),
+            "phi_sin": list(motion.phi_sin),
+            "psi_mean": motion.psi_mean,
+            "psi_cos": list(motion.psi_cos),
+            "psi_sin": list(motion.psi_sin),
+        }
+
+    mapping_summary = resolved_adapter.summary()
+    mapping_summary["resolved_stroke_plane_deg"] = {
+        wing: resolved_adapter.source_series[wing].gamma.mean_deg
+        for wing in ("fore", "hind")
+    }
+    mapping_summary["override_inputs_deg"] = {
+        "stroke_plane_deg": stroke_plane_deg,
+        "fore_stroke_plane_deg": fore_stroke_plane_deg,
+        "hind_stroke_plane_deg": hind_stroke_plane_deg,
+    }
+    return wing_motion, mapping_summary
+
+
+def fmt(x: float) -> str:
+    return f"{x:.12f}"
+
+
+def fmt_list(values: list[float]) -> str:
+    return ", ".join(fmt(float(x)) for x in values)
+
+
+def build_wing_block(
+    name: str,
+    side: str,
+    wing_mu0: float,
+    wing_lb0: float,
+    wing_cd0: float,
+    wing_cl0: float,
+    phase: float,
+    motion: dict[str, Any],
+) -> str:
+    return "\n".join(
+        [
+            "[[wing]]",
+            f"name = {name}",
+            f"side = {side}",
+            f"mu0 = {fmt(wing_mu0)}",
+            f"lb0 = {fmt(wing_lb0)}",
+            f"Cd0 = {fmt(wing_cd0)}",
+            f"Cl0 = {fmt(wing_cl0)}",
+            f"phase = {fmt(phase)}",
+            f"gamma_mean = {fmt(float(motion['gamma_mean']))}",
+            f"gamma_cos = {fmt_list([float(x) for x in motion['gamma_cos']])}",
+            f"gamma_sin = {fmt_list([float(x) for x in motion['gamma_sin']])}",
+            f"phi_mean = {fmt(float(motion['phi_mean']))}",
+            f"phi_cos = {fmt_list([float(x) for x in motion['phi_cos']])}",
+            f"phi_sin = {fmt_list([float(x) for x in motion['phi_sin']])}",
+            f"psi_mean = {fmt(float(motion['psi_mean']))}",
+            f"psi_cos = {fmt_list([float(x) for x in motion['psi_cos']])}",
+            f"psi_sin = {fmt_list([float(x) for x in motion['psi_sin']])}",
+        ]
+    )
+
+
+def build_sim_cfg(
+    n_harmonics: int,
+    omega: float,
+    n_wingbeats: int,
+    steps_per_wingbeat: int,
+    tether: bool,
+    output_name: str,
+    fore_lb0: float,
+    fore_mu0: float,
+    hind_lb0: float,
+    hind_mu0: float,
+    wing_cd0: float,
+    wing_cl0: float,
+    wing_motion: dict[str, dict[str, Any]],
+) -> str:
+    tether_str = "true" if tether else "false"
+
+    fore = wing_motion["fore"]
+    hind = wing_motion["hind"]
+    gamma_mean_global = 0.5 * (float(fore["gamma_mean"]) + float(hind["gamma_mean"]))
+    phi_mean_global = 0.5 * (float(fore["phi_mean"]) + float(hind["phi_mean"]))
+    psi_mean_global = 0.5 * (float(fore["psi_mean"]) + float(hind["psi_mean"]))
+
+    fore_left = build_wing_block(
+        name="fore",
+        side="left",
+        wing_mu0=fore_mu0,
+        wing_lb0=fore_lb0,
+        wing_cd0=wing_cd0,
+        wing_cl0=wing_cl0,
+        phase=0.0,
+        motion=fore,
+    )
+    fore_right = build_wing_block(
+        name="fore",
+        side="right",
+        wing_mu0=fore_mu0,
+        wing_lb0=fore_lb0,
+        wing_cd0=wing_cd0,
+        wing_cl0=wing_cl0,
+        phase=0.0,
+        motion=fore,
+    )
+    hind_left = build_wing_block(
+        name="hind",
+        side="left",
+        wing_mu0=hind_mu0,
+        wing_lb0=hind_lb0,
+        wing_cd0=wing_cd0,
+        wing_cl0=wing_cl0,
+        phase=0.0,
+        motion=hind,
+    )
+    hind_right = build_wing_block(
+        name="hind",
+        side="right",
+        wing_mu0=hind_mu0,
+        wing_lb0=hind_lb0,
+        wing_cd0=wing_cd0,
+        wing_cl0=wing_cl0,
+        phase=0.0,
+        motion=hind,
+    )
+
+    return f"""# Auto-generated by scripts/azuma1985_pipeline.py
+# Source: docs/case_studies/azuma1985.md
+
+# Kinematic parameters
+omega = {fmt(omega)}
+n_harmonics = {n_harmonics}
+gamma_mean = {fmt(gamma_mean_global)}
+phi_mean = {fmt(phi_mean_global)}
+psi_mean = {fmt(psi_mean_global)}
+
+# Integration/control
+tether = {tether_str}
+n_wingbeats = {n_wingbeats}
+steps_per_wingbeat = {steps_per_wingbeat}
+
+# Initial conditions
+x0 = 0.0
+y0 = 0.0
+z0 = 0.0
+ux0 = 0.0
+uy0 = 0.0
+uz0 = 0.0
+
+# Output
+output = {output_name}
+
+{fore_left}
+
+{fore_right}
+
+{hind_left}
+
+{hind_right}
+"""
+
+
+def stage_translate(run_dir: Path, params: PipelineParams) -> tuple[Path, Path]:
+    n_harmonics = 3
+    omega = omega_nondim(
+        frequency_hz=params.frequency_hz,
+        body_length_m=params.body_length_m,
+        gravity=params.gravity,
+    )
+    fore_lb0, fore_mu0 = wing_scales(
+        wing_span_m=params.fore_span_m,
+        wing_area_m2=params.fore_area_m2,
+        body_length_m=params.body_length_m,
+        body_mass_kg=params.body_mass_kg,
+        rho_air=params.rho_air,
+    )
+    hind_lb0, hind_mu0 = wing_scales(
+        wing_span_m=params.hind_span_m,
+        wing_area_m2=params.hind_area_m2,
+        body_length_m=params.body_length_m,
+        body_mass_kg=params.body_mass_kg,
+        rho_air=params.rho_air,
+    )
+    wing_motion, mapping_summary = azuma_wing_motion(
+        n_harmonics=n_harmonics,
+        stroke_plane_deg=params.stroke_plane_deg,
+        fore_stroke_plane_deg=params.fore_stroke_plane_deg,
+        hind_stroke_plane_deg=params.hind_stroke_plane_deg,
+    )
+
+    sim_dir = ensure_dir(run_dir / "sim")
+    cfg_path = sim_dir / "sim_azuma1985.cfg"
+    output_h5 = sim_dir / params.output_name
+    cfg_text = build_sim_cfg(
+        n_harmonics=n_harmonics,
+        omega=omega,
+        n_wingbeats=params.n_wingbeats,
+        steps_per_wingbeat=params.steps_per_wingbeat,
+        tether=params.tether,
+        output_name=params.output_name,
+        fore_lb0=fore_lb0,
+        fore_mu0=fore_mu0,
+        hind_lb0=hind_lb0,
+        hind_mu0=hind_mu0,
+        wing_cd0=params.wing_cd0,
+        wing_cl0=params.wing_cl0,
+        wing_motion=wing_motion,
+    )
+    cfg_path.write_text(cfg_text, encoding="utf-8")
+
+    summary_path = sim_dir / "translate_summary.json"
+    write_json(
+        summary_path,
+        {
+            "generated_at_utc": now_utc_iso(),
+            "sim_config_path": str(cfg_path.resolve()),
+            "sim_output_path": str(output_h5.resolve()),
+            "n_harmonics": n_harmonics,
+            "n_wingbeats": params.n_wingbeats,
+            "steps_per_wingbeat": params.steps_per_wingbeat,
+            "tether": params.tether,
+            "nondimensional_parameters": {
+                "omega": omega,
+                "fore_lb0_lambda": fore_lb0,
+                "fore_mu0_mu": fore_mu0,
+                "hind_lb0_lambda": hind_lb0,
+                "hind_mu0_mu": hind_mu0,
+            },
+            "physical_inputs": {
+                "body_length_m": params.body_length_m,
+                "body_mass_kg": params.body_mass_kg,
+                "fore_span_m": params.fore_span_m,
+                "fore_area_m2": params.fore_area_m2,
+                "hind_span_m": params.hind_span_m,
+                "hind_area_m2": params.hind_area_m2,
+                "frequency_hz": params.frequency_hz,
+                "stroke_plane_deg": params.stroke_plane_deg,
+                "fore_stroke_plane_deg": params.fore_stroke_plane_deg,
+                "hind_stroke_plane_deg": params.hind_stroke_plane_deg,
+                "rho_air_kg_m3": params.rho_air,
+                "gravity_m_s2": params.gravity,
+            },
+            "convention_mapping": mapping_summary,
+        },
+    )
+
+    update_manifest(
+        run_dir,
+        "translate",
+        [cfg_path, summary_path],
+        {
+            "sim_config_path": str(cfg_path.resolve()),
+            "sim_output_path": str(output_h5.resolve()),
+        },
+    )
+    return cfg_path, output_h5
+
+
+def stage_sim(run_dir: Path, binary: str, params: PipelineParams) -> Path:
+    # Always refresh translated config so simulation stays aligned with current
+    # paper->sim convention mapping and CLI parameter overrides.
+    cfg_path, output_h5 = stage_translate(run_dir=run_dir, params=params)
+
+    binary_path = Path(binary).expanduser()
+    if not binary_path.is_absolute():
+        binary_path = REPO_ROOT / binary_path
+    if not binary_path.exists():
+        raise FileNotFoundError(f"dragonfly binary not found: {binary_path}")
+
+    run_cmd([str(binary_path), "sim", "-c", str(cfg_path)], cwd=cfg_path.parent)
+    if not output_h5.exists():
+        raise FileNotFoundError(f"Simulation output not found: {output_h5}")
+
+    update_manifest(
+        run_dir,
+        "sim",
+        [cfg_path, output_h5],
+        {
+            "binary": str(binary_path.resolve()),
+            "config": str(cfg_path.resolve()),
+            "output_h5": str(output_h5.resolve()),
+        },
+    )
+    return output_h5
+
+
+def stage_post(
+    run_dir: Path,
+    params: PipelineParams,
+    binary: str,
+    input_h5: str | None,
+    no_blender: bool,
+    frame_step: int,
+) -> Path:
+    if frame_step < 1:
+        raise ValueError(f"frame_step must be >= 1, got {frame_step}")
+
+    if input_h5 is not None:
+        h5_path = Path(input_h5).expanduser()
+        if not h5_path.is_absolute():
+            h5_path = REPO_ROOT / h5_path
+    else:
+        h5_path = run_dir / "sim" / params.output_name
+        if not h5_path.exists():
+            h5_path = stage_sim(run_dir=run_dir, binary=binary, params=params)
+
+    if not h5_path.exists():
+        raise FileNotFoundError(f"Input HDF5 not found: {h5_path}")
+
+    plot_env = build_plot_env(run_dir)
+    post_dir = ensure_dir(run_dir / "post")
+    sim_mp4 = post_dir / "simulation.mp4"
+
+    cmd = [sys.executable, "-m", "post.plot_simulation", str(h5_path), str(sim_mp4)]
+    if no_blender:
+        cmd.append("--no-blender")
+    if frame_step > 1:
+        cmd.extend(["--frame-step", str(frame_step)])
+    run_cmd(cmd, cwd=REPO_ROOT, env=plot_env)
+
+    update_manifest(
+        run_dir,
+        "post",
+        [sim_mp4],
+        {
+            "input_h5": str(h5_path.resolve()),
+            "no_blender": no_blender,
+            "frame_step": frame_step,
+        },
+    )
+    return sim_mp4
+
+
+def add_shared_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument(
+        "--run-dir",
+        default=None,
+        help="Run directory (default: runs/azuma1985/<timestamp>). Relative paths are repo-relative.",
+    )
+    p.add_argument(
+        "--binary",
+        default=str(DEFAULT_BINARY),
+        help="Path to dragonfly binary.",
+    )
+    p.add_argument(
+        "--n-wingbeats",
+        type=int,
+        default=5,
+        help="Number of wingbeats for generated simulation config (default: 5).",
+    )
+    p.add_argument(
+        "--steps-per-wingbeat",
+        type=int,
+        default=200,
+        help="Integration steps per wingbeat.",
+    )
+    p.add_argument(
+        "--tether",
+        action="store_true",
+        help="Generate tethered simulation config.",
+    )
+    p.add_argument(
+        "--output-name",
+        default="output.h5",
+        help="Simulation output filename inside run_dir/sim (default: output.h5).",
+    )
+    p.add_argument(
+        "--wing-cd0",
+        type=float,
+        default=DEFAULT_CD0,
+        help="Wing Cd0 used in generated config.",
+    )
+    p.add_argument(
+        "--wing-cl0",
+        type=float,
+        default=DEFAULT_CL0,
+        help="Wing Cl0 used in generated config.",
+    )
+    p.add_argument(
+        "--body-length-m",
+        type=float,
+        default=DEFAULT_BODY_LENGTH_M,
+        help="Body length L (meters).",
+    )
+    p.add_argument(
+        "--body-mass-kg",
+        type=float,
+        default=DEFAULT_BODY_MASS_KG,
+        help="Body mass (kg).",
+    )
+    p.add_argument(
+        "--fore-span-m",
+        type=float,
+        default=DEFAULT_R_FW_M,
+        help="Fore wing span/length R_fw (meters).",
+    )
+    p.add_argument(
+        "--fore-area-m2",
+        type=float,
+        default=DEFAULT_S_FW_M2,
+        help="Fore wing area S_fw (m^2).",
+    )
+    p.add_argument(
+        "--hind-span-m",
+        type=float,
+        default=DEFAULT_R_HW_M,
+        help="Hind wing span/length R_hw (meters).",
+    )
+    p.add_argument(
+        "--hind-area-m2",
+        type=float,
+        default=DEFAULT_S_HW_M2,
+        help="Hind wing area S_hw (m^2).",
+    )
+    p.add_argument(
+        "--frequency-hz",
+        type=float,
+        default=DEFAULT_FREQUENCY_HZ,
+        help="Wingbeat frequency in Hz.",
+    )
+    p.add_argument(
+        "--stroke-plane-deg",
+        type=float,
+        default=None,
+        help="Override stroke plane angle gamma (degrees) for both fore and hind wings.",
+    )
+    p.add_argument(
+        "--fore-stroke-plane-deg",
+        type=float,
+        default=None,
+        help="Optional fore-wing-specific override of stroke plane angle gamma (degrees).",
+    )
+    p.add_argument(
+        "--hind-stroke-plane-deg",
+        type=float,
+        default=None,
+        help="Optional hind-wing-specific override of stroke plane angle gamma (degrees).",
+    )
+    p.add_argument(
+        "--rho-air",
+        type=float,
+        default=DEFAULT_RHO_AIR,
+        help="Air density in kg/m^3 for mu = rho*S*L_wing/m.",
+    )
+    p.add_argument(
+        "--gravity",
+        type=float,
+        default=DEFAULT_GRAVITY,
+        help="Gravity in m/s^2 for omega = 2*pi*f*sqrt(L/g).",
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="stage", required=True)
+
+    translate_parser = subparsers.add_parser("translate", help="Generate sim config from Azuma parameters.")
+    add_shared_args(translate_parser)
+
+    sim_parser = subparsers.add_parser("sim", help="Run simulation from generated config.")
+    add_shared_args(sim_parser)
+
+    post_parser = subparsers.add_parser("post", help="Run postprocessing from simulation output.")
+    add_shared_args(post_parser)
+    post_parser.add_argument(
+        "--input-h5",
+        default=None,
+        help="Optional explicit HDF5 input. If omitted, uses run_dir/sim/<output-name>.",
+    )
+    post_parser.add_argument("--no-blender", action="store_true", help="Force matplotlib-only rendering.")
+    post_parser.add_argument(
+        "--frame-step",
+        type=int,
+        default=1,
+        help="Render every Nth frame in 3D animation (default: 1).",
+    )
+
+    all_parser = subparsers.add_parser("all", help="Run translate -> sim -> post.")
+    add_shared_args(all_parser)
+    all_parser.add_argument("--no-blender", action="store_true", help="Force matplotlib-only rendering.")
+    all_parser.add_argument(
+        "--frame-step",
+        type=int,
+        default=1,
+        help="Render every Nth frame in 3D animation (default: 1).",
+    )
+
+    args = parser.parse_args()
+    run_dir = ensure_dir(resolve_run_dir(args.run_dir))
+    params = PipelineParams.from_args(args)
+
+    if args.stage == "translate":
+        cfg_path, output_h5 = stage_translate(run_dir=run_dir, params=params)
+        print(f"[done] cfg: {cfg_path}")
+        print(f"[done] sim_output: {output_h5}")
+        print(f"[done] run_dir: {run_dir}")
+        return 0
+
+    if args.stage == "sim":
+        output_h5 = stage_sim(run_dir=run_dir, binary=args.binary, params=params)
+        print(f"[done] sim_output: {output_h5}")
+        print(f"[done] run_dir: {run_dir}")
+        return 0
+
+    if args.stage == "post":
+        artifact = stage_post(
+            run_dir=run_dir,
+            params=params,
+            binary=args.binary,
+            input_h5=args.input_h5,
+            no_blender=args.no_blender,
+            frame_step=args.frame_step,
+        )
+        print(f"[done] post artifact: {artifact}")
+        print(f"[done] run_dir: {run_dir}")
+        return 0
+
+    if args.stage == "all":
+        stage_sim(run_dir=run_dir, binary=args.binary, params=params)
+        artifact = stage_post(
+            run_dir=run_dir,
+            params=params,
+            binary=args.binary,
+            input_h5=None,
+            no_blender=args.no_blender,
+            frame_step=args.frame_step,
+        )
+        print(f"[done] post artifact: {artifact}")
+        print(f"[done] run_dir: {run_dir}")
+        return 0
+
+    raise RuntimeError(f"Unhandled stage: {args.stage}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -5,5 +5,6 @@ Reproducible, end-to-end examples that connect experimental data, simulation set
 ```{toctree}
 :maxdepth: 1
 
+azuma1985
 wang2007
 ```

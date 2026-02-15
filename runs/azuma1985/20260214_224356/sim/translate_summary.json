@@ -1,0 +1,28 @@
+{
+  "generated_at_utc": "2026-02-15T03:43:56+00:00",
+  "n_harmonics": 3,
+  "n_wingbeats": 5,
+  "nondimensional_parameters": {
+    "fore_lb0_lambda": 0.8375,
+    "fore_mu0_mu": 0.034881875000000014,
+    "hind_lb0_lambda": 0.8125,
+    "hind_mu0_mu": 0.041650000000000006,
+    "omega": 16.650353449898372
+  },
+  "physical_inputs": {
+    "body_length_m": 0.04,
+    "body_mass_kg": 0.00026,
+    "fore_area_m2": 0.000221,
+    "fore_span_m": 0.0335,
+    "frequency_hz": 41.5,
+    "gravity_m_s2": 9.81,
+    "hind_area_m2": 0.000272,
+    "hind_span_m": 0.0325,
+    "rho_air_kg_m3": 1.225,
+    "stroke_plane_deg": 40.0
+  },
+  "sim_config_path": "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/20260214_224356/sim/sim_azuma1985.cfg",
+  "sim_output_path": "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/20260214_224356/sim/output.h5",
+  "steps_per_wingbeat": 200,
+  "tether": false
+}

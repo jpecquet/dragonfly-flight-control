@@ -101,6 +101,7 @@ int runTrack(const Config& cfg) {
             : static_cast<const MotionParams*>(&kin);
         const auto base_series = base_motion->toHarmonicSeries();
         const double omega_w = base_motion->omega;
+        const double harmonic_period_wingbeats_w = base_motion->harmonic_period_wingbeats;
         const HarmonicSeries gamma_base = base_series.gamma;
         const HarmonicSeries phi_base = base_series.phi;
         const HarmonicSeries psi_base = base_series.psi;
@@ -114,6 +115,7 @@ int runTrack(const Config& cfg) {
             psi_base,
             phase_offset,
             omega_w,
+            harmonic_period_wingbeats_w,
             gamma_mean_base,
             psi_mean_base,
             phi_amp_base,

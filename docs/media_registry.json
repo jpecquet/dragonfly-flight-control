@@ -2,27 +2,169 @@
   "version": 1,
   "entries": [
     {
-      "id": "wang2007_fit_translate_sim",
-      "description": "Regenerate Wang 2007 fit outputs, translated config, and simulation data.",
+      "id": "azuma1985_translate_sim",
+      "description": "Regenerate Azuma 1985 translated config and simulation data.",
+      "env": {
+        "MPLCONFIGDIR": "runs/azuma1985/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/azuma1985/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "scripts/azuma1985_pipeline.py",
+          "translate",
+          "--run-dir",
+          "runs/azuma1985/demo"
+        ],
+        [
+          "python",
+          "scripts/azuma1985_pipeline.py",
+          "sim",
+          "--run-dir",
+          "runs/azuma1985/demo"
+        ]
+      ],
+      "outputs": [
+        "runs/azuma1985/demo/manifest.json",
+        "runs/azuma1985/demo/sim/sim_azuma1985.cfg",
+        "runs/azuma1985/demo/sim/translate_summary.json",
+        "runs/azuma1985/demo/sim/output.h5"
+      ],
+      "sync": [
+        {
+          "from": "runs/azuma1985/demo/manifest.json",
+          "to": "docs/case_studies/azuma1985/artifacts/manifest.json"
+        },
+        {
+          "from": "runs/azuma1985/demo/sim/sim_azuma1985.cfg",
+          "to": "docs/case_studies/azuma1985/artifacts/sim/sim_azuma1985.cfg"
+        },
+        {
+          "from": "runs/azuma1985/demo/sim/translate_summary.json",
+          "to": "docs/case_studies/azuma1985/artifacts/sim/translate_summary.json"
+        },
+        {
+          "from": "runs/azuma1985/demo/sim/output.h5",
+          "to": "docs/case_studies/azuma1985/artifacts/sim/output.h5"
+        }
+      ]
+    },
+    {
+      "id": "azuma1985_animation_light",
+      "description": "Regenerate Azuma 1985 Blender animation for docs (light theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/azuma1985/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/azuma1985/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_simulation",
+          "runs/azuma1985/demo/sim/output.h5",
+          "docs/_static/media/azuma1985/simulation.light.mp4",
+          "--config",
+          "docs/case_studies/azuma1985/render_config.dark.json",
+          "--theme",
+          "light",
+          "--frame-step",
+          "3"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/azuma1985/simulation.light.mp4"
+      ],
+      "sync": []
+    },
+    {
+      "id": "azuma1985_animation_dark",
+      "description": "Regenerate Azuma 1985 Blender animation for docs (dark theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/azuma1985/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/azuma1985/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_simulation",
+          "runs/azuma1985/demo/sim/output.h5",
+          "docs/_static/media/azuma1985/simulation.dark.mp4",
+          "--config",
+          "docs/case_studies/azuma1985/render_config.dark.json",
+          "--theme",
+          "dark",
+          "--frame-step",
+          "3"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/azuma1985/simulation.dark.mp4"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/azuma1985/simulation.dark.mp4",
+          "to": "docs/case_studies/azuma1985/artifacts/post/simulation.mp4"
+        }
+      ]
+    },
+    {
+      "id": "azuma1985_stick_two_wing_light",
+      "description": "Regenerate Azuma 1985 two-wing stick animation for docs (light theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/azuma1985/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/azuma1985/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "data/kinematics/azuma1985/stick_animation.py",
+          "--theme",
+          "light",
+          "--output",
+          "docs/_static/media/azuma1985/stick_two_wing.light.mp4"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/azuma1985/stick_two_wing.light.mp4"
+      ],
+      "sync": []
+    },
+    {
+      "id": "azuma1985_stick_two_wing_dark",
+      "description": "Regenerate Azuma 1985 two-wing stick animation for docs (dark theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/azuma1985/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/azuma1985/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "data/kinematics/azuma1985/stick_animation.py",
+          "--theme",
+          "dark",
+          "--output",
+          "docs/_static/media/azuma1985/stick_two_wing.dark.mp4"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/azuma1985/stick_two_wing.dark.mp4"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/azuma1985/stick_two_wing.dark.mp4",
+          "to": "docs/case_studies/azuma1985/artifacts/post/stick_two_wing.mp4"
+        }
+      ]
+    },
+    {
+      "id": "wang2007_sim",
+      "description": "Regenerate Wang 2007 simulation data (high-fidelity 35-component and 1-harmonic).",
       "env": {
         "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
         "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
       },
       "commands": [
-        [
-          "python",
-          "scripts/wang2007_pipeline.py",
-          "fit",
-          "--run-dir",
-          "runs/wang2007/demo"
-        ],
-        [
-          "python",
-          "scripts/wang2007_pipeline.py",
-          "translate",
-          "--run-dir",
-          "runs/wang2007/demo"
-        ],
         [
           "python",
           "scripts/wang2007_pipeline.py",
@@ -32,58 +174,28 @@
         ]
       ],
       "outputs": [
-        "runs/wang2007/demo/manifest.json",
-        "runs/wang2007/demo/fit/fit_params.json",
-        "runs/wang2007/demo/fit/kinematics.pdf",
-        "runs/wang2007/demo/fit/fit_sinusoids.pdf",
-        "runs/wang2007/demo/fit/compare_alpha.pdf",
-        "runs/wang2007/demo/fit/force.pdf",
-        "runs/wang2007/demo/sim/sim_wang2007.cfg",
-        "runs/wang2007/demo/sim/translate_summary.json",
-        "runs/wang2007/demo/sim/output.h5"
+        "runs/wang2007/demo/sim/output_7harm.h5",
+        "runs/wang2007/demo/sim/output_1harm.h5",
+        "runs/wang2007/demo/sim/sim_wang2007_7harm.cfg"
       ],
       "sync": [
         {
-          "from": "runs/wang2007/demo/manifest.json",
-          "to": "docs/case_studies/wang2007/artifacts/manifest.json"
+          "from": "runs/wang2007/demo/sim/sim_wang2007_7harm.cfg",
+          "to": "docs/case_studies/wang2007/artifacts/sim/sim_wang2007_7harm.cfg"
         },
         {
-          "from": "runs/wang2007/demo/fit/fit_params.json",
-          "to": "docs/case_studies/wang2007/artifacts/fit/fit_params.json"
+          "from": "runs/wang2007/demo/sim/output_7harm.h5",
+          "to": "docs/case_studies/wang2007/artifacts/sim/output_7harm.h5"
         },
         {
-          "from": "runs/wang2007/demo/fit/kinematics.pdf",
-          "to": "docs/case_studies/wang2007/artifacts/fit/kinematics.pdf"
-        },
-        {
-          "from": "runs/wang2007/demo/fit/fit_sinusoids.pdf",
-          "to": "docs/case_studies/wang2007/artifacts/fit/fit_sinusoids.pdf"
-        },
-        {
-          "from": "runs/wang2007/demo/fit/compare_alpha.pdf",
-          "to": "docs/case_studies/wang2007/artifacts/fit/compare_alpha.pdf"
-        },
-        {
-          "from": "runs/wang2007/demo/fit/force.pdf",
-          "to": "docs/case_studies/wang2007/artifacts/fit/force.pdf"
-        },
-        {
-          "from": "runs/wang2007/demo/sim/sim_wang2007.cfg",
-          "to": "docs/case_studies/wang2007/artifacts/sim/sim_wang2007.cfg"
-        },
-        {
-          "from": "runs/wang2007/demo/sim/translate_summary.json",
-          "to": "docs/case_studies/wang2007/artifacts/sim/translate_summary.json"
-        },
-        {
-          "from": "runs/wang2007/demo/sim/output.h5",
-          "to": "docs/case_studies/wang2007/artifacts/sim/output.h5"
+          "from": "runs/wang2007/demo/sim/output_1harm.h5",
+          "to": "docs/case_studies/wang2007/artifacts/sim/output_1harm.h5"
         }
       ]
     },
     {
       "id": "wang2007_animation_light",
-      "description": "Regenerate Wang 2007 Blender animation for docs (light theme).",
+      "description": "Regenerate Wang 2007 Blender animation for docs (light theme, high-fidelity run).",
       "env": {
         "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
         "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
@@ -93,7 +205,7 @@
           "python",
           "-m",
           "post.plot_simulation",
-          "runs/wang2007/demo/sim/output.h5",
+          "runs/wang2007/demo/sim/output_7harm.h5",
           "docs/_static/media/wang2007/simulation.light.mp4",
           "--config",
           "docs/case_studies/wang2007/render_config.dark.json",
@@ -110,7 +222,7 @@
     },
     {
       "id": "wang2007_animation_dark",
-      "description": "Regenerate Wang 2007 Blender animation for docs (dark theme).",
+      "description": "Regenerate Wang 2007 Blender animation for docs (dark theme, high-fidelity run).",
       "env": {
         "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
         "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
@@ -120,7 +232,7 @@
           "python",
           "-m",
           "post.plot_simulation",
-          "runs/wang2007/demo/sim/output.h5",
+          "runs/wang2007/demo/sim/output_7harm.h5",
           "docs/_static/media/wang2007/simulation.dark.mp4",
           "--config",
           "docs/case_studies/wang2007/render_config.dark.json",
@@ -137,6 +249,261 @@
         {
           "from": "docs/_static/media/wang2007/simulation.dark.mp4",
           "to": "docs/case_studies/wang2007/artifacts/post/simulation.mp4"
+        }
+      ]
+    },
+    {
+      "id": "wang2007_stick_light",
+      "description": "Regenerate Wang 2007 stick animation for docs (light theme, high-fidelity run).",
+      "env": {
+        "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_stick",
+          "runs/wang2007/demo/sim/output_7harm.h5",
+          "docs/_static/media/wang2007/stroke_fore_left.light.mp4",
+          "--theme",
+          "light"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/wang2007/stroke_fore_left.light.mp4"
+      ],
+      "sync": []
+    },
+    {
+      "id": "wang2007_stick_dark",
+      "description": "Regenerate Wang 2007 stick animation for docs (dark theme, high-fidelity run).",
+      "env": {
+        "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_stick",
+          "runs/wang2007/demo/sim/output_7harm.h5",
+          "docs/_static/media/wang2007/stroke_fore_left.dark.mp4",
+          "--theme",
+          "dark"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/wang2007/stroke_fore_left.dark.mp4"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/wang2007/stroke_fore_left.dark.mp4",
+          "to": "docs/case_studies/wang2007/artifacts/post/stroke_fore_left.mp4"
+        }
+      ]
+    },
+    {
+      "id": "wang2007_force_comparison_light",
+      "description": "Regenerate Wang 2007 force comparison plot for docs (light theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_force_comparison",
+          "docs/_static/media/wang2007/force_comparison.light.png",
+          "--omega-nondim",
+          "14.982242894657686",
+          "--series",
+          "runs/wang2007/demo/sim/output_7harm.h5",
+          "35-comp",
+          "--series",
+          "runs/wang2007/demo/sim/output_1harm.h5",
+          "1-comp",
+          "--series-csv",
+          "data/kinematics/wang2007/cfd_data.csv",
+          "t",
+          "Fz",
+          "CFD",
+          "--theme",
+          "light"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/wang2007/force_comparison.light.png"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/wang2007/force_comparison.light.png",
+          "to": "docs/case_studies/wang2007/artifacts/post/force_comparison.light.png"
+        }
+      ]
+    },
+    {
+      "id": "wang2007_force_comparison_dark",
+      "description": "Regenerate Wang 2007 force comparison plot for docs (dark theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_force_comparison",
+          "docs/_static/media/wang2007/force_comparison.dark.png",
+          "--omega-nondim",
+          "14.982242894657686",
+          "--series",
+          "runs/wang2007/demo/sim/output_7harm.h5",
+          "35-comp",
+          "--series",
+          "runs/wang2007/demo/sim/output_1harm.h5",
+          "1-comp",
+          "--series-csv",
+          "data/kinematics/wang2007/cfd_data.csv",
+          "t",
+          "Fz",
+          "CFD",
+          "--theme",
+          "dark"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/wang2007/force_comparison.dark.png"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/wang2007/force_comparison.dark.png",
+          "to": "docs/case_studies/wang2007/artifacts/post/force_comparison.dark.png"
+        }
+      ]
+    },
+    {
+      "id": "wang2007_kinematics_inputs_light",
+      "description": "Regenerate Wang 2007 smoothed input kinematics plot for docs (light theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_wang2007_kinematics",
+          "docs/_static/media/wang2007/kinematics_inputs.light.png",
+          "--n-components",
+          "35",
+          "--n-wingbeats",
+          "5",
+          "--theme",
+          "light"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/wang2007/kinematics_inputs.light.png"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/wang2007/kinematics_inputs.light.png",
+          "to": "docs/case_studies/wang2007/artifacts/post/kinematics_inputs.light.png"
+        }
+      ]
+    },
+    {
+      "id": "wang2007_kinematics_inputs_dark",
+      "description": "Regenerate Wang 2007 smoothed input kinematics plot for docs (dark theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_wang2007_kinematics",
+          "docs/_static/media/wang2007/kinematics_inputs.dark.png",
+          "--n-components",
+          "35",
+          "--n-wingbeats",
+          "5",
+          "--theme",
+          "dark"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/wang2007/kinematics_inputs.dark.png"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/wang2007/kinematics_inputs.dark.png",
+          "to": "docs/case_studies/wang2007/artifacts/post/kinematics_inputs.dark.png"
+        }
+      ]
+    },
+    {
+      "id": "wang2007_motion_mapping_light",
+      "description": "Regenerate Wang 2007 mapped simulator-angle plot for docs (light theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_wang2007_motion_mapping",
+          "docs/_static/media/wang2007/motion_mapping.light.png",
+          "--n-components",
+          "35",
+          "--n-wingbeats",
+          "5",
+          "--theme",
+          "light"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/wang2007/motion_mapping.light.png"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/wang2007/motion_mapping.light.png",
+          "to": "docs/case_studies/wang2007/artifacts/post/motion_mapping.light.png"
+        }
+      ]
+    },
+    {
+      "id": "wang2007_motion_mapping_dark",
+      "description": "Regenerate Wang 2007 mapped simulator-angle plot for docs (dark theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/wang2007/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/wang2007/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_wang2007_motion_mapping",
+          "docs/_static/media/wang2007/motion_mapping.dark.png",
+          "--n-components",
+          "35",
+          "--n-wingbeats",
+          "5",
+          "--theme",
+          "dark"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/wang2007/motion_mapping.dark.png"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/wang2007/motion_mapping.dark.png",
+          "to": "docs/case_studies/wang2007/artifacts/post/motion_mapping.dark.png"
         }
       ]
     }

@@ -12,12 +12,12 @@ import matplotlib.pyplot as plt
 
 from post.hybrid_config import StyleConfig
 from post.io import read_landscape
-from post.style import apply_matplotlib_style, resolve_style
+from post.style import apply_matplotlib_style, figure_size, resolve_style
 
 
 def plot_1d_landscape(data, style: StyleConfig, output_file=None):
     """Plot 1D landscape (single variable parameter)."""
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=figure_size(5.0 / 8.0))
 
     # Convert to degrees for display
     param_deg = np.rad2deg(data['param1_values'])
@@ -51,7 +51,7 @@ def plot_1d_landscape(data, style: StyleConfig, output_file=None):
 
 def plot_2d_landscape(data, style: StyleConfig, output_file=None):
     """Plot 2D landscape (two variable parameters)."""
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=figure_size(4.0 / 5.0))
 
     # Convert to degrees for display
     p1_deg = np.rad2deg(data['param1_values'])

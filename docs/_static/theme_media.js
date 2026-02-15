@@ -9,6 +9,7 @@ function resolvedDocsTheme() {
 function applyThemedMediaSources() {
   const theme = resolvedDocsTheme();
   const videos = document.querySelectorAll("video[data-light-src][data-dark-src]");
+  const images = document.querySelectorAll("img[data-light-src][data-dark-src]");
 
   videos.forEach((video) => {
     const src = theme === "dark" ? video.dataset.darkSrc : video.dataset.lightSrc;
@@ -30,6 +31,17 @@ function applyThemedMediaSources() {
 
     source.setAttribute("src", src);
     video.load();
+  });
+
+  images.forEach((img) => {
+    const src = theme === "dark" ? img.dataset.darkSrc : img.dataset.lightSrc;
+    if (!src) {
+      return;
+    }
+    if (img.getAttribute("src") === src) {
+      return;
+    }
+    img.setAttribute("src", src);
   });
 }
 
