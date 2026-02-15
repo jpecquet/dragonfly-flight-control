@@ -109,8 +109,8 @@
       ]
     },
     {
-      "id": "azuma1985_stick_two_wing_light",
-      "description": "Regenerate Azuma 1985 two-wing stick animation for docs (light theme).",
+      "id": "azuma1985_stick_light",
+      "description": "Regenerate Azuma 1985 stick animation for docs (light theme).",
       "env": {
         "MPLCONFIGDIR": "runs/azuma1985/demo/.cache/matplotlib",
         "XDG_CACHE_HOME": "runs/azuma1985/demo/.cache"
@@ -118,21 +118,22 @@
       "commands": [
         [
           "python",
-          "data/kinematics/azuma1985/stick_animation.py",
+          "-m",
+          "post.plot_stick",
+          "runs/azuma1985/demo/sim/output.h5",
+          "docs/_static/media/azuma1985/stick.light.mp4",
           "--theme",
-          "light",
-          "--output",
-          "docs/_static/media/azuma1985/stick_two_wing.light.mp4"
+          "light"
         ]
       ],
       "outputs": [
-        "docs/_static/media/azuma1985/stick_two_wing.light.mp4"
+        "docs/_static/media/azuma1985/stick.light.mp4"
       ],
       "sync": []
     },
     {
-      "id": "azuma1985_stick_two_wing_dark",
-      "description": "Regenerate Azuma 1985 two-wing stick animation for docs (dark theme).",
+      "id": "azuma1985_stick_dark",
+      "description": "Regenerate Azuma 1985 stick animation for docs (dark theme).",
       "env": {
         "MPLCONFIGDIR": "runs/azuma1985/demo/.cache/matplotlib",
         "XDG_CACHE_HOME": "runs/azuma1985/demo/.cache"
@@ -140,20 +141,129 @@
       "commands": [
         [
           "python",
-          "data/kinematics/azuma1985/stick_animation.py",
+          "-m",
+          "post.plot_stick",
+          "runs/azuma1985/demo/sim/output.h5",
+          "docs/_static/media/azuma1985/stick.dark.mp4",
           "--theme",
-          "dark",
-          "--output",
-          "docs/_static/media/azuma1985/stick_two_wing.dark.mp4"
+          "dark"
         ]
       ],
       "outputs": [
-        "docs/_static/media/azuma1985/stick_two_wing.dark.mp4"
+        "docs/_static/media/azuma1985/stick.dark.mp4"
       ],
       "sync": [
         {
-          "from": "docs/_static/media/azuma1985/stick_two_wing.dark.mp4",
-          "to": "docs/case_studies/azuma1985/artifacts/post/stick_two_wing.mp4"
+          "from": "docs/_static/media/azuma1985/stick.dark.mp4",
+          "to": "docs/case_studies/azuma1985/artifacts/post/stick.mp4"
+        }
+      ]
+    },
+    {
+      "id": "azuma1985_kinematics_inputs_light",
+      "description": "Regenerate Azuma 1985 paper-convention kinematics plot for docs (light theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/azuma1985/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/azuma1985/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_azuma1985_kinematics",
+          "docs/_static/media/azuma1985/kinematics_inputs.light.png",
+          "--theme",
+          "light"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/azuma1985/kinematics_inputs.light.png"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/azuma1985/kinematics_inputs.light.png",
+          "to": "docs/case_studies/azuma1985/artifacts/post/kinematics_inputs.light.png"
+        }
+      ]
+    },
+    {
+      "id": "azuma1985_kinematics_inputs_dark",
+      "description": "Regenerate Azuma 1985 paper-convention kinematics plot for docs (dark theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/azuma1985/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/azuma1985/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_azuma1985_kinematics",
+          "docs/_static/media/azuma1985/kinematics_inputs.dark.png",
+          "--theme",
+          "dark"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/azuma1985/kinematics_inputs.dark.png"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/azuma1985/kinematics_inputs.dark.png",
+          "to": "docs/case_studies/azuma1985/artifacts/post/kinematics_inputs.dark.png"
+        }
+      ]
+    },
+    {
+      "id": "azuma1985_motion_mapping_light",
+      "description": "Regenerate Azuma 1985 mapped simulator-angle plot for docs (light theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/azuma1985/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/azuma1985/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_azuma1985_motion_mapping",
+          "docs/_static/media/azuma1985/motion_mapping.light.png",
+          "--theme",
+          "light"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/azuma1985/motion_mapping.light.png"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/azuma1985/motion_mapping.light.png",
+          "to": "docs/case_studies/azuma1985/artifacts/post/motion_mapping.light.png"
+        }
+      ]
+    },
+    {
+      "id": "azuma1985_motion_mapping_dark",
+      "description": "Regenerate Azuma 1985 mapped simulator-angle plot for docs (dark theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/azuma1985/demo/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/azuma1985/demo/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "-m",
+          "post.plot_azuma1985_motion_mapping",
+          "docs/_static/media/azuma1985/motion_mapping.dark.png",
+          "--theme",
+          "dark"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/azuma1985/motion_mapping.dark.png"
+      ],
+      "sync": [
+        {
+          "from": "docs/_static/media/azuma1985/motion_mapping.dark.png",
+          "to": "docs/case_studies/azuma1985/artifacts/post/motion_mapping.dark.png"
         }
       ]
     },

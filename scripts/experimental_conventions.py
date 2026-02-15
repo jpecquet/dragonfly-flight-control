@@ -271,11 +271,11 @@ def azuma1985_adapter() -> ExperimentalConventionAdapter:
         sim_transforms={
             "gamma": SeriesTransform(scale=1.0, offset_deg=0.0, phase_shift_deg=0.0),
             "phi": SeriesTransform(scale=-1.0, offset_deg=0.0, phase_shift_deg=0.0),
-            "psi": SeriesTransform(scale=-1.0, offset_deg=90.0, phase_shift_deg=0.0),
+            "psi": SeriesTransform(scale=1.0, offset_deg=-90.0, phase_shift_deg=0.0),
         },
         notes=(
             "Paper world frame (X backward, Y right, Z up) is rotated 180 deg about +Z to simulator frame (X forward, Y left, Z up).",
             "Azuma flapping angle theta has opposite sign to simulator phi in current model mapping.",
-            "Azuma pitch angle beta/theta maps to simulator psi by psi_sim = 90 deg - beta.",
+            "Azuma pitch angle beta/theta maps to simulator psi by psi_sim = theta - 90 deg.",
         ),
     )
