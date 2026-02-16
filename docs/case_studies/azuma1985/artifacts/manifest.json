@@ -5,27 +5,27 @@
   "stages": {
     "sim": {
       "artifacts": [
-        "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/demo/sim/sim_azuma1985.cfg",
-        "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/demo/sim/output.h5"
+        "/Users/jean/Code/dragonfly-flight-control/docs/case_studies/azuma1985/artifacts/sim/sim_azuma1985.cfg",
+        "/Users/jean/Code/dragonfly-flight-control/docs/case_studies/azuma1985/artifacts/sim/output.h5"
       ],
-      "completed_at_utc": "2026-02-15T22:49:05+00:00",
+      "completed_at_utc": "2026-02-16T03:43:13+00:00",
       "metadata": {
         "binary": "/Users/jean/Code/dragonfly-flight-control/build/bin/dragonfly",
-        "config": "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/demo/sim/sim_azuma1985.cfg",
-        "output_h5": "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/demo/sim/output.h5"
+        "config": "/Users/jean/Code/dragonfly-flight-control/docs/case_studies/azuma1985/artifacts/sim/sim_azuma1985.cfg",
+        "output_h5": "/Users/jean/Code/dragonfly-flight-control/docs/case_studies/azuma1985/artifacts/sim/output.h5"
       }
     },
     "translate": {
       "artifacts": [
-        "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/demo/sim/sim_azuma1985.cfg",
-        "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/demo/sim/translate_summary.json"
+        "/Users/jean/Code/dragonfly-flight-control/docs/case_studies/azuma1985/artifacts/sim/sim_azuma1985.cfg",
+        "/Users/jean/Code/dragonfly-flight-control/docs/case_studies/azuma1985/artifacts/sim/translate_summary.json"
       ],
-      "completed_at_utc": "2026-02-15T22:49:05+00:00",
+      "completed_at_utc": "2026-02-16T03:43:12+00:00",
       "metadata": {
-        "sim_config_path": "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/demo/sim/sim_azuma1985.cfg",
-        "sim_output_path": "/Users/jean/Code/dragonfly-flight-control/runs/azuma1985/demo/sim/output.h5"
+        "sim_config_path": "/Users/jean/Code/dragonfly-flight-control/docs/case_studies/azuma1985/artifacts/sim/sim_azuma1985.cfg",
+        "sim_output_path": "/Users/jean/Code/dragonfly-flight-control/docs/case_studies/azuma1985/artifacts/sim/output.h5"
       }
     }
   },
-  "updated_at_utc": "2026-02-15T22:49:05+00:00"
+  "updated_at_utc": "2026-02-16T03:43:13+00:00"
 }

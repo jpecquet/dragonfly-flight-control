@@ -42,14 +42,16 @@ $$\theta_{hw} = 93 - 65 \cos{(\omega t + 18)} + 8 \cos{(2\omega t + 74)} + 8\cos
 - {download}`sim_azuma1985.cfg <azuma1985/artifacts/sim/sim_azuma1985.cfg>`
 - {download}`translate_summary.json <azuma1985/artifacts/sim/translate_summary.json>`
 - {download}`output.h5 <azuma1985/artifacts/sim/output.h5>`
-- {download}`simulation.mp4 <azuma1985/artifacts/post/simulation.mp4>`
-- {download}`stick.mp4 <azuma1985/artifacts/post/stick.mp4>`
-- {download}`kinematics_inputs.light.png <azuma1985/artifacts/post/kinematics_inputs.light.png>`
-- {download}`kinematics_inputs.dark.png <azuma1985/artifacts/post/kinematics_inputs.dark.png>`
-- {download}`motion_mapping.light.png <azuma1985/artifacts/post/motion_mapping.light.png>`
-- {download}`motion_mapping.dark.png <azuma1985/artifacts/post/motion_mapping.dark.png>`
-- {download}`flight_metrics.light.png <azuma1985/artifacts/post/flight_metrics.light.png>`
-- {download}`flight_metrics.dark.png <azuma1985/artifacts/post/flight_metrics.dark.png>`
+- {download}`simulation.light.mp4 <../_static/media/azuma1985/simulation.light.mp4>`
+- {download}`simulation.dark.mp4 <../_static/media/azuma1985/simulation.dark.mp4>`
+- {download}`stick.light.mp4 <../_static/media/azuma1985/stick.light.mp4>`
+- {download}`stick.dark.mp4 <../_static/media/azuma1985/stick.dark.mp4>`
+- {download}`kinematics_inputs.light.png <../_static/media/azuma1985/kinematics_inputs.light.png>`
+- {download}`kinematics_inputs.dark.png <../_static/media/azuma1985/kinematics_inputs.dark.png>`
+- {download}`motion_mapping.light.png <../_static/media/azuma1985/motion_mapping.light.png>`
+- {download}`motion_mapping.dark.png <../_static/media/azuma1985/motion_mapping.dark.png>`
+- {download}`flight_metrics.light.png <../_static/media/azuma1985/flight_metrics.light.png>`
+- {download}`flight_metrics.dark.png <../_static/media/azuma1985/flight_metrics.dark.png>`
 
 ## Pre-processing
 

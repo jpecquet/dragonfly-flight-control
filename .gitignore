@@ -261,3 +261,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Generated case-study and local run artifacts
+runs/*
+!runs/.gitkeep
+docs/case_studies/*/artifacts/.cache/
+docs/case_studies/*/artifacts/post/
+
+# macOS
+.DS_Store
