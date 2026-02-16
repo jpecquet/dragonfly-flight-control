@@ -126,22 +126,60 @@ def update_manifest(
     metadata: dict[str, Any],
     *,
     repo_root: Path,
+    deterministic: bool = False,
 ) -> None:
+    repo_root = repo_root.resolve()
+
+    def normalize_path(path: Path) -> str:
+        resolved = path.resolve()
+        if not deterministic:
+            return str(resolved)
+        try:
+            return str(resolved.relative_to(repo_root))
+        except ValueError:
+            return str(resolved)
+
+    def normalize_value(value: Any) -> Any:
+        if isinstance(value, str):
+            path = Path(value)
+            if path.is_absolute():
+                return normalize_path(path)
+            return value
+        if isinstance(value, list):
+            return [normalize_value(v) for v in value]
+        if isinstance(value, dict):
+            return {k: normalize_value(v) for k, v in value.items()}
+        return value
+
     manifest_path = run_dir / "manifest.json"
     if manifest_path.exists():
         manifest = read_json(manifest_path)
     else:
         manifest = {
-            "created_at_utc": now_utc_iso(),
-            "repo_root": str(repo_root),
             "git_commit": get_git_commit(repo_root),
             "stages": {},
         }
+    manifest["repo_root"] = "." if deterministic else str(repo_root)
 
-    manifest["updated_at_utc"] = now_utc_iso()
-    manifest["stages"][stage] = {
-        "completed_at_utc": now_utc_iso(),
-        "artifacts": [str(p.resolve()) for p in artifacts],
-        "metadata": metadata,
+    stage_payload = {
+        "artifacts": [normalize_path(p) for p in artifacts],
+        "metadata": normalize_value(metadata),
     }
+    if not deterministic:
+        now = now_utc_iso()
+        manifest["created_at_utc"] = manifest.get("created_at_utc", now)
+        manifest["updated_at_utc"] = now
+        stage_payload["completed_at_utc"] = now
+    else:
+        manifest.pop("created_at_utc", None)
+        manifest.pop("updated_at_utc", None)
+        # Normalize legacy nondeterministic stage payloads when switching modes.
+        for existing_stage, payload in list(manifest.get("stages", {}).items()):
+            if not isinstance(payload, dict):
+                continue
+            payload = normalize_value(payload)
+            payload.pop("completed_at_utc", None)
+            manifest["stages"][existing_stage] = payload
+
+    manifest["stages"][stage] = stage_payload
     write_json(manifest_path, manifest)

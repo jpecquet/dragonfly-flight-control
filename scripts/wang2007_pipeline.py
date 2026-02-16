@@ -343,51 +343,6 @@ output = {output_name}
 
 
 # ---------------------------------------------------------------------------
-# HDF5 force reader
-# ---------------------------------------------------------------------------
-
-def read_aero_force_z(h5_path: Path) -> tuple[np.ndarray, np.ndarray]:
-    """Backward-compatible wrapper around post.plot_force_comparison."""
-    if str(REPO_ROOT) not in sys.path:
-        sys.path.insert(0, str(REPO_ROOT))
-    from post.plot_force_comparison import read_aero_force_z as _read_aero_force_z
-
-    return _read_aero_force_z(h5_path)
-
-
-# ---------------------------------------------------------------------------
-# Force comparison plot
-# ---------------------------------------------------------------------------
-
-def plot_force_comparison(
-    h5_7harm: Path,
-    h5_1harm: Path,
-    output_path: Path,
-    omega_nondim: float,
-) -> None:
-    """Backward-compatible wrapper around post.plot_force_comparison."""
-    if str(REPO_ROOT) not in sys.path:
-        sys.path.insert(0, str(REPO_ROOT))
-    from post.plot_force_comparison import (
-        plot_force_comparison as _plot_force_comparison,
-        read_force_series_csv as _read_force_series_csv,
-    )
-
-    labels = ['35-comp', '1-comp']
-    external_series = []
-    cfd_csv = WANG_DIR / "cfd_data.csv"
-    if cfd_csv.exists():
-        external_series.append(_read_force_series_csv(cfd_csv, "t", "Fz", "CFD"))
-    _plot_force_comparison(
-        [h5_7harm, h5_1harm],
-        output_path,
-        omega_nondim,
-        labels=labels,
-        external_series=external_series,
-    )
-
-
-# ---------------------------------------------------------------------------
 # Pipeline stages
 # ---------------------------------------------------------------------------
 

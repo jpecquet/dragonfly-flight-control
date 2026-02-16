@@ -285,7 +285,8 @@
       "outputs": [
         "docs/case_studies/wang2007/artifacts/sim/output_7harm.h5",
         "docs/case_studies/wang2007/artifacts/sim/output_1harm.h5",
-        "docs/case_studies/wang2007/artifacts/sim/sim_wang2007_7harm.cfg"
+        "docs/case_studies/wang2007/artifacts/sim/sim_wang2007_7harm.cfg",
+        "docs/case_studies/wang2007/artifacts/sim/sim_wang2007_1harm.cfg"
       ],
       "sync": []
     },

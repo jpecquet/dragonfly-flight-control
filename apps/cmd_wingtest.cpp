@@ -1,10 +1,11 @@
 #include "cmd_wingtest.hpp"
+#include "cmd_args.hpp"
+#include "parse_utils.hpp"
 #include "rotation.hpp"
 
 #include <highfive/H5Easy.hpp>
 #include <highfive/H5File.hpp>
 
-#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -28,20 +29,41 @@ struct TestConfig {
     std::string output_file = "wingtest.h5";
 };
 
-bool parseRange(const char* arg, AngleRange& range) {
-    char* end;
-    range.start = std::strtod(arg, &end);
-    if (*end != ':') return false;
-    range.end = std::strtod(end + 1, &end);
-    return *end == '\0';
+void printUsage(const char* prog) {
+    std::cerr << "Usage: " << prog << " wingtest [options]\n";
+    std::cerr << "\n";
+    std::cerr << "Generate wing rotation test data for visualization.\n";
+    std::cerr << "\n";
+    std::cerr << "Options:\n";
+    std::cerr << "  --gam START:END   Stroke plane angle range in degrees (default: 0:90)\n";
+    std::cerr << "  --phi START:END   Flapping angle range in degrees (default: 0:25)\n";
+    std::cerr << "  --psi START:END   Pitch angle range in degrees (default: 0:45)\n";
+    std::cerr << "  --seq A,B,C       Sweep sequence of gam/phi/psi (default: gam,phi,psi)\n";
+    std::cerr << "  --frames N        Frames per phase (default: 50)\n";
+    std::cerr << "  --right           Use right wing (default: left)\n";
+    std::cerr << "  -o FILE           Output HDF5 file (default: wingtest.h5)\n";
 }
 
-bool parseSequence(const char* arg, std::vector<std::string>& seq) {
+bool parseRange(const std::string& arg, AngleRange& range) {
+    const size_t sep = arg.find(':');
+    if (sep == std::string::npos || sep == 0 || sep + 1 >= arg.size()) {
+        return false;
+    }
+    try {
+        range.start = parseutil::parseDoubleStrict(arg.substr(0, sep), "range start");
+        range.end = parseutil::parseDoubleStrict(arg.substr(sep + 1), "range end");
+    } catch (const std::exception&) {
+        return false;
+    }
+    return true;
+}
+
+bool parseSequence(const std::string& arg, std::vector<std::string>& seq) {
     seq.clear();
-    std::string s(arg);
-    std::stringstream ss(s);
+    std::stringstream ss(arg);
     std::string token;
     while (std::getline(ss, token, ',')) {
+        token = parseutil::trimCopy(token);
         if (token != "gam" && token != "phi" && token != "psi") {
             return false;
         }
@@ -54,35 +76,42 @@ TestConfig parseTestArgs(int argc, char* argv[]) {
     TestConfig cfg;
 
     for (int i = 2; i < argc; ++i) {
-        if (std::strcmp(argv[i], "--gam") == 0 && i + 1 < argc) {
-            if (!parseRange(argv[++i], cfg.gam)) {
+        const std::string arg = argv[i];
+        if (arg == "--gam") {
+            if (!parseRange(cliarg::requireOptionValue(argc, argv, i, "--gam"), cfg.gam)) {
                 throw std::runtime_error("Invalid --gam format. Use START:END");
             }
-        } else if (std::strcmp(argv[i], "--phi") == 0 && i + 1 < argc) {
-            if (!parseRange(argv[++i], cfg.phi)) {
+        } else if (arg == "--phi") {
+            if (!parseRange(cliarg::requireOptionValue(argc, argv, i, "--phi"), cfg.phi)) {
                 throw std::runtime_error("Invalid --phi format. Use START:END");
             }
-        } else if (std::strcmp(argv[i], "--psi") == 0 && i + 1 < argc) {
-            if (!parseRange(argv[++i], cfg.psi)) {
+        } else if (arg == "--psi") {
+            if (!parseRange(cliarg::requireOptionValue(argc, argv, i, "--psi"), cfg.psi)) {
                 throw std::runtime_error("Invalid --psi format. Use START:END");
             }
-        } else if (std::strcmp(argv[i], "--seq") == 0 && i + 1 < argc) {
-            if (!parseSequence(argv[++i], cfg.sequence)) {
+        } else if (arg == "--seq") {
+            if (!parseSequence(cliarg::requireOptionValue(argc, argv, i, "--seq"), cfg.sequence)) {
                 throw std::runtime_error("Invalid --seq format. Use comma-separated list of gam,phi,psi (e.g. --seq phi,gam,psi)");
             }
-        } else if (std::strcmp(argv[i], "--frames") == 0 && i + 1 < argc) {
-            cfg.frames_per_phase = std::atoi(argv[++i]);
+        } else if (arg == "--frames") {
+            cfg.frames_per_phase = cliarg::parseInt(
+                cliarg::requireOptionValue(argc, argv, i, "--frames"),
+                "--frames"
+            );
             if (cfg.frames_per_phase < 2) {
                 throw std::runtime_error("Frames must be >= 2");
             }
-        } else if (std::strcmp(argv[i], "--right") == 0) {
+        } else if (arg == "--right") {
             cfg.is_left = false;
-        } else if (std::strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
-            cfg.output_file = argv[++i];
-        } else if (argv[i][0] != '-') {
-            cfg.output_file = argv[i];
+        } else if (arg == "-o") {
+            cfg.output_file = cliarg::requireOptionValue(argc, argv, i, "-o");
+        } else if (cliarg::isHelpFlag(arg)) {
+            printUsage(argv[0]);
+            throw std::runtime_error("__help__");
+        } else if (!arg.empty() && arg[0] != '-') {
+            cfg.output_file = arg;
         } else {
-            throw std::runtime_error(std::string("Unknown option: ") + argv[i]);
+            throw std::runtime_error(std::string("Unknown option: ") + arg);
         }
     }
 
@@ -111,7 +140,17 @@ const AngleRange& getRange(const TestConfig& cfg, const std::string& key) {
 }  // namespace
 
 int runWingtest(int argc, char* argv[]) {
-    TestConfig cfg = parseTestArgs(argc, argv);
+    TestConfig cfg;
+    try {
+        cfg = parseTestArgs(argc, argv);
+    } catch (const std::runtime_error& e) {
+        if (std::string(e.what()) == "__help__") {
+            return 0;
+        }
+        std::cerr << e.what() << "\n";
+        printUsage(argv[0]);
+        return 1;
+    }
 
     int total_frames = 3 * cfg.frames_per_phase;
 

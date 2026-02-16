@@ -66,6 +66,26 @@ DEFAULT_CD0 = 0.4
 DEFAULT_CL0 = 1.2
 
 
+def run_dir_uses_docs_artifacts(run_dir: Path) -> bool:
+    docs_root = (REPO_ROOT / "docs" / "case_studies").resolve()
+    run_dir = run_dir.resolve()
+    try:
+        run_dir.relative_to(docs_root)
+        return True
+    except ValueError:
+        return False
+
+
+def artifact_ref(path: Path, *, deterministic: bool) -> str:
+    resolved = path.resolve()
+    if not deterministic:
+        return str(resolved)
+    try:
+        return str(resolved.relative_to(REPO_ROOT.resolve()))
+    except ValueError:
+        return str(resolved)
+
+
 @dataclass(frozen=True)
 class PipelineParams:
     n_wingbeats: int
@@ -290,6 +310,8 @@ output = {output_name}
 
 
 def stage_translate(run_dir: Path, params: PipelineParams) -> tuple[Path, Path]:
+    deterministic_manifest = run_dir_uses_docs_artifacts(run_dir)
+
     n_harmonics = 3
     omega = omega_nondim(
         frequency_hz=params.frequency_hz,
@@ -338,39 +360,42 @@ def stage_translate(run_dir: Path, params: PipelineParams) -> tuple[Path, Path]:
     cfg_path.write_text(cfg_text, encoding="utf-8")
 
     summary_path = sim_dir / "translate_summary.json"
+    summary_payload: dict[str, Any] = {
+        "sim_config_path": artifact_ref(cfg_path, deterministic=deterministic_manifest),
+        "sim_output_path": artifact_ref(output_h5, deterministic=deterministic_manifest),
+        "n_harmonics": n_harmonics,
+        "n_wingbeats": params.n_wingbeats,
+        "steps_per_wingbeat": params.steps_per_wingbeat,
+        "tether": params.tether,
+        "nondimensional_parameters": {
+            "omega": omega,
+            "fore_lb0_lambda": fore_lb0,
+            "fore_mu0_mu": fore_mu0,
+            "hind_lb0_lambda": hind_lb0,
+            "hind_mu0_mu": hind_mu0,
+        },
+        "physical_inputs": {
+            "body_length_m": params.body_length_m,
+            "body_mass_kg": params.body_mass_kg,
+            "fore_span_m": params.fore_span_m,
+            "fore_area_m2": params.fore_area_m2,
+            "hind_span_m": params.hind_span_m,
+            "hind_area_m2": params.hind_area_m2,
+            "frequency_hz": params.frequency_hz,
+            "stroke_plane_deg": params.stroke_plane_deg,
+            "fore_stroke_plane_deg": params.fore_stroke_plane_deg,
+            "hind_stroke_plane_deg": params.hind_stroke_plane_deg,
+            "rho_air_kg_m3": params.rho_air,
+            "gravity_m_s2": params.gravity,
+        },
+        "convention_mapping": mapping_summary,
+    }
+    if not deterministic_manifest:
+        summary_payload["generated_at_utc"] = now_utc_iso()
+
     write_json(
         summary_path,
-        {
-            "generated_at_utc": now_utc_iso(),
-            "sim_config_path": str(cfg_path.resolve()),
-            "sim_output_path": str(output_h5.resolve()),
-            "n_harmonics": n_harmonics,
-            "n_wingbeats": params.n_wingbeats,
-            "steps_per_wingbeat": params.steps_per_wingbeat,
-            "tether": params.tether,
-            "nondimensional_parameters": {
-                "omega": omega,
-                "fore_lb0_lambda": fore_lb0,
-                "fore_mu0_mu": fore_mu0,
-                "hind_lb0_lambda": hind_lb0,
-                "hind_mu0_mu": hind_mu0,
-            },
-            "physical_inputs": {
-                "body_length_m": params.body_length_m,
-                "body_mass_kg": params.body_mass_kg,
-                "fore_span_m": params.fore_span_m,
-                "fore_area_m2": params.fore_area_m2,
-                "hind_span_m": params.hind_span_m,
-                "hind_area_m2": params.hind_area_m2,
-                "frequency_hz": params.frequency_hz,
-                "stroke_plane_deg": params.stroke_plane_deg,
-                "fore_stroke_plane_deg": params.fore_stroke_plane_deg,
-                "hind_stroke_plane_deg": params.hind_stroke_plane_deg,
-                "rho_air_kg_m3": params.rho_air,
-                "gravity_m_s2": params.gravity,
-            },
-            "convention_mapping": mapping_summary,
-        },
+        summary_payload,
     )
 
     update_manifest(
@@ -382,11 +407,14 @@ def stage_translate(run_dir: Path, params: PipelineParams) -> tuple[Path, Path]:
             "sim_output_path": str(output_h5.resolve()),
         },
         repo_root=REPO_ROOT,
+        deterministic=deterministic_manifest,
     )
     return cfg_path, output_h5
 
 
 def stage_sim(run_dir: Path, binary: str, params: PipelineParams) -> Path:
+    deterministic_manifest = run_dir_uses_docs_artifacts(run_dir)
+
     # Always refresh translated config so simulation stays aligned with current
     # paper->sim convention mapping and CLI parameter overrides.
     cfg_path, output_h5 = stage_translate(run_dir=run_dir, params=params)
@@ -411,6 +439,7 @@ def stage_sim(run_dir: Path, binary: str, params: PipelineParams) -> Path:
             "output_h5": str(output_h5.resolve()),
         },
         repo_root=REPO_ROOT,
+        deterministic=deterministic_manifest,
     )
     return output_h5
 
@@ -425,6 +454,8 @@ def stage_post(
 ) -> list[Path]:
     if frame_step < 1:
         raise ValueError(f"frame_step must be >= 1, got {frame_step}")
+
+    deterministic_manifest = run_dir_uses_docs_artifacts(run_dir)
 
     if input_h5 is not None:
         h5_path = Path(input_h5).expanduser()
@@ -472,6 +503,7 @@ def stage_post(
             "frame_step": frame_step,
         },
         repo_root=REPO_ROOT,
+        deterministic=deterministic_manifest,
     )
     return artifacts
 

@@ -1,7 +1,7 @@
 #include "cmd_termvel.hpp"
+#include "cmd_args.hpp"
 #include "eom.hpp"
 #include "integrator.hpp"
-#include "parse_utils.hpp"
 #include "terminal_velocity.hpp"
 #include "wing.hpp"
 
@@ -9,7 +9,6 @@
 #include <highfive/H5File.hpp>
 
 #include <cmath>
-#include <cstring>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -49,10 +48,6 @@ struct TimeSeries {
     }
 };
 
-double parseDouble(const char* str, const char* flag) {
-    return parseutil::parseDoubleStrict(str, flag);
-}
-
 } // namespace
 
 int runTermvel(int argc, char* argv[]) {
@@ -65,25 +60,44 @@ int runTermvel(int argc, char* argv[]) {
     // Parse arguments
     try {
         for (int i = 2; i < argc; ++i) {
-            if (std::strcmp(argv[i], "--psi") == 0 && i + 1 < argc) {
-                psi_deg = parseDouble(argv[++i], "--psi");
-            } else if (std::strcmp(argv[i], "--dt") == 0 && i + 1 < argc) {
-                dt = parseDouble(argv[++i], "--dt");
-            } else if (std::strcmp(argv[i], "--tmax") == 0 && i + 1 < argc) {
-                t_max = parseDouble(argv[++i], "--tmax");
-            } else if (std::strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
-                output_file = argv[++i];
-            } else if (std::strcmp(argv[i], "-h") == 0 || std::strcmp(argv[i], "--help") == 0) {
+            const std::string arg = argv[i];
+            if (arg == "--psi") {
+                psi_deg = cliarg::parseDouble(
+                    cliarg::requireOptionValue(argc, argv, i, "--psi"),
+                    "--psi"
+                );
+            } else if (arg == "--dt") {
+                dt = cliarg::parseDouble(
+                    cliarg::requireOptionValue(argc, argv, i, "--dt"),
+                    "--dt"
+                );
+            } else if (arg == "--tmax") {
+                t_max = cliarg::parseDouble(
+                    cliarg::requireOptionValue(argc, argv, i, "--tmax"),
+                    "--tmax"
+                );
+            } else if (arg == "-o") {
+                output_file = cliarg::requireOptionValue(argc, argv, i, "-o");
+            } else if (cliarg::isHelpFlag(arg)) {
                 printUsage(argv[0]);
                 return 0;
             } else {
-                std::cerr << "Unknown option: " << argv[i] << "\n";
+                std::cerr << "Unknown option: " << arg << "\n";
                 printUsage(argv[0]);
                 return 1;
             }
         }
-    } catch (const std::runtime_error& e) {
+    } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";
+        return 1;
+    }
+
+    if (dt <= 0.0) {
+        std::cerr << "--dt must be > 0\n";
+        return 1;
+    }
+    if (t_max <= 0.0) {
+        std::cerr << "--tmax must be > 0\n";
         return 1;
     }
 

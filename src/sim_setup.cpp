@@ -122,9 +122,7 @@ void populateWingMotion(
 }  // namespace
 
 bool hasWingMotionSeries(const WingConfig& w) {
-    return !w.gamma.cos_coeff.empty() && !w.gamma.sin_coeff.empty() &&
-           !w.phi.cos_coeff.empty() && !w.phi.sin_coeff.empty() &&
-           !w.psi.cos_coeff.empty() && !w.psi.sin_coeff.empty();
+    return w.has_custom_motion;
 }
 
 SimKinematicParams readKinematicParams(const Config& cfg) {

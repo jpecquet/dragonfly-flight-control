@@ -1,4 +1,5 @@
 #include "config.hpp"
+#include "sim_setup.hpp"
 
 #include <chrono>
 #include <cmath>
@@ -340,6 +341,63 @@ bool testUnknownWingMotionKeysRejected() {
     return passed;
 }
 
+bool testWingMotionOverrideFlagSemantics() {
+    std::cout << "Test: hasWingMotionSeries reflects explicit per-wing overrides\n";
+
+    const std::string cfg_text =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd0 = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = hind\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd0 = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n"
+        "phi_mean = 0.1\n";
+
+    fs::path path = writeTempConfig(cfg_text);
+    bool passed = true;
+    try {
+        Config cfg = Config::load(path.string());
+        SimKinematicParams kin = readKinematicParams(cfg);
+        auto wings = buildWingConfigs(cfg, kin);
+        if (wings.size() != 2) {
+            passed = false;
+            std::cout << "  FAILED: expected 2 wings, got " << wings.size() << "\n";
+        } else {
+            if (hasWingMotionSeries(wings[0])) {
+                passed = false;
+                std::cout << "  FAILED: wing without overrides reported custom motion\n";
+            }
+            if (!hasWingMotionSeries(wings[1])) {
+                passed = false;
+                std::cout << "  FAILED: wing with overrides did not report custom motion\n";
+            }
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception: " << e.what() << "\n";
+    }
+
+    fs::remove(path);
+    std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
+    return passed;
+}
+
 }  // namespace
 
 int main() {
@@ -347,7 +405,7 @@ int main() {
     std::cout << "===================\n\n";
 
     int passed = 0;
-    const int total = 8;
+    const int total = 9;
 
     if (testInlineComments()) passed++;
     if (testStrictGlobalNumeric()) passed++;
@@ -357,6 +415,7 @@ int main() {
     if (testDoubleListStrictness()) passed++;
     if (testWingMotionOverrides()) passed++;
     if (testUnknownWingMotionKeysRejected()) passed++;
+    if (testWingMotionOverrideFlagSemantics()) passed++;
 
     std::cout << "Summary: " << passed << "/" << total << " tests passed\n";
     return (passed == total) ? 0 : 1;

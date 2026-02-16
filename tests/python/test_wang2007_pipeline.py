@@ -8,6 +8,8 @@ from pathlib import Path
 import h5py
 import numpy as np
 
+from post.plot_force_comparison import read_aero_force_z
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -145,7 +147,7 @@ class TestReadAeroForceZ(unittest.TestCase):
                 f.create_dataset("/wings/wing_b/lift", data=lift_b)
                 f.create_dataset("/wings/wing_b/drag", data=drag_b)
 
-            t, fz = pipeline.read_aero_force_z(h5_path)
+            t, fz = read_aero_force_z(h5_path)
             np.testing.assert_array_equal(t, time)
             np.testing.assert_allclose(fz, 10.0)  # 1+2+3+4 = 10
 
