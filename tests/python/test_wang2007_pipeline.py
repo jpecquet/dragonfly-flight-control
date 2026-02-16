@@ -85,6 +85,39 @@ class TestMotionMapping(unittest.TestCase):
             for key in ("phi_cos", "phi_sin", "psi_cos", "psi_sin", "gamma_cos", "gamma_sin"):
                 self.assertEqual(len(ov[key]), 35, f"{wing}/{key} should have 35 coefficients")
 
+    def test_default_wing_length_matches_explicit_default(self):
+        implicit = pipeline.compute_smoothed_motion_mapping(self.common, self.omega_nd, 7)
+        explicit = pipeline.compute_smoothed_motion_mapping(
+            self.common,
+            self.omega_nd,
+            7,
+            wing_length_mm=pipeline.DEFAULT_WING_LENGTH_MM,
+        )
+        self.assertAlmostEqual(
+            implicit["wing_motion_overrides"]["fore"]["phi_mean"],
+            explicit["wing_motion_overrides"]["fore"]["phi_mean"],
+            places=12,
+        )
+        self.assertAlmostEqual(
+            implicit["wing_motion_overrides"]["hind"]["phi_mean"],
+            explicit["wing_motion_overrides"]["hind"]["phi_mean"],
+            places=12,
+        )
+
+    def test_explicit_wing_length_override_changes_phi_mapping(self):
+        default_mapping = pipeline.compute_smoothed_motion_mapping(self.common, self.omega_nd, 7)
+        override_mapping = pipeline.compute_smoothed_motion_mapping(
+            self.common,
+            self.omega_nd,
+            7,
+            wing_length_mm=55.0,
+        )
+        self.assertNotAlmostEqual(
+            default_mapping["wing_motion_overrides"]["fore"]["phi_mean"],
+            override_mapping["wing_motion_overrides"]["fore"]["phi_mean"],
+            places=12,
+        )
+
 
 class TestReadAeroForceZ(unittest.TestCase):
     """Verify read_aero_force_z sums lift and drag z-components across all wings."""

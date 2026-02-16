@@ -73,7 +73,7 @@ series from the paper, evaluated over one wingbeat.
 The simulator motion inputs are constructed from the paper angles using:
 
 - `phi_sim = -psi_paper` (sign flip)
-- `psi_sim = 90 deg - theta_paper`
+- `psi_sim = theta_paper - 90 deg`
 
 ```{raw} html
 <img

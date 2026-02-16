@@ -66,8 +66,14 @@ class TestAzumaConventionAdapter(unittest.TestCase):
         self.assertAlmostEqual(sim_motion["hind"].gamma_mean, math.radians(40.0), places=12)
         self.assertAlmostEqual(sim_motion["fore"].phi_mean, math.radians(3.0), places=12)
         self.assertAlmostEqual(sim_motion["hind"].phi_mean, math.radians(-2.0), places=12)
-        self.assertAlmostEqual(sim_motion["fore"].psi_mean, math.radians(-8.0), places=12)
-        self.assertAlmostEqual(sim_motion["hind"].psi_mean, math.radians(-3.0), places=12)
+        self.assertAlmostEqual(sim_motion["fore"].psi_mean, math.radians(8.0), places=12)
+        self.assertAlmostEqual(sim_motion["hind"].psi_mean, math.radians(3.0), places=12)
+
+    def test_pitch_mapping_regression_sign_is_theta_minus_90(self):
+        adapter = conventions.azuma1985_adapter()
+        source_fore_psi = adapter.source_series["fore"].psi.eval_deg(0.25)
+        sim_fore_psi = adapter.sim_series()["fore"].psi.eval_deg(0.25)
+        self.assertAlmostEqual(sim_fore_psi, source_fore_psi - 90.0, places=12)
 
     def test_stage_translate_writes_convention_summary(self):
         params = self._default_params()
@@ -106,6 +112,34 @@ class TestAzumaConventionAdapter(unittest.TestCase):
                     pipeline.stage_sim(run_dir=run_dir, binary="/bin/echo", params=params)
         stage_translate.assert_called_once_with(run_dir=run_dir, params=params)
         run_cmd.assert_called_once()
+
+    def test_stage_post_returns_all_artifacts(self):
+        params = self._default_params()
+        with tempfile.TemporaryDirectory() as td:
+            run_dir = Path(td)
+            sim_dir = run_dir / "sim"
+            sim_dir.mkdir(parents=True, exist_ok=True)
+            h5_path = sim_dir / params.output_name
+            h5_path.write_bytes(b"")
+
+            def fake_run_cmd(cmd, cwd=None, env=None):
+                output_path = Path(cmd[4])
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.touch()
+
+            with patch.object(pipeline, "run_cmd", side_effect=fake_run_cmd):
+                with patch.object(pipeline, "update_manifest") as update_manifest:
+                    artifacts = pipeline.stage_post(
+                        run_dir=run_dir,
+                        params=params,
+                        binary="/bin/echo",
+                        input_h5=str(h5_path),
+                        no_blender=True,
+                        frame_step=1,
+                    )
+
+        self.assertEqual([p.name for p in artifacts], ["simulation.mp4", "flight_metrics.png"])
+        update_manifest.assert_called_once()
 
 
 if __name__ == "__main__":

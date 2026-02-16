@@ -22,8 +22,11 @@ def read_simulation(filename):
     Returns:
         params: dict of simulation parameters
         time: 1D array of time values
-        states: list of state arrays [x, y, z, ux, uy, uz]
+        states: ndarray of state vectors [x, y, z, ux, uy, uz]
         wings: list of wing vector dicts (one per timestep), keyed by wing name
+
+    Notes:
+        This reader eagerly loads all wing vector datasets into memory.
     """
     with h5py.File(filename, "r") as f:
         # Read parameters (skip subgroups like 'wings')
@@ -44,7 +47,7 @@ def read_simulation(filename):
         states = f["/state"][:]
 
         # Read wing data (variable number of wings with user-defined names)
-        wing_names = [k for k in f["/wings"].keys() if k != "num_wings"]
+        wing_names = sorted(k for k in f["/wings"].keys() if k != "num_wings")
         vec_names = ["e_s", "e_r", "e_c", "lift", "drag"]
 
         # Pre-read all wing data
@@ -219,18 +222,18 @@ def run_termvel_simulation(psi_deg, dt=0.01, tmax=50.0):
 
     # Run simulation to temp file
     with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as f:
-        output_path = f.name
+        output_path = Path(f.name)
 
     cmd = [
         str(binary), "termvel",
         "--psi", str(psi_deg),
         "--dt", str(dt),
         "--tmax", str(tmax),
-        "-o", output_path
+        "-o", str(output_path)
     ]
-    subprocess.run(cmd, check=True, capture_output=True)
-
-    # Load and return data
-    data = read_terminal_velocity(output_path)
-    Path(output_path).unlink()  # Clean up temp file
-    return data
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+        return read_terminal_velocity(output_path)
+    finally:
+        if output_path.exists():
+            output_path.unlink()

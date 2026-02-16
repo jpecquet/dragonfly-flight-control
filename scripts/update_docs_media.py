@@ -30,10 +30,77 @@ def now_utc_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def _validate_entry(entry: Any, index: int) -> None:
+    if not isinstance(entry, dict):
+        raise ValueError(f"Invalid registry entry at index {index}: expected object")
+
+    entry_id = entry.get("id", f"<missing-id-{index}>")
+    context = f"entry '{entry_id}'"
+
+    if not isinstance(entry.get("id"), str) or not entry["id"]:
+        raise ValueError(f"Invalid {context}: 'id' must be a non-empty string")
+    if "description" in entry and not isinstance(entry["description"], str):
+        raise ValueError(f"Invalid {context}: 'description' must be a string when present")
+
+    commands = entry.get("commands")
+    if not isinstance(commands, list):
+        raise ValueError(f"Invalid {context}: 'commands' must be a list")
+    for cmd_idx, cmd in enumerate(commands):
+        if not isinstance(cmd, list) or not cmd:
+            raise ValueError(f"Invalid {context}: commands[{cmd_idx}] must be a non-empty list")
+        if not all(isinstance(arg, str) for arg in cmd):
+            raise ValueError(f"Invalid {context}: commands[{cmd_idx}] must contain only strings")
+
+    outputs = entry.get("outputs")
+    if not isinstance(outputs, list):
+        raise ValueError(f"Invalid {context}: 'outputs' must be a list")
+    if not all(isinstance(path, str) and path for path in outputs):
+        raise ValueError(f"Invalid {context}: 'outputs' must contain non-empty strings")
+
+    env = entry.get("env")
+    if env is not None:
+        if not isinstance(env, dict):
+            raise ValueError(f"Invalid {context}: 'env' must be an object when present")
+        for key, value in env.items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                raise ValueError(f"Invalid {context}: 'env' keys and values must be strings")
+
+    sync_items = entry.get("sync")
+    if sync_items is not None:
+        if not isinstance(sync_items, list):
+            raise ValueError(f"Invalid {context}: 'sync' must be a list when present")
+        for sync_idx, item in enumerate(sync_items):
+            if not isinstance(item, dict):
+                raise ValueError(f"Invalid {context}: sync[{sync_idx}] must be an object")
+            src = item.get("from")
+            dst = item.get("to")
+            if not isinstance(src, str) or not src:
+                raise ValueError(f"Invalid {context}: sync[{sync_idx}].from must be a non-empty string")
+            if not isinstance(dst, str) or not dst:
+                raise ValueError(f"Invalid {context}: sync[{sync_idx}].to must be a non-empty string")
+
+
+def validate_registry(data: Any, path: Path) -> None:
+    if not isinstance(data, dict):
+        raise ValueError(f"Invalid registry format at {path}: expected object")
+    if "entries" not in data:
+        raise ValueError(f"Invalid registry format at {path}: missing 'entries'")
+    entries = data["entries"]
+    if not isinstance(entries, list):
+        raise ValueError(f"Invalid registry format at {path}: 'entries' must be a list")
+
+    seen_ids: set[str] = set()
+    for idx, entry in enumerate(entries):
+        _validate_entry(entry, idx)
+        entry_id = entry["id"]
+        if entry_id in seen_ids:
+            raise ValueError(f"Invalid registry format at {path}: duplicate entry id '{entry_id}'")
+        seen_ids.add(entry_id)
+
+
 def load_registry(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict) or "entries" not in data:
-        raise ValueError(f"Invalid registry format: {path}")
+    validate_registry(data, path)
     return data
 
 

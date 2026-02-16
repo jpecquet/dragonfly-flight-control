@@ -140,7 +140,7 @@ with h5py.File("output.h5", "r") as f:
     state = f["/state"][:]
 
     # Wing data (variable number of wings)
-    wing_names = [k for k in f["/wings"].keys() if k != "num_wings"]
+    wing_names = sorted(k for k in f["/wings"].keys() if k != "num_wings")
     for name in wing_names:
         e_s = f[f"/wings/{name}/e_s"][:]
         lift = f[f"/wings/{name}/lift"][:]

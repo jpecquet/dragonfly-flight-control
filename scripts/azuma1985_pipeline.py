@@ -11,13 +11,9 @@ Stages:
 from __future__ import annotations
 
 import argparse
-import json
 import math
-import os
-import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +21,27 @@ try:
     from experimental_conventions import azuma1985_adapter, build_sim_wing_motion
 except ModuleNotFoundError:
     from scripts.experimental_conventions import azuma1985_adapter, build_sim_wing_motion
+
+try:
+    from pipeline_common import (
+        build_plot_env,
+        ensure_dir,
+        now_utc_iso,
+        resolve_run_dir,
+        run_cmd,
+        update_manifest,
+        write_json,
+    )
+except ModuleNotFoundError:
+    from scripts.pipeline_common import (
+        build_plot_env,
+        ensure_dir,
+        now_utc_iso,
+        resolve_run_dir,
+        run_cmd,
+        update_manifest,
+        write_json,
+    )
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -88,85 +105,6 @@ class PipelineParams:
             rho_air=args.rho_air,
             gravity=args.gravity,
         )
-
-
-def now_utc_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
-def ensure_dir(path: Path) -> Path:
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def write_json(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-
-def read_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def run_cmd(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
-    printable = " ".join(str(x) for x in cmd)
-    print(f"[cmd] {printable}")
-    cmd_env = os.environ.copy()
-    if env:
-        cmd_env.update(env)
-    subprocess.run(cmd, cwd=str(cwd) if cwd else None, check=True, env=cmd_env)
-
-
-def resolve_run_dir(run_dir_arg: str | None) -> Path:
-    if run_dir_arg:
-        p = Path(run_dir_arg).expanduser()
-        if not p.is_absolute():
-            p = REPO_ROOT / p
-        return p
-    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return RUNS_ROOT / run_id
-
-
-def get_git_commit() -> str:
-    try:
-        out = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            cwd=str(REPO_ROOT),
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-        return out.strip()
-    except Exception:
-        return "unknown"
-
-
-def update_manifest(run_dir: Path, stage: str, artifacts: list[Path], metadata: dict[str, Any]) -> None:
-    manifest_path = run_dir / "manifest.json"
-    if manifest_path.exists():
-        manifest = read_json(manifest_path)
-    else:
-        manifest = {
-            "created_at_utc": now_utc_iso(),
-            "repo_root": str(REPO_ROOT),
-            "git_commit": get_git_commit(),
-            "stages": {},
-        }
-
-    manifest["updated_at_utc"] = now_utc_iso()
-    manifest["stages"][stage] = {
-        "completed_at_utc": now_utc_iso(),
-        "artifacts": [str(p.resolve()) for p in artifacts],
-        "metadata": metadata,
-    }
-    write_json(manifest_path, manifest)
-
-
-def build_plot_env(run_dir: Path) -> dict[str, str]:
-    cache_root = ensure_dir(run_dir / ".cache")
-    mpl_cache = ensure_dir(cache_root / "matplotlib")
-    return {
-        "MPLCONFIGDIR": str(mpl_cache.resolve()),
-        "XDG_CACHE_HOME": str(cache_root.resolve()),
-    }
 
 
 def omega_nondim(frequency_hz: float, body_length_m: float, gravity: float) -> float:
@@ -480,6 +418,7 @@ def stage_translate(run_dir: Path, params: PipelineParams) -> tuple[Path, Path]:
             "sim_config_path": str(cfg_path.resolve()),
             "sim_output_path": str(output_h5.resolve()),
         },
+        repo_root=REPO_ROOT,
     )
     return cfg_path, output_h5
 
@@ -508,6 +447,7 @@ def stage_sim(run_dir: Path, binary: str, params: PipelineParams) -> Path:
             "config": str(cfg_path.resolve()),
             "output_h5": str(output_h5.resolve()),
         },
+        repo_root=REPO_ROOT,
     )
     return output_h5
 
@@ -519,7 +459,7 @@ def stage_post(
     input_h5: str | None,
     no_blender: bool,
     frame_step: int,
-) -> Path:
+) -> list[Path]:
     if frame_step < 1:
         raise ValueError(f"frame_step must be >= 1, got {frame_step}")
 
@@ -557,18 +497,20 @@ def stage_post(
         cwd=REPO_ROOT,
         env=plot_env,
     )
+    artifacts = [sim_mp4, flight_metrics_png]
 
     update_manifest(
         run_dir,
         "post",
-        [sim_mp4, flight_metrics_png],
+        artifacts,
         {
             "input_h5": str(h5_path.resolve()),
             "no_blender": no_blender,
             "frame_step": frame_step,
         },
+        repo_root=REPO_ROOT,
     )
-    return sim_mp4
+    return artifacts
 
 
 def add_shared_args(p: argparse.ArgumentParser) -> None:
@@ -726,7 +668,7 @@ def main() -> int:
     )
 
     args = parser.parse_args()
-    run_dir = ensure_dir(resolve_run_dir(args.run_dir))
+    run_dir = ensure_dir(resolve_run_dir(args.run_dir, repo_root=REPO_ROOT, runs_root=RUNS_ROOT))
     params = PipelineParams.from_args(args)
 
     if args.stage == "translate":
@@ -743,7 +685,7 @@ def main() -> int:
         return 0
 
     if args.stage == "post":
-        artifact = stage_post(
+        artifacts = stage_post(
             run_dir=run_dir,
             params=params,
             binary=args.binary,
@@ -751,13 +693,15 @@ def main() -> int:
             no_blender=args.no_blender,
             frame_step=args.frame_step,
         )
-        print(f"[done] post artifact: {artifact}")
+        print("[done] post artifacts:")
+        for artifact in artifacts:
+            print(f"  - {artifact}")
         print(f"[done] run_dir: {run_dir}")
         return 0
 
     if args.stage == "all":
         stage_sim(run_dir=run_dir, binary=args.binary, params=params)
-        artifact = stage_post(
+        artifacts = stage_post(
             run_dir=run_dir,
             params=params,
             binary=args.binary,
@@ -765,7 +709,9 @@ def main() -> int:
             no_blender=args.no_blender,
             frame_step=args.frame_step,
         )
-        print(f"[done] post artifact: {artifact}")
+        print("[done] post artifacts:")
+        for artifact in artifacts:
+            print(f"  - {artifact}")
         print(f"[done] run_dir: {run_dir}")
         return 0
 

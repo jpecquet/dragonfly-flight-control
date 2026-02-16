@@ -17,13 +17,16 @@ from __future__ import annotations
 import argparse
 import importlib
 import math
-import os
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+try:
+    from pipeline_common import build_plot_env, ensure_dir, resolve_run_dir, run_cmd
+except ModuleNotFoundError:
+    from scripts.pipeline_common import build_plot_env, ensure_dir, resolve_run_dir, run_cmd
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -44,44 +47,10 @@ HARMONICS_PER_WINGBEAT = 7
 N_FOURIER_COMPONENTS = HARMONICS_PER_WINGBEAT * N_WINGBEATS
 
 
-def ensure_dir(path: Path) -> Path:
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def run_cmd(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
-    printable = " ".join(str(x) for x in cmd)
-    print(f"[cmd] {printable}")
-    cmd_env = os.environ.copy()
-    if env:
-        cmd_env.update(env)
-    subprocess.run(cmd, cwd=str(cwd) if cwd else None, check=True, env=cmd_env)
-
-
-def resolve_run_dir(run_dir_arg: str | None) -> Path:
-    if run_dir_arg:
-        p = Path(run_dir_arg).expanduser()
-        if not p.is_absolute():
-            p = REPO_ROOT / p
-        return p
-    from datetime import datetime
-    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return RUNS_ROOT / run_id
-
-
 def load_common_module():
     if str(WANG_DIR) not in sys.path:
         sys.path.insert(0, str(WANG_DIR))
     return importlib.import_module("common")
-
-
-def build_plot_env(run_dir: Path) -> dict[str, str]:
-    cache_root = ensure_dir(run_dir / ".cache")
-    mpl_cache = ensure_dir(cache_root / "matplotlib")
-    return {
-        "MPLCONFIGDIR": str(mpl_cache.resolve()),
-        "XDG_CACHE_HOME": str(cache_root.resolve()),
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -170,13 +139,15 @@ def compute_smoothed_motion_mapping(
     common: Any,
     omega_nondim: float,
     n_harmonics: int,
-    wing_length_mm: float,
+    wing_length_mm: float = DEFAULT_WING_LENGTH_MM,
     harmonic_period_wingbeats: float = 1.0,
 ) -> dict[str, Any]:
     if n_harmonics <= 0:
         raise ValueError("smoothed_n_harmonics must be >= 1")
     if harmonic_period_wingbeats <= 0.0:
         raise ValueError("harmonic_period_wingbeats must be > 0")
+    if wing_length_mm <= 0.0:
+        raise ValueError("wing_length_mm must be > 0")
 
     np = common.np
     # common.fourier_smooth expects harmonics per wingbeat.
@@ -561,8 +532,24 @@ def stage_post(
         gravity=DEFAULT_GRAVITY,
     )
     force_png = post_dir / "force_comparison.png"
-    os.environ.update(plot_env)
-    plot_force_comparison(h5_7harm, h5_1harm, force_png, scales["omega_nondim"])
+    force_cmd = [
+        sys.executable,
+        "-m",
+        "post.plot_force_comparison",
+        str(force_png),
+        "--omega-nondim",
+        f"{float(scales['omega_nondim']):.12f}",
+        "--series",
+        str(h5_7harm),
+        "35-comp",
+        "--series",
+        str(h5_1harm),
+        "1-comp",
+    ]
+    cfd_csv = WANG_DIR / "cfd_data.csv"
+    if cfd_csv.exists():
+        force_cmd.extend(["--series-csv", str(cfd_csv), "t", "Fz", "CFD"])
+    run_cmd(force_cmd, cwd=REPO_ROOT, env=plot_env)
     artifacts.append(force_png)
 
     return artifacts
@@ -594,7 +581,7 @@ def main() -> int:
     all_parser.add_argument("--frame-step", type=int, default=1, help="Render every Nth frame (default: 1).")
 
     args = parser.parse_args()
-    run_dir = ensure_dir(resolve_run_dir(args.run_dir))
+    run_dir = ensure_dir(resolve_run_dir(args.run_dir, repo_root=REPO_ROOT, runs_root=RUNS_ROOT))
 
     if args.stage == "sim":
         h5_7harm, h5_1harm = stage_sim(run_dir=run_dir, binary=args.binary)
