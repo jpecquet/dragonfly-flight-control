@@ -48,6 +48,8 @@ $$\theta_{hw} = 93 - 65 \cos{(\omega t + 18)} + 8 \cos{(2\omega t + 74)} + 8\cos
 - {download}`kinematics_inputs.dark.png <azuma1985/artifacts/post/kinematics_inputs.dark.png>`
 - {download}`motion_mapping.light.png <azuma1985/artifacts/post/motion_mapping.light.png>`
 - {download}`motion_mapping.dark.png <azuma1985/artifacts/post/motion_mapping.dark.png>`
+- {download}`flight_metrics.light.png <azuma1985/artifacts/post/flight_metrics.light.png>`
+- {download}`flight_metrics.dark.png <azuma1985/artifacts/post/flight_metrics.dark.png>`
 
 ## Pre-processing
 
@@ -121,6 +123,23 @@ The simulator motion inputs are constructed from the paper angles using:
 </video>
 ```
 
+### Body Speed and Direction vs Experiment
+
+The left panel shows dimensional body speed magnitude from simulation compared to
+the experimental reference `0.54 m/s`. The right panel shows the center-of-mass
+direction angle in the `XZ` plane, `atan2(z, x)` in degrees, compared to the
+experimental reference `60 deg`.
+
+```{raw} html
+<img
+  class="case-study-image"
+  src="../_static/media/azuma1985/flight_metrics.dark.png"
+  alt="Azuma 1985 body speed and direction comparison against experimental references"
+  data-light-src="../_static/media/azuma1985/flight_metrics.light.png"
+  data-dark-src="../_static/media/azuma1985/flight_metrics.dark.png"
+/>
+```
+
 ## Config Extract
 
 ```{literalinclude} azuma1985/artifacts/sim/sim_azuma1985.cfg
@@ -137,7 +156,7 @@ The simulator motion inputs are constructed from the paper angles using:
 
 ```bash
 # Regenerate and sync all Azuma docs media/artifacts
-python scripts/update_docs_media.py --only azuma1985_translate_sim azuma1985_animation_light azuma1985_animation_dark azuma1985_stick_light azuma1985_stick_dark azuma1985_kinematics_inputs_light azuma1985_kinematics_inputs_dark azuma1985_motion_mapping_light azuma1985_motion_mapping_dark
+python scripts/update_docs_media.py --only azuma1985_translate_sim azuma1985_animation_light azuma1985_animation_dark azuma1985_stick_light azuma1985_stick_dark azuma1985_kinematics_inputs_light azuma1985_kinematics_inputs_dark azuma1985_motion_mapping_light azuma1985_motion_mapping_dark azuma1985_flight_metrics_light azuma1985_flight_metrics_dark
 
 # Or individual entries
 python scripts/update_docs_media.py --only azuma1985_animation_light
@@ -148,6 +167,8 @@ python scripts/update_docs_media.py --only azuma1985_kinematics_inputs_light
 python scripts/update_docs_media.py --only azuma1985_kinematics_inputs_dark
 python scripts/update_docs_media.py --only azuma1985_motion_mapping_light
 python scripts/update_docs_media.py --only azuma1985_motion_mapping_dark
+python scripts/update_docs_media.py --only azuma1985_flight_metrics_light
+python scripts/update_docs_media.py --only azuma1985_flight_metrics_dark
 ```
 
 ## References

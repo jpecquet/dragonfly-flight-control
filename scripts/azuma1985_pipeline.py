@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Convenience pipeline: Azuma 1985 parameters -> sim -> 3D animation.
+"""Convenience pipeline: Azuma 1985 parameters -> sim -> post artifacts.
 
 Stages:
   translate Generate a simulator config from Azuma (1985) parameters.
   sim       Run dragonfly simulation for generated config.
-  post      Run 3D postprocessing animation from simulation output.
+  post      Run postprocessing (3D animation + flight metrics) from simulation output.
   all       Run translate -> sim -> post.
 """
 
@@ -538,6 +538,7 @@ def stage_post(
     plot_env = build_plot_env(run_dir)
     post_dir = ensure_dir(run_dir / "post")
     sim_mp4 = post_dir / "simulation.mp4"
+    flight_metrics_png = post_dir / "flight_metrics.png"
 
     cmd = [sys.executable, "-m", "post.plot_simulation", str(h5_path), str(sim_mp4)]
     if no_blender:
@@ -545,11 +546,22 @@ def stage_post(
     if frame_step > 1:
         cmd.extend(["--frame-step", str(frame_step)])
     run_cmd(cmd, cwd=REPO_ROOT, env=plot_env)
+    run_cmd(
+        [
+            sys.executable,
+            "-m",
+            "post.plot_azuma1985_flight_metrics",
+            str(h5_path),
+            str(flight_metrics_png),
+        ],
+        cwd=REPO_ROOT,
+        env=plot_env,
+    )
 
     update_manifest(
         run_dir,
         "post",
-        [sim_mp4],
+        [sim_mp4, flight_metrics_png],
         {
             "input_h5": str(h5_path.resolve()),
             "no_blender": no_blender,
