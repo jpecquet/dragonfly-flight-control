@@ -2,25 +2,6 @@
 #include "eom.hpp"
 #include "wing.hpp"
 
-// Euler with scratch buffer (core implementation)
-State stepEuler(double t, double h, const State& y,
-                const std::vector<Wing>& wings,
-                std::vector<SingleWingVectors>& scratch) {
-    StateDerivative k1 = equationOfMotion(t, y, wings, scratch);
-
-    return State(
-        y.pos + h * k1.vel,
-        y.vel + h * k1.accel
-    );
-}
-
-// Euler without scratch buffer (convenience wrapper)
-State stepEuler(double t, double h, const State& y,
-                const std::vector<Wing>& wings) {
-    std::vector<SingleWingVectors> scratch;
-    return stepEuler(t, h, y, wings, scratch);
-}
-
 // RK4 with scratch buffer (core implementation - reuses allocation across 4 EOM calls)
 State stepRK4(double t, double h, const State& y,
               const std::vector<Wing>& wings,

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "linalg.hpp"
 #include "blade_element.hpp"
+#include "eom.hpp"
 #include "kinematics.hpp"
 #include "rotation.hpp"
 

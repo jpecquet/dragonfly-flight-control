@@ -155,15 +155,9 @@ static SimKinematicParams toSimParams(const KinematicParams& kin) {
     out.omega = kin.omega.value;
     out.harmonic_period_wingbeats = 1.0;
     out.n_harmonics = 1;
-    out.gamma_mean = kin.gamma_mean.value;
-    out.phi_mean = kin.phi_mean.value;
-    out.psi_mean = kin.psi_mean.value;
-    out.gamma_cos = {kin.gamma_cos.value};
-    out.gamma_sin = {kin.gamma_sin.value};
-    out.phi_cos = {kin.phi_cos.value};
-    out.phi_sin = {kin.phi_sin.value};
-    out.psi_cos = {kin.psi_cos.value};
-    out.psi_sin = {kin.psi_sin.value};
+    out.gamma = {kin.gamma_mean.value, {kin.gamma_cos.value}, {kin.gamma_sin.value}};
+    out.phi = {kin.phi_mean.value, {kin.phi_cos.value}, {kin.phi_sin.value}};
+    out.psi = {kin.psi_mean.value, {kin.psi_cos.value}, {kin.psi_sin.value}};
     return out;
 }
 
@@ -184,13 +178,11 @@ void OptimBuffers::init(const KinematicParams& kin, const PhysicalParams& phys) 
 static void updateWingAngleFuncs(std::vector<Wing>& wings, const KinematicParams& kin,
                                   const PhysicalParams& phys) {
     const SimKinematicParams sim_kin = toSimParams(kin);
-    const auto series = sim_kin.toHarmonicSeries();
-    const double omega = sim_kin.omega;
-    const double harmonic_period_wingbeats = sim_kin.harmonic_period_wingbeats;
     for (size_t i = 0; i < wings.size(); ++i) {
         const auto& wc = phys.wings[i];
         auto angleFunc = makeAngleFunc(
-            series.gamma, series.phi, series.psi, wc.phase_offset, omega, harmonic_period_wingbeats
+            sim_kin.gamma, sim_kin.phi, sim_kin.psi,
+            wc.phase_offset, sim_kin.omega, sim_kin.harmonic_period_wingbeats
         );
         wings[i].setAngleFunc(std::move(angleFunc));
     }
@@ -248,7 +240,7 @@ OptimConfig OptimConfig::fromConfig(const Config& cfg) {
     oc.n_grid = cfg.getInt("n_grid", 5);
     oc.max_eval = cfg.getInt("max_eval", 200);
     oc.equilibrium_tol = cfg.getDouble("equilibrium_tol", 1e-6);
-    oc.map_landscape = cfg.getString("map_landscape", "false") == "true";
+    oc.map_landscape = cfg.getBool("map_landscape", false);
     oc.map_resolution = cfg.getInt("map_resolution", 50);
     return oc;
 }

@@ -22,11 +22,9 @@ def read_simulation(filename):
     Returns:
         params: dict of simulation parameters
         time: 1D array of time values
-        states: ndarray of state vectors [x, y, z, ux, uy, uz]
-        wings: list of wing vector dicts (one per timestep), keyed by wing name
-
-    Notes:
-        This reader eagerly loads all wing vector datasets into memory.
+        states: ndarray of state vectors [x, y, z, ux, uy, uz] shape (N, 6)
+        wings: dict-of-arrays keyed by wing name, e.g.
+               wings[wing_name]['e_r'] is an (N, 3) array
     """
     with h5py.File(filename, "r") as f:
         # Read parameters (skip subgroups like 'wings')
@@ -50,26 +48,13 @@ def read_simulation(filename):
         wing_names = sorted(k for k in f["/wings"].keys() if k != "num_wings")
         vec_names = ["e_s", "e_r", "e_c", "lift", "drag"]
 
-        # Pre-read all wing data
-        wing_arrays = {}
-        for wname in wing_names:
-            wing_arrays[wname] = {}
-            for vname in vec_names:
-                wing_arrays[wname][vname] = f[f"/wings/{wname}/{vname}"][:]
-
-        # Convert to list of dicts (one per timestep)
         n_steps = len(time)
-        wings = []
-        for i in range(n_steps):
-            step_wings = {}
-            for wname in wing_names:
-                step_wings[wname] = {
-                    vname: wing_arrays[wname][vname][i, :]
-                    for vname in vec_names
-                }
-                # Add placeholder for 'u' vector (used in visualization but optional)
-                step_wings[wname]['u'] = np.zeros(3)
-            wings.append(step_wings)
+        wings = {}
+        for wname in wing_names:
+            wings[wname] = {}
+            for vname in vec_names:
+                wings[wname][vname] = f[f"/wings/{wname}/{vname}"][:]
+            wings[wname]['u'] = np.zeros((n_steps, 3))
 
     return params, time, states, wings
 
@@ -81,8 +66,8 @@ def read_tracking(filename):
     Returns:
         params: dict of simulation parameters
         time: 1D array of time values
-        states: list of state arrays [x, y, z, ux, uy, uz]
-        wings: list of wing vector dicts (one per timestep)
+        states: ndarray of state vectors (N, 6)
+        wings: dict-of-arrays keyed by wing name
         controller: dict with target_position, position_error, gamma_mean, psi_mean, phi_amp
                    (or None if not a tracking simulation)
     """
@@ -126,13 +111,8 @@ def read_wing_rotation(filename):
             'e_s': f['/wing/e_s'][:],
             'e_r': f['/wing/e_r'][:],
             'e_c': f['/wing/e_c'][:],
+            'sequence': decode_string_array(f['/parameters/sequence'][:]),
         }
-        # Read sequence (with fallback for older files)
-        if '/parameters/sequence' in f:
-            seq_raw = f['/parameters/sequence'][:]
-            data['sequence'] = decode_string_array(seq_raw)
-        else:
-            data['sequence'] = ['gam', 'phi', 'psi']  # default for backward compat
     return data
 
 
@@ -167,7 +147,9 @@ def read_terminal_velocity(filename):
     with h5py.File(filename, 'r') as f:
         data = {
             'time': f['/time'][:],
+            'x': f['/x'][:],
             'z': f['/z'][:],
+            'ux': f['/ux'][:],
             'uz': f['/uz'][:],
             'psi': f['/parameters/psi'][()],
             'psi_deg': f['/parameters/psi_deg'][()],
@@ -177,22 +159,8 @@ def read_terminal_velocity(filename):
             'Cl0': f['/parameters/Cl0'][()],
             'dt': f['/parameters/dt'][()],
             't_max': f['/parameters/t_max'][()],
+            'speed_analytical': f['/parameters/speed_analytical'][()],
         }
-        # New field (with backward compatibility)
-        if '/parameters/speed_analytical' in f:
-            data['speed_analytical'] = f['/parameters/speed_analytical'][()]
-        elif '/parameters/uz_analytical' in f:
-            data['speed_analytical'] = np.abs(f['/parameters/uz_analytical'][()])
-        else:
-            data['speed_analytical'] = 0.0
-        if '/x' in f:
-            data['x'] = f['/x'][:]
-        else:
-            data['x'] = np.zeros_like(data['z'])
-        if '/ux' in f:
-            data['ux'] = f['/ux'][:]
-        else:
-            data['ux'] = np.zeros_like(data['uz'])
         # Lift/drag vectors (optional, for animation)
         if '/lift_x' in f:
             data['lift_x'] = f['/lift_x'][:]

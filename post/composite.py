@@ -199,30 +199,22 @@ def extract_frame_data(states, wing_vectors):
     Extract frame data to a JSON-serializable format for Blender.
 
     Args:
-        states: List of state arrays
-        wing_vectors: List of wing vector dicts
+        states: State array (N, 6)
+        wing_vectors: Dict-of-arrays keyed by wing name
 
     Returns:
         dict: Frame data suitable for JSON serialization
     """
-    wing_names = list(wing_vectors[0].keys())
+    wing_names = list(wing_vectors.keys())
     n_frames = len(states)
 
-    # Convert states to list of lists
-    states_list = [s.tolist() if hasattr(s, 'tolist') else list(s) for s in states]
+    states_list = states.tolist()
 
-    # Extract wing vectors
     wing_data = {}
     for wname in wing_names:
         wing_data[wname] = {
-            'e_r': [wing_vectors[i][wname]['e_r'].tolist()
-                    if hasattr(wing_vectors[i][wname]['e_r'], 'tolist')
-                    else list(wing_vectors[i][wname]['e_r'])
-                    for i in range(n_frames)],
-            'e_c': [wing_vectors[i][wname]['e_c'].tolist()
-                    if hasattr(wing_vectors[i][wname]['e_c'], 'tolist')
-                    else list(wing_vectors[i][wname]['e_c'])
-                    for i in range(n_frames)],
+            'e_r': wing_vectors[wname]['e_r'].tolist(),
+            'e_c': wing_vectors[wname]['e_c'].tolist(),
         }
 
     return {
@@ -426,17 +418,20 @@ def check_blender_available() -> bool:
 
 
 def _subsample_animation_inputs(
-    states: List[np.ndarray],
-    wing_vectors: List[Dict],
+    states: np.ndarray,
+    wing_vectors: Dict,
     controller: Optional[Dict],
     frame_step: int,
-) -> Tuple[List[np.ndarray], List[Dict], Optional[Dict]]:
+) -> Tuple[np.ndarray, Dict, Optional[Dict]]:
     """Subsample animation inputs by stride."""
     if frame_step <= 1:
         return states, wing_vectors, controller
 
     states_sub = states[::frame_step]
-    wings_sub = wing_vectors[::frame_step]
+    wings_sub = {
+        wname: {k: v[::frame_step] for k, v in wdata.items()}
+        for wname, wdata in wing_vectors.items()
+    }
 
     controller_sub = None
     if controller is not None:
@@ -445,7 +440,6 @@ def _subsample_animation_inputs(
             try:
                 controller_sub[key] = value[::frame_step]
             except Exception:
-                # Preserve non-indexable fields if any are added in the future.
                 controller_sub[key] = value
 
     return states_sub, wings_sub, controller_sub

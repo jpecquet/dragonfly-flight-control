@@ -109,16 +109,21 @@ def animate_stroke(
     hind_leading = np.zeros((n_frames, 2), dtype=float)
     hind_trailing = np.zeros((n_frames, 2), dtype=float)
 
+    fore_wing = wings[fore_wing_name]
+    hind_wing = wings[hind_wing_name]
+
     for i in range(n_frames):
+        fore_state = {k: v[i] for k, v in fore_wing.items()}
+        hind_state = {k: v[i] for k, v in hind_wing.items()}
         fore_center, fore_le, fore_te = compute_stick_endpoints(
-            wings[i][fore_wing_name],
+            fore_state,
             x_offset=FORE_X_OFFSET,
             stick_length=STICK_LENGTH,
             station=station,
             lambda0=fore_lambda0,
         )
         hind_center, hind_le, hind_te = compute_stick_endpoints(
-            wings[i][hind_wing_name],
+            hind_state,
             x_offset=HIND_X_OFFSET,
             stick_length=STICK_LENGTH,
             station=station,
@@ -218,7 +223,7 @@ def main():
         print("Legacy usage (still supported):")
         print("  python -m post.plot_stick <input.h5> <wing_name> <output.mp4|gif> [--theme light|dark] [--station 0.6667]")
         print("\nAvailable wings:")
-        for name in wings[0].keys():
+        for name in wings.keys():
             print(f"  {name}")
         sys.exit(1)
 
@@ -229,11 +234,11 @@ def main():
         outfile = args.arg2
 
     try:
-        fore_wing_name, hind_wing_name = resolve_right_wings(wings[0].keys())
+        fore_wing_name, hind_wing_name = resolve_right_wings(wings.keys())
     except ValueError as exc:
         print(f"Error: {exc}")
         print("Available wings:")
-        for name in wings[0].keys():
+        for name in wings.keys():
             print(f"  {name}")
         sys.exit(1)
 

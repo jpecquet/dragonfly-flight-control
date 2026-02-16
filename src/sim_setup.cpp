@@ -29,15 +29,15 @@ const std::string* findOverride(const WingConfigEntry& entry, const std::string&
 
 void loadAngleSeries(const Config& cfg, const std::string& prefix,
                      int n_harmonics, double default_mean,
-                     double& mean_out, std::vector<double>& cos_out, std::vector<double>& sin_out) {
+                     HarmonicSeries& out) {
     const std::string mean_key = prefix + "_mean";
     const std::string cos_key = prefix + "_cos";
     const std::string sin_key = prefix + "_sin";
-    mean_out = cfg.getDouble(mean_key, default_mean);
-    cos_out = cfg.getDoubleList(cos_key, zeroHarmonics(n_harmonics));
-    sin_out = cfg.getDoubleList(sin_key, zeroHarmonics(n_harmonics));
-    requireHarmonicLength(cos_out, n_harmonics, cos_key);
-    requireHarmonicLength(sin_out, n_harmonics, sin_key);
+    out.mean = cfg.getDouble(mean_key, default_mean);
+    out.cos_coeff = cfg.getDoubleList(cos_key, zeroHarmonics(n_harmonics));
+    out.sin_coeff = cfg.getDoubleList(sin_key, zeroHarmonics(n_harmonics));
+    requireHarmonicLength(out.cos_coeff, n_harmonics, cos_key);
+    requireHarmonicLength(out.sin_coeff, n_harmonics, sin_key);
 }
 
 void applyWingAngleOverrides(
@@ -45,9 +45,7 @@ void applyWingAngleOverrides(
     const std::string& wing_label,
     const std::string& prefix,
     int n_harmonics,
-    double& mean,
-    std::vector<double>& cos_coeff,
-    std::vector<double>& sin_coeff
+    HarmonicSeries& series
 ) {
     const std::string mean_key = prefix + "_mean";
     const std::string cos_key = prefix + "_cos";
@@ -57,19 +55,25 @@ void applyWingAngleOverrides(
     const bool has_sin = findOverride(entry, sin_key) != nullptr;
 
     if (const std::string* mean_val = findOverride(entry, mean_key)) {
-        mean = parseutil::parseDoubleStrict(*mean_val, "wing '" + wing_label + "' key '" + mean_key + "'");
+        series.mean = parseutil::parseDoubleStrict(*mean_val, "wing '" + wing_label + "' key '" + mean_key + "'");
     }
 
     if (has_cos) {
-        cos_coeff = parseutil::parseDoubleListStrict(*findOverride(entry, cos_key),
+        series.cos_coeff = parseutil::parseDoubleListStrict(*findOverride(entry, cos_key),
                                                      "wing '" + wing_label + "' key '" + cos_key + "'");
-        requireHarmonicLength(cos_coeff, n_harmonics, "wing '" + wing_label + "' key '" + cos_key + "'");
+        requireHarmonicLength(series.cos_coeff, n_harmonics, "wing '" + wing_label + "' key '" + cos_key + "'");
     }
     if (has_sin) {
-        sin_coeff = parseutil::parseDoubleListStrict(*findOverride(entry, sin_key),
+        series.sin_coeff = parseutil::parseDoubleListStrict(*findOverride(entry, sin_key),
                                                      "wing '" + wing_label + "' key '" + sin_key + "'");
-        requireHarmonicLength(sin_coeff, n_harmonics, "wing '" + wing_label + "' key '" + sin_key + "'");
+        requireHarmonicLength(series.sin_coeff, n_harmonics, "wing '" + wing_label + "' key '" + sin_key + "'");
     }
+}
+
+void ensureHarmonicSize(HarmonicSeries& series, int n_harmonics) {
+    const auto n = static_cast<size_t>(n_harmonics);
+    if (series.cos_coeff.size() != n) series.cos_coeff.resize(n, 0.0);
+    if (series.sin_coeff.size() != n) series.sin_coeff.resize(n, 0.0);
 }
 
 void populateWingMotion(
@@ -81,28 +85,13 @@ void populateWingMotion(
 
     out.omega = default_kin.omega;
     out.harmonic_period_wingbeats = default_kin.harmonic_period_wingbeats;
-    out.gamma_mean = default_kin.gamma_mean;
-    out.phi_mean = default_kin.phi_mean;
-    out.psi_mean = default_kin.psi_mean;
+    out.gamma = default_kin.gamma;
+    out.phi = default_kin.phi;
+    out.psi = default_kin.psi;
 
-    out.gamma_cos = default_kin.gamma_cos;
-    out.gamma_sin = default_kin.gamma_sin;
-    out.phi_cos = default_kin.phi_cos;
-    out.phi_sin = default_kin.phi_sin;
-    out.psi_cos = default_kin.psi_cos;
-    out.psi_sin = default_kin.psi_sin;
-
-    auto ensure_size = [n_harmonics](std::vector<double>& values) {
-        if (values.size() != static_cast<size_t>(n_harmonics)) {
-            values.resize(static_cast<size_t>(n_harmonics), 0.0);
-        }
-    };
-    ensure_size(out.gamma_cos);
-    ensure_size(out.gamma_sin);
-    ensure_size(out.phi_cos);
-    ensure_size(out.phi_sin);
-    ensure_size(out.psi_cos);
-    ensure_size(out.psi_sin);
+    ensureHarmonicSize(out.gamma, n_harmonics);
+    ensureHarmonicSize(out.phi, n_harmonics);
+    ensureHarmonicSize(out.psi, n_harmonics);
 
     if (entry.motion_overrides.empty()) {
         out.has_custom_motion = false;
@@ -123,12 +112,9 @@ void populateWingMotion(
         throw std::runtime_error("wing '" + wing_label + "' harmonic_period_wingbeats must be finite and > 0");
     }
 
-    applyWingAngleOverrides(entry, wing_label, "gamma", n_harmonics,
-                            out.gamma_mean, out.gamma_cos, out.gamma_sin);
-    applyWingAngleOverrides(entry, wing_label, "phi", n_harmonics,
-                            out.phi_mean, out.phi_cos, out.phi_sin);
-    applyWingAngleOverrides(entry, wing_label, "psi", n_harmonics,
-                            out.psi_mean, out.psi_cos, out.psi_sin);
+    applyWingAngleOverrides(entry, wing_label, "gamma", n_harmonics, out.gamma);
+    applyWingAngleOverrides(entry, wing_label, "phi", n_harmonics, out.phi);
+    applyWingAngleOverrides(entry, wing_label, "psi", n_harmonics, out.psi);
 
     out.has_custom_motion = true;
 }
@@ -136,9 +122,9 @@ void populateWingMotion(
 }  // namespace
 
 bool hasWingMotionSeries(const WingConfig& w) {
-    return !w.gamma_cos.empty() && !w.gamma_sin.empty() &&
-           !w.phi_cos.empty() && !w.phi_sin.empty() &&
-           !w.psi_cos.empty() && !w.psi_sin.empty();
+    return !w.gamma.cos_coeff.empty() && !w.gamma.sin_coeff.empty() &&
+           !w.phi.cos_coeff.empty() && !w.phi.sin_coeff.empty() &&
+           !w.psi.cos_coeff.empty() && !w.psi.sin_coeff.empty();
 }
 
 SimKinematicParams readKinematicParams(const Config& cfg) {
@@ -153,20 +139,9 @@ SimKinematicParams readKinematicParams(const Config& cfg) {
         throw std::runtime_error("harmonic_period_wingbeats must be finite and > 0");
     }
 
-    loadAngleSeries(
-        cfg, "gamma", kin.n_harmonics, cfg.getDouble("gamma_mean", 0.0),
-        kin.gamma_mean, kin.gamma_cos, kin.gamma_sin
-    );
-
-    loadAngleSeries(
-        cfg, "phi", kin.n_harmonics, cfg.getDouble("phi_mean", 0.0),
-        kin.phi_mean, kin.phi_cos, kin.phi_sin
-    );
-
-    loadAngleSeries(
-        cfg, "psi", kin.n_harmonics, cfg.getDouble("psi_mean", 0.0),
-        kin.psi_mean, kin.psi_cos, kin.psi_sin
-    );
+    loadAngleSeries(cfg, "gamma", kin.n_harmonics, cfg.getDouble("gamma_mean", 0.0), kin.gamma);
+    loadAngleSeries(cfg, "phi", kin.n_harmonics, cfg.getDouble("phi_mean", 0.0), kin.phi);
+    loadAngleSeries(cfg, "psi", kin.n_harmonics, cfg.getDouble("psi_mean", 0.0), kin.psi);
 
     return kin;
 }
@@ -224,25 +199,13 @@ std::vector<WingConfig> buildWingConfigs(const Config& cfg, const SimKinematicPa
 std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinematicParams& kin) {
     std::vector<Wing> wings;
     wings.reserve(wc.size());
-    const auto kin_series = kin.toHarmonicSeries();
     for (const auto& w : wc) {
-        HarmonicSeries gamma = kin_series.gamma;
-        HarmonicSeries phi = kin_series.phi;
-        HarmonicSeries psi = kin_series.psi;
-        double omega = kin.omega;
-        double harmonic_period_wingbeats = kin.harmonic_period_wingbeats;
-
-        if (hasWingMotionSeries(w)) {
-            const auto wing_series = w.toHarmonicSeries();
-            gamma = wing_series.gamma;
-            phi = wing_series.phi;
-            psi = wing_series.psi;
-            omega = w.omega;
-            harmonic_period_wingbeats = w.harmonic_period_wingbeats;
-        }
+        const MotionParams& motion = hasWingMotionSeries(w)
+            ? static_cast<const MotionParams&>(w) : static_cast<const MotionParams&>(kin);
 
         auto angleFunc = makeAngleFunc(
-            gamma, phi, psi, w.phase_offset, omega, harmonic_period_wingbeats
+            motion.gamma, motion.phi, motion.psi,
+            w.phase_offset, motion.omega, motion.harmonic_period_wingbeats
         );
         wings.emplace_back(w.name, w.mu0, w.lb0, w.side, w.Cd0, w.Cl0, angleFunc);
     }

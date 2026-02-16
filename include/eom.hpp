@@ -2,23 +2,10 @@
 
 #include "linalg.hpp"
 
-#include <functional>
 #include <vector>
 
 // Forward declaration
 class Wing;
-
-// Wing angles at a given time
-struct WingAngles {
-    double gam = 0.0;      // Stroke plane angle
-    double gam_dot = 0.0;  // Stroke plane angular velocity
-    double phi = 0.0;      // Stroke angle
-    double phi_dot = 0.0;  // Stroke angular velocity
-    double psi = 0.0;      // Pitch angle
-};
-
-// Function type for computing wing angles from time
-using AngleFunc = std::function<WingAngles(double t)>;
 
 // State vector with position and velocity
 struct State {

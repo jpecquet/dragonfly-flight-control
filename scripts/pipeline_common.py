@@ -69,6 +69,56 @@ def get_git_commit(repo_root: Path) -> str:
         return "unknown"
 
 
+def fmt(x: float) -> str:
+    """Format a float with 12 decimal places for simulator config files."""
+    return f"{x:.12f}"
+
+
+def fmt_list(values: list[float]) -> str:
+    """Format a list of floats as comma-separated 12-decimal-place values."""
+    return ", ".join(fmt(float(x)) for x in values)
+
+
+def build_wing_block(
+    name: str,
+    side: str,
+    wing_mu0: float,
+    wing_lb0: float,
+    wing_cd0: float,
+    wing_cl0: float,
+    phase: float,
+    motion: dict[str, Any] | None = None,
+) -> str:
+    """Build a [[wing]] config block for the simulator."""
+    lines = [
+        "[[wing]]",
+        f"name = {name}",
+        f"side = {side}",
+        f"mu0 = {fmt(wing_mu0)}",
+        f"lb0 = {fmt(wing_lb0)}",
+        f"Cd0 = {fmt(wing_cd0)}",
+        f"Cl0 = {fmt(wing_cl0)}",
+        f"phase = {fmt(phase)}",
+    ]
+
+    if motion is not None:
+        lines.extend(
+            [
+                f"gamma_mean = {fmt(float(motion['gamma_mean']))}",
+                f"gamma_cos = {fmt_list([float(x) for x in motion['gamma_cos']])}",
+                f"gamma_sin = {fmt_list([float(x) for x in motion['gamma_sin']])}",
+                f"phi_mean = {fmt(float(motion['phi_mean']))}",
+                f"phi_cos = {fmt_list([float(x) for x in motion['phi_cos']])}",
+                f"phi_sin = {fmt_list([float(x) for x in motion['phi_sin']])}",
+                f"psi_mean = {fmt(float(motion['psi_mean']))}",
+                f"psi_cos = {fmt_list([float(x) for x in motion['psi_cos']])}",
+                f"psi_sin = {fmt_list([float(x) for x in motion['psi_sin']])}",
+            ]
+        )
+
+    return "\n".join(lines)
+
+
 def update_manifest(
     run_dir: Path,
     stage: str,

@@ -1,6 +1,5 @@
 #include "cmd_sim.hpp"
 #include "integrator.hpp"
-#include "output.hpp"
 #include "sim_setup.hpp"
 
 #include <iostream>

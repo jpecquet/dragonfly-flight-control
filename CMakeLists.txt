@@ -30,6 +30,9 @@ FetchContent_MakeAvailable(HighFive)
 # Tests
 enable_testing()
 
+# Find NLopt
+find_package(NLopt REQUIRED)
+
 # Physics library (shared between main executable and tests)
 add_library(dragonfly_physics STATIC
     src/rotation.cpp
@@ -50,16 +53,13 @@ target_link_libraries(dragonfly_physics PUBLIC
     Eigen3::Eigen
 )
 
-# Find NLopt
-find_package(NLopt REQUIRED)
-
 # Sampling library (Sobol sequence generator)
 add_library(dragonfly_sampling STATIC
     src/sampling.cpp
 )
 
-target_include_directories(dragonfly_sampling PUBLIC
-    ${CMAKE_SOURCE_DIR}/include
+target_link_libraries(dragonfly_sampling PUBLIC
+    dragonfly_physics
 )
 
 # Controller library
@@ -67,10 +67,6 @@ add_library(dragonfly_controller STATIC
     src/controller.cpp
     src/trajectory.cpp
     src/trajectory_controller.cpp
-)
-
-target_include_directories(dragonfly_controller PUBLIC
-    ${CMAKE_SOURCE_DIR}/include
 )
 
 target_link_libraries(dragonfly_controller PUBLIC
@@ -82,16 +78,30 @@ add_library(dragonfly_optim STATIC
     src/optimize.cpp
 )
 
-target_include_directories(dragonfly_optim PUBLIC
-    ${CMAKE_SOURCE_DIR}/include
-    ${HDF5_INCLUDE_DIRS}
-)
-
 target_link_libraries(dragonfly_optim PUBLIC
     dragonfly_physics
     dragonfly_sampling
     HighFive
     ${HDF5_LIBRARIES}
+)
+
+target_include_directories(dragonfly_optim PUBLIC
+    ${HDF5_INCLUDE_DIRS}
+)
+
+# I/O library (HDF5 simulation output)
+add_library(dragonfly_io STATIC
+    src/output.cpp
+)
+
+target_link_libraries(dragonfly_io PUBLIC
+    dragonfly_physics
+    HighFive
+    ${HDF5_LIBRARIES}
+)
+
+target_include_directories(dragonfly_io PUBLIC
+    ${HDF5_INCLUDE_DIRS}
 )
 
 # CLI executable
@@ -103,19 +113,15 @@ add_executable(dragonfly_cli
     apps/cmd_plot.cpp
     apps/cmd_termvel.cpp
     apps/cmd_wingtest.cpp
-    src/output.cpp
 )
 target_include_directories(dragonfly_cli PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/apps
-    ${HDF5_INCLUDE_DIRS}
 )
 target_link_libraries(dragonfly_cli PRIVATE
+    dragonfly_io
     dragonfly_optim
     dragonfly_controller
     NLopt::nlopt
-    HighFive
-    ${HDF5_LIBRARIES}
 )
 set_target_properties(dragonfly_cli PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
@@ -144,19 +150,15 @@ add_dragonfly_test(test_config           Config           dragonfly_physics)
 add_executable(test_tracking
     tests/test_tracking.cpp
     apps/cmd_track.cpp
-    src/output.cpp
 )
 target_include_directories(test_tracking PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/apps
-    ${HDF5_INCLUDE_DIRS}
 )
 target_link_libraries(test_tracking PRIVATE
+    dragonfly_io
     dragonfly_optim
     dragonfly_controller
     NLopt::nlopt
-    HighFive
-    ${HDF5_LIBRARIES}
 )
 set_target_properties(test_tracking PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin

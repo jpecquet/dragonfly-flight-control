@@ -1,7 +1,5 @@
 #include "cmd_track.hpp"
 #include "integrator.hpp"
-#include "kinematics.hpp"
-#include "output.hpp"
 #include "sim_setup.hpp"
 #include "trajectory_controller.hpp"
 
@@ -10,6 +8,13 @@
 #include <string>
 
 namespace {
+
+// Compute the first-harmonic amplitude of a HarmonicSeries
+double firstHarmonicAmplitude(const HarmonicSeries& s) {
+    const double c1 = s.cos_coeff.empty() ? 0.0 : s.cos_coeff[0];
+    const double s1 = s.sin_coeff.empty() ? 0.0 : s.sin_coeff[0];
+    return std::hypot(c1, s1);
+}
 
 void applyControlOutput(const ControlOutput& ctrl,
                         double& gamma_mean_cmd,
@@ -57,9 +62,7 @@ int runTrack(const Config& cfg) {
     auto output = initOutput(wingConfigs, kin, tp.nsteps);
 
     constexpr double EPS = 1e-12;
-    const double kin_phi_c1 = kin.phi_cos.empty() ? 0.0 : kin.phi_cos[0];
-    const double kin_phi_s1 = kin.phi_sin.empty() ? 0.0 : kin.phi_sin[0];
-    const double kin_phi_amp = std::hypot(kin_phi_c1, kin_phi_s1);
+    const double kin_phi_amp = firstHarmonicAmplitude(kin.phi);
 
     // Controller baseline is the average effective wing motion baseline.
     double gamma_mean_base = 0.0;
@@ -67,14 +70,12 @@ int runTrack(const Config& cfg) {
     double phi_amp_base = 0.0;
     for (const auto& wcfg : wingConfigs) {
         if (hasWingMotionSeries(wcfg)) {
-            gamma_mean_base += wcfg.gamma_mean;
-            psi_mean_base += wcfg.psi_mean;
-            double c1 = wcfg.phi_cos.empty() ? 0.0 : wcfg.phi_cos[0];
-            double s1 = wcfg.phi_sin.empty() ? 0.0 : wcfg.phi_sin[0];
-            phi_amp_base += std::hypot(c1, s1);
+            gamma_mean_base += wcfg.gamma.mean;
+            psi_mean_base += wcfg.psi.mean;
+            phi_amp_base += firstHarmonicAmplitude(wcfg.phi);
         } else {
-            gamma_mean_base += kin.gamma_mean;
-            psi_mean_base += kin.psi_mean;
+            gamma_mean_base += kin.gamma.mean;
+            psi_mean_base += kin.psi.mean;
             phi_amp_base += kin_phi_amp;
         }
     }
@@ -84,8 +85,8 @@ int runTrack(const Config& cfg) {
         psi_mean_base *= inv_count;
         phi_amp_base *= inv_count;
     } else {
-        gamma_mean_base = kin.gamma_mean;
-        psi_mean_base = kin.psi_mean;
+        gamma_mean_base = kin.gamma.mean;
+        psi_mean_base = kin.psi.mean;
         phi_amp_base = kin_phi_amp;
     }
 
@@ -96,26 +97,17 @@ int runTrack(const Config& cfg) {
     for (size_t w = 0; w < wings.size(); ++w) {
         const auto& wcfg = wingConfigs[w];
         const bool use_local = hasWingMotionSeries(wcfg);
-        const MotionParams* base_motion = use_local
-            ? static_cast<const MotionParams*>(&wcfg)
-            : static_cast<const MotionParams*>(&kin);
-        const auto base_series = base_motion->toHarmonicSeries();
-        const double omega_w = base_motion->omega;
-        const double harmonic_period_wingbeats_w = base_motion->harmonic_period_wingbeats;
-        const HarmonicSeries gamma_base = base_series.gamma;
-        const HarmonicSeries phi_base = base_series.phi;
-        const HarmonicSeries psi_base = base_series.psi;
-        const double phi_c1 = phi_base.cos_coeff.empty() ? 0.0 : phi_base.cos_coeff[0];
-        const double phi_s1 = phi_base.sin_coeff.empty() ? 0.0 : phi_base.sin_coeff[0];
-        const double wing_phi_amp_base = std::hypot(phi_c1, phi_s1);
-        const double phase_offset = wingConfigs[w].phase_offset;
+        const MotionParams& base_motion = use_local
+            ? static_cast<const MotionParams&>(wcfg)
+            : static_cast<const MotionParams&>(kin);
+        const double wing_phi_amp_base = firstHarmonicAmplitude(base_motion.phi);
         auto angleFunc = makeControlledAngleFunc(
-            gamma_base,
-            phi_base,
-            psi_base,
-            phase_offset,
-            omega_w,
-            harmonic_period_wingbeats_w,
+            base_motion.gamma,
+            base_motion.phi,
+            base_motion.psi,
+            wcfg.phase_offset,
+            base_motion.omega,
+            base_motion.harmonic_period_wingbeats,
             gamma_mean_base,
             psi_mean_base,
             phi_amp_base,

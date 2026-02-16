@@ -26,7 +26,7 @@ class TestReadSimulation(unittest.TestCase):
                         f.create_dataset(f"/wings/{wing_name}/{vec_name}", data=np.zeros((2, 3)))
 
             _, _, _, wings = read_simulation(h5_path)
-            self.assertEqual(list(wings[0].keys()), ["wing_a", "wing_b"])
+            self.assertEqual(list(wings.keys()), ["wing_a", "wing_b"])
 
 
 class TestRunTermvelSimulation(unittest.TestCase):

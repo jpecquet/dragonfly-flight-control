@@ -1,11 +1,22 @@
 #pragma once
 
-#include "eom.hpp"
-
 #include <cmath>
-#include <string>
+#include <functional>
 #include <stdexcept>
+#include <string>
 #include <vector>
+
+// Wing angles at a given time
+struct WingAngles {
+    double gam = 0.0;      // Stroke plane angle
+    double gam_dot = 0.0;  // Stroke plane angular velocity
+    double phi = 0.0;      // Stroke angle
+    double phi_dot = 0.0;  // Stroke angular velocity
+    double psi = 0.0;      // Pitch angle
+};
+
+// Function type for computing wing angles from time
+using AngleFunc = std::function<WingAngles(double t)>;
 
 struct HarmonicSeries {
     double mean = 0.0;
@@ -13,32 +24,12 @@ struct HarmonicSeries {
     std::vector<double> sin_coeff;
 };
 
-struct MotionHarmonicSeries {
-    HarmonicSeries gamma;
-    HarmonicSeries phi;
-    HarmonicSeries psi;
-};
-
 struct MotionParams {
     double omega = 0.0;
     double harmonic_period_wingbeats = 1.0;
-    double gamma_mean = 0.0;
-    double phi_mean = 0.0;
-    double psi_mean = 0.0;
-    std::vector<double> gamma_cos;
-    std::vector<double> gamma_sin;
-    std::vector<double> phi_cos;
-    std::vector<double> phi_sin;
-    std::vector<double> psi_cos;
-    std::vector<double> psi_sin;
-
-    MotionHarmonicSeries toHarmonicSeries() const {
-        return {
-            {gamma_mean, gamma_cos, gamma_sin},
-            {phi_mean, phi_cos, phi_sin},
-            {psi_mean, psi_cos, psi_sin}
-        };
-    }
+    HarmonicSeries gamma;
+    HarmonicSeries phi;
+    HarmonicSeries psi;
 };
 
 inline void validateHarmonicSeries(const HarmonicSeries& series, const char* name) {

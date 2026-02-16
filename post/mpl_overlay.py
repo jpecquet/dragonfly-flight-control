@@ -176,6 +176,14 @@ def setup_axes(ax: Axes3D, viewport: ViewportConfig, camera: CameraConfig, style
     ax.zaxis._axinfo['grid']['color'] = grid_color
 
 
+def _wing_frame(wings, frame_idx):
+    """Extract single-frame wing vectors from dict-of-arrays format."""
+    return {
+        wname: {k: v[frame_idx] for k, v in wdata.items()}
+        for wname, wdata in wings.items()
+    }
+
+
 def _draw_forces(ax, xb, wing_vectors, wing_lb0, config):
     """Draw lift/drag force vectors for all wings."""
     style = config.style
@@ -265,8 +273,8 @@ def _draw_body_and_wings(ax, xb, wing_vectors, wing_lb0, style: StyleConfig):
 
 def render_simulation_frame(
     frame_idx: int,
-    states: List[np.ndarray],
-    wing_vectors: List[Dict],
+    states: np.ndarray,
+    wing_vectors: Dict,
     params: Dict,
     config: HybridConfig,
     output_path: Path,
@@ -277,8 +285,8 @@ def render_simulation_frame(
 
     Args:
         frame_idx: Current frame index
-        states: List of state arrays
-        wing_vectors: List of wing vector dicts
+        states: State array (N, 6)
+        wing_vectors: Dict-of-arrays keyed by wing name
         params: Simulation parameters
         config: Hybrid configuration
         output_path: Output directory
@@ -295,14 +303,14 @@ def render_simulation_frame(
 
     # Current position
     xb = states[frame_idx][0:3]
-    v = wing_vectors[frame_idx]
+    v = _wing_frame(wing_vectors, frame_idx)
 
     if draw_models:
         _draw_body_and_wings(ax, xb, v, wing_lb0, style)
 
     # Draw trajectory trail (full history)
     if frame_idx > 0:
-        trail_points = np.array([s[0:3] for s in states[0:frame_idx + 1]])
+        trail_points = states[0:frame_idx + 1, 0:3]
         ax.plot(trail_points[:, 0], trail_points[:, 1], trail_points[:, 2],
                 color=style.trajectory_color,
                 linewidth=style.trajectory_linewidth,
@@ -327,8 +335,8 @@ def render_simulation_frame(
 
 def render_tracking_frame(
     frame_idx: int,
-    states: List[np.ndarray],
-    wing_vectors: List[Dict],
+    states: np.ndarray,
+    wing_vectors: Dict,
     params: Dict,
     controller: Dict,
     config: HybridConfig,
@@ -342,8 +350,8 @@ def render_tracking_frame(
 
     Args:
         frame_idx: Current frame index
-        states: List of state arrays
-        wing_vectors: List of wing vector dicts
+        states: State array (N, 6)
+        wing_vectors: Dict-of-arrays keyed by wing name
         params: Simulation parameters
         controller: Controller data dict
         config: Hybrid configuration
@@ -361,7 +369,7 @@ def render_tracking_frame(
 
     # Current state
     xb = states[frame_idx][0:3]
-    v = wing_vectors[frame_idx]
+    v = _wing_frame(wing_vectors, frame_idx)
     if draw_models:
         _draw_body_and_wings(ax, xb, v, wing_lb0, style)
 
@@ -378,7 +386,7 @@ def render_tracking_frame(
 
     # Draw actual trajectory trail (full history)
     if frame_idx > 0:
-        trail_points = np.array([s[0:3] for s in states[0:frame_idx + 1]])
+        trail_points = states[0:frame_idx + 1, 0:3]
         ax.plot(trail_points[:, 0], trail_points[:, 1], trail_points[:, 2],
                 color=style.trajectory_color,
                 linewidth=style.trajectory_linewidth,
@@ -429,8 +437,8 @@ def render_tracking_frame(
 
 
 def render_all_frames(
-    states: List[np.ndarray],
-    wing_vectors: List[Dict],
+    states: np.ndarray,
+    wing_vectors: Dict,
     params: Dict,
     config: HybridConfig,
     output_path: Path,
@@ -442,8 +450,8 @@ def render_all_frames(
     Render all matplotlib overlay frames (simulation or tracking).
 
     Args:
-        states: List of state arrays
-        wing_vectors: List of wing vector dicts
+        states: State array (N, 6)
+        wing_vectors: Dict-of-arrays keyed by wing name
         params: Simulation parameters
         config: Hybrid configuration
         output_path: Output directory
@@ -497,8 +505,8 @@ def _frame_worker(args):
 
 
 def render_all_frames_parallel(
-    states: List[np.ndarray],
-    wing_vectors: List[Dict],
+    states: np.ndarray,
+    wing_vectors: Dict,
     params: Dict,
     config: HybridConfig,
     output_path: Path,
@@ -510,8 +518,8 @@ def render_all_frames_parallel(
     Render all matplotlib overlay frames in parallel.
 
     Args:
-        states: List of state arrays
-        wing_vectors: List of wing vector dicts
+        states: State array (N, 6)
+        wing_vectors: Dict-of-arrays keyed by wing name
         params: Simulation parameters
         config: Hybrid configuration
         output_path: Output directory

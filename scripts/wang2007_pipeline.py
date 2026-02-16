@@ -24,9 +24,23 @@ from typing import Any
 import numpy as np
 
 try:
-    from pipeline_common import build_plot_env, ensure_dir, resolve_run_dir, run_cmd
+    from pipeline_common import (
+        build_plot_env,
+        build_wing_block,
+        ensure_dir,
+        fmt,
+        resolve_run_dir,
+        run_cmd,
+    )
 except ModuleNotFoundError:
-    from scripts.pipeline_common import build_plot_env, ensure_dir, resolve_run_dir, run_cmd
+    from scripts.pipeline_common import (
+        build_plot_env,
+        build_wing_block,
+        ensure_dir,
+        fmt,
+        resolve_run_dir,
+        run_cmd,
+    )
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -248,53 +262,6 @@ def compute_smoothed_motion_mapping(
 # ---------------------------------------------------------------------------
 # Config generation
 # ---------------------------------------------------------------------------
-
-def fmt(x: float) -> str:
-    return f"{x:.12f}"
-
-
-def fmt_list(values: list[float]) -> str:
-    return ", ".join(fmt(float(x)) for x in values)
-
-
-def build_wing_block(
-    name: str,
-    side: str,
-    wing_mu0: float,
-    wing_lb0: float,
-    wing_cd0: float,
-    wing_cl0: float,
-    phase: float,
-    motion: dict[str, Any] | None = None,
-) -> str:
-    lines = [
-        "[[wing]]",
-        f"name = {name}",
-        f"side = {side}",
-        f"mu0 = {fmt(wing_mu0)}",
-        f"lb0 = {fmt(wing_lb0)}",
-        f"Cd0 = {fmt(wing_cd0)}",
-        f"Cl0 = {fmt(wing_cl0)}",
-        f"phase = {fmt(phase)}",
-    ]
-
-    if motion is not None:
-        lines.extend(
-            [
-                f"gamma_mean = {fmt(float(motion['gamma_mean']))}",
-                f"gamma_cos = {fmt_list([float(x) for x in motion['gamma_cos']])}",
-                f"gamma_sin = {fmt_list([float(x) for x in motion['gamma_sin']])}",
-                f"phi_mean = {fmt(float(motion['phi_mean']))}",
-                f"phi_cos = {fmt_list([float(x) for x in motion['phi_cos']])}",
-                f"phi_sin = {fmt_list([float(x) for x in motion['phi_sin']])}",
-                f"psi_mean = {fmt(float(motion['psi_mean']))}",
-                f"psi_cos = {fmt_list([float(x) for x in motion['psi_cos']])}",
-                f"psi_sin = {fmt_list([float(x) for x in motion['psi_sin']])}",
-            ]
-        )
-
-    return "\n".join(lines)
-
 
 def build_sim_cfg(
     mapping: dict[str, Any],
