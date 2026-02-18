@@ -6,5 +6,6 @@ Reproducible, end-to-end examples that connect experimental data, simulation set
 :maxdepth: 1
 
 azuma1985
+azuma1988
 wang2007
 ```

@@ -4,6 +4,7 @@
 
 ```bash
 python -m pip install -r docs/requirements.txt
+python scripts/generate_case_study_docs.py
 make -C docs html
 ```
 
@@ -31,3 +32,5 @@ If Doxygen is not installed, the C++ API page still renders, but without extract
 
 - `DOCS_SKIP_DOXYGEN=1 make -C docs html`: build quickly without C++ extraction
 - `sphinx-build -W -b html docs docs/_build/html`: fail on warnings (recommended for CI)
+- `python scripts/generate_case_study_docs.py --check`: verify generated case-study snippets are current
+- `python -m pip install jsonschema && python scripts/validate_case_data.py`: validate all case data against schema

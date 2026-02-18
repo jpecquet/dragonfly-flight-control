@@ -186,7 +186,7 @@ std::vector<WingConfig> buildWingConfigs(const Config& cfg, const SimKinematicPa
     for (const auto& entry : cfg.getWingEntries()) {
         WingSide side = parseSide(entry.side);
         WingConfig config(entry.name, side, entry.mu0, entry.lb0,
-                          entry.Cd0, entry.Cl0, entry.phase);
+                          entry.Cd0, entry.Cl0, entry.phase, entry.cone);
         populateWingMotion(entry, default_kin, config);
         wingConfigs.push_back(std::move(config));
     }
@@ -205,7 +205,7 @@ std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinema
             motion.gamma, motion.phi, motion.psi,
             w.phase_offset, motion.omega, motion.harmonic_period_wingbeats
         );
-        wings.emplace_back(w.name, w.mu0, w.lb0, w.side, w.Cd0, w.Cl0, angleFunc);
+        wings.emplace_back(w.name, w.mu0, w.lb0, w.side, w.Cd0, w.Cl0, w.cone_angle, angleFunc);
     }
     return wings;
 }

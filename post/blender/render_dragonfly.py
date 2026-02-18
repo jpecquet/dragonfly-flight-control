@@ -434,6 +434,9 @@ def main():
 
     # Get viewport extent and scale factor
     viewport_extent = viewport_cfg.get('extent', 2.0)
+    extent_xyz = viewport_cfg.get('extent_xyz')
+    if isinstance(extent_xyz, list) and len(extent_xyz) == 3:
+        viewport_extent = max(float(extent_xyz[0]), float(extent_xyz[1]), float(extent_xyz[2]))
     viewport_center = viewport_cfg.get('center', [0, 0, 0])
     scale_factor = blender_cfg.get('scale_factor', 1.8)
 

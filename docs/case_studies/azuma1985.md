@@ -4,37 +4,8 @@ Flight simulation from experimental wing kinematics from {cite}`azuma1985`.
 
 ## Description
 
-### Dragonfly Specimen
-
-| Parameter | Dimensions |
-|---|---|
-| $L$ | $4\times10^{-2}$ m |
-| $m$ | $2.6\times10^{-4}$ kg |
-| $R_{fw}$ | $3.35\times10^{-2}$ m |
-| $S_{fw}$ | $2.21\times10^{-4}$ m$^2$ |
-| $AR_{fw}$ | $10.2$ |
-| $R_{hw}$ | $3.25\times10^{-2}$ m |
-| $S_{hw}$ | $2.72\times10^{-4}$ m$^2$ |
-| $AR_{hw}$ | $7.8$ |
-
-### Wing Kinematics
-
-Flapping frequency: $f = 41.5$ Hz
-
-Stroke planes
-
-$$\gamma_{fw} = 37 \text{deg}$$
-$$\gamma_{hw} = 40 \text{deg}$$
-
-Wing flapping angle Fourier series (in degrees)
-
-$$\psi_{fw} = -3 - 43 \cos{(\omega t)}$$
-$$\psi_{hw} = 2 - 47 \cos{(\omega t + 77)}$$
-
-Wing pitch angle Fourier series (in degrees)
-
-$$\theta_{fw} = 98 - 77 \cos{(\omega t - 49)} - 3 \cos{(2\omega t + 67)} - 8\cos{(3\omega t + 29)}$$
-$$\theta_{hw} = 93 - 65 \cos{(\omega t + 18)} + 8 \cos{(2\omega t + 74)} + 8\cos{(3\omega t + 28)}$$
+```{include} generated/azuma1985_description.md
+```
 
 ## Artifacts
 
@@ -128,9 +99,8 @@ The simulator motion inputs are constructed from the paper angles using:
 ### Body Speed and Direction vs Experiment
 
 The left panel shows dimensional body speed magnitude from simulation compared to
-the experimental reference `0.54 m/s`. The right panel shows the center-of-mass
-direction angle in the `XZ` plane, `atan2(z, x)` in degrees, compared to the
-experimental reference `60 deg`.
+the experimental reference. The right panel shows the center-of-mass direction
+angle in the `XZ` plane, `atan2(z, x)` in degrees, compared to experiment.
 
 ```{raw} html
 <img

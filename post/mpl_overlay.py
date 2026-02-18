@@ -25,6 +25,7 @@ except ImportError:
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from mpl_toolkits.mplot3d.proj3d import proj_transform
@@ -39,6 +40,10 @@ from .constants import (
 )
 from .hybrid_config import CameraConfig, StyleConfig, ViewportConfig, HybridConfig
 from .style import apply_matplotlib_style
+
+
+def _major_tick_step(extent: float) -> float:
+    return 0.5 if extent < 2.0 else 1.0
 
 
 def compute_blender_ortho_scale(
@@ -145,20 +150,27 @@ def setup_axes(ax: Axes3D, viewport: ViewportConfig, camera: CameraConfig, style
         viewport: Viewport configuration
         camera: Camera configuration
     """
-    # Set axis limits based on viewport
-    half_extent = viewport.extent / 2
-
-    ax.set_xlim(viewport.center[0] - half_extent, viewport.center[0] + half_extent)
-    ax.set_ylim(viewport.center[1] - half_extent, viewport.center[1] + half_extent)
-    ax.set_zlim(viewport.center[2] - half_extent, viewport.center[2] + half_extent)
+    # Set axis limits based on per-axis viewport extents.
+    half = viewport.half_extent_xyz
+    ax.set_xlim(viewport.center[0] - half[0], viewport.center[0] + half[0])
+    ax.set_ylim(viewport.center[1] - half[1], viewport.center[1] + half[1])
+    ax.set_zlim(viewport.center[2] - half[2], viewport.center[2] + half[2])
 
     # Labels
-    ax.set_xlabel('X (forward)', fontsize=10, color=style.text_color)
-    ax.set_ylabel('Y (left)', fontsize=10, color=style.text_color)
-    ax.set_zlabel('Z (up)', fontsize=10, color=style.text_color)
+    ax.set_xlabel('X (forward)', fontsize=10, color=style.text_color, labelpad=12)
+    ax.set_ylabel('Y (left)', fontsize=10, color=style.text_color, labelpad=12)
+    ax.set_zlabel('Z (up)', fontsize=10, color=style.text_color, labelpad=10)
 
-    # Equal aspect ratio (as close as matplotlib allows)
-    ax.set_box_aspect([1, 1, 1])
+    # Keep equal data-unit scaling while allowing non-cubic extents.
+    ax.set_box_aspect(viewport.extent_xyz.tolist())
+
+    # Axis ticks: denser for compact extents, coarser for larger extents.
+    ax.xaxis.set_major_locator(MultipleLocator(_major_tick_step(float(viewport.extent_xyz[0]))))
+    ax.yaxis.set_major_locator(MultipleLocator(_major_tick_step(float(viewport.extent_xyz[1]))))
+    ax.zaxis.set_major_locator(MultipleLocator(_major_tick_step(float(viewport.extent_xyz[2]))))
+    ax.tick_params(axis='x', which='major', pad=1)
+    ax.tick_params(axis='y', which='major', pad=1)
+    ax.tick_params(axis='z', which='major', pad=1)
 
     # Grid styling
     ax.xaxis.pane.fill = False

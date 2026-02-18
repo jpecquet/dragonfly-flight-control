@@ -10,6 +10,8 @@ from typing import Optional, Tuple
 import json
 import numpy as np
 
+VIEWPORT_PADDING_UNITS = 0.5
+
 
 @dataclass
 class CameraConfig:
@@ -176,19 +178,39 @@ class BlenderRenderConfig:
 class ViewportConfig:
     """Computed viewport bounds for consistent rendering."""
     center: np.ndarray = field(default_factory=lambda: np.zeros(3))
-    extent: float = 2.0
+    extent_xyz: np.ndarray = field(default_factory=lambda: np.array([2.0, 2.0, 2.0]))
+
+    @property
+    def extent(self) -> float:
+        """Legacy scalar extent (max axis span), kept for backward compatibility."""
+        return float(np.max(self.extent_xyz))
+
+    @property
+    def half_extent_xyz(self) -> np.ndarray:
+        return 0.5 * self.extent_xyz
 
     def to_dict(self) -> dict:
         return {
             'center': self.center.tolist(),
             'extent': self.extent,
+            'extent_xyz': self.extent_xyz.tolist(),
         }
 
     @classmethod
     def from_dict(cls, d: dict) -> 'ViewportConfig':
+        center = np.array(d['center'], dtype=float)
+        extent_xyz_payload = d.get('extent_xyz')
+        if extent_xyz_payload is not None:
+            extent_xyz = np.array(extent_xyz_payload, dtype=float)
+            if extent_xyz.shape != (3,):
+                raise ValueError(f"viewport.extent_xyz must have shape (3,), got {extent_xyz.shape}")
+        else:
+            extent = float(d['extent'])
+            extent_xyz = np.array([extent, extent, extent], dtype=float)
+        extent_xyz = np.maximum(extent_xyz, 1.0)
         return cls(
-            center=np.array(d['center']),
-            extent=d['extent'],
+            center=center,
+            extent_xyz=extent_xyz,
         )
 
 
@@ -252,30 +274,36 @@ class HybridConfig:
             return cls.from_dict(json.load(f))
 
 
-def compute_viewport(states, targets=None, padding=1.2) -> ViewportConfig:
+def compute_viewport(states, targets=None, padding=VIEWPORT_PADDING_UNITS) -> ViewportConfig:
     """
     Compute viewport bounds from trajectory data.
 
     Args:
         states: list of state arrays [x, y, z, ux, uy, uz] or Nx6 array
         targets: optional target positions (Nx3 array)
-        padding: multiplier for extent (>1 adds margin)
+        padding: absolute margin in nondimensional length units, applied to each
+            side of every axis extent.
 
     Returns:
-        ViewportConfig with computed center and extent
+        ViewportConfig with computed center and per-axis extents.
     """
+    if padding < 0.0:
+        raise ValueError(f"padding must be >= 0, got {padding}")
+
     positions = np.array([s[0:3] for s in states])
 
     if targets is not None:
         positions = np.vstack([positions, targets])
 
-    center = (positions.min(axis=0) + positions.max(axis=0)) / 2
-    extent = (positions.max(axis=0) - positions.min(axis=0)).max() * padding
+    mins = positions.min(axis=0) - float(padding)
+    maxs = positions.max(axis=0) + float(padding)
+    center = 0.5 * (mins + maxs)
+    extent_xyz = maxs - mins
 
-    # Minimum extent to avoid degenerate viewports
-    extent = max(extent, 1.0)
+    # Minimum extent to avoid degenerate viewports.
+    extent_xyz = np.maximum(extent_xyz, 1.0)
 
-    return ViewportConfig(center=center, extent=extent)
+    return ViewportConfig(center=center, extent_xyz=extent_xyz)
 
 
 def camera_position_from_config(camera: CameraConfig, viewport: ViewportConfig) -> Tuple[np.ndarray, np.ndarray]:

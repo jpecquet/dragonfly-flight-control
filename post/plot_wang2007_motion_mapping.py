@@ -23,7 +23,14 @@ from post.plot_wang2007_kinematics import (
 )
 from post.style import apply_matplotlib_style, figure_size, resolve_style
 
-DEFAULT_WING_LENGTH_MM = 45.0
+try:
+    from case_data import load_case_data
+except ModuleNotFoundError:
+    from scripts.case_data import load_case_data
+
+
+WANG2007_CASE = load_case_data("wang2007")
+DEFAULT_WING_LENGTH_MM = float(WANG2007_CASE["specimen"]["wing_length_mm"])
 PLOT_HEIGHT_OVER_WIDTH = 0.45
 
 

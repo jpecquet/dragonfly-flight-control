@@ -1,24 +1,31 @@
 """Shared data and utilities for Wang 2007 kinematics analysis."""
 
-import os
+import json
+from pathlib import Path
+
 import numpy as np
 
+data_dir = Path(__file__).resolve().parent
+case_path = data_dir.parents[1] / "case_studies" / "wang2007" / "case.json"
+case_data = json.loads(case_path.read_text(encoding="utf-8"))
+sim_defaults = case_data["simulation_defaults"]
+stroke_plane_angles = sim_defaults["stroke_plane_angles_deg"]
+
 # Geometry
-gamma_fore = np.radians(53)     # simulator input stroke plane angles (from posterior)
-gamma_hind = np.radians(44)
+gamma_fore = np.radians(float(stroke_plane_angles["fore"]))  # simulator stroke plane angle
+gamma_hind = np.radians(float(stroke_plane_angles["hind"]))
 
 # Nondimensional time
 omega = 2 * np.pi               # one cycle per nondimensional time unit
 
 # --- Experimental data ---
-data_dir = os.path.dirname(os.path.abspath(__file__))
-data = np.genfromtxt(os.path.join(data_dir, "exp_data.csv"), delimiter=",", skip_header=2)
+timeseries = case_data["kinematics"]["timeseries"]
+csv_path = (case_path.parent / timeseries["csv_path"]).resolve()
+data = np.genfromtxt(str(csv_path), delimiter=",", skip_header=int(timeseries.get("skip_header", 0)))
 
 cols = {
-    "s_fore":     (0, 1),   "s_hind":     (2, 3),
-    "beta_fore":  (4, 5),   "beta_hind":  (6, 7),
-    "alpha_fore": (8, 9),   "alpha_hind": (10, 11),
-    "d_fore":     (12, 13), "d_hind":     (14, 15),
+    name: (int(mapping["time_col"]), int(mapping["value_col"]))
+    for name, mapping in timeseries["columns"].items()
 }
 
 

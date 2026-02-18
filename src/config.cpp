@@ -150,6 +150,8 @@ Config Config::load(const std::string& filename) {
                 wing_fields.Cl0 = true;
             } else if (key == "phase") {
                 current_wing.phase = parseDoubleAtLine(value, key, line_num);
+            } else if (key == "cone") {
+                current_wing.cone = parseDoubleAtLine(value, key, line_num);
             } else if (isWingMotionKey(key)) {
                 current_wing.motion_overrides[key] = value;
             } else {

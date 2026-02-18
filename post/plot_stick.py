@@ -3,14 +3,16 @@
 Visualize right forewing/hindwing stick motion in the (X,Z) plane.
 
 Usage:
-    python -m post.plot_stick <input.h5> <output.mp4|gif> [--theme light|dark] [--station 0.6667]
+    python -m post.plot_stick <input.h5> <output.mp4|gif> [--theme light|dark]
+      [--station 0.6667] [--stations 0.25 0.5 0.75]
 
 Example:
-    python -m post.plot_stick output.h5 stroke.mp4 --theme dark
+    python -m post.plot_stick output.h5 stroke.mp4 --theme dark --stations 0.25 0.5 0.75
 """
 
 import argparse
 import sys
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as ani
@@ -20,8 +22,30 @@ from post.io import read_simulation
 from post.style import apply_matplotlib_style, figure_size, resolve_style
 
 STICK_LENGTH = 0.1
-FORE_X_OFFSET = 0.1
-HIND_X_OFFSET = -0.1
+WING_ROOT_DISTANCE = 0.1
+WING_ROOT_MIDPOINT_Z = 0.04
+WING_ROOT_TILT_DEG = 15.0
+PERIOD_TOL = 1e-9
+STICK_FPS = 20
+STICK_BITRATE = 4000
+STICK_DPI = 200
+
+SILHOUETTE_PATH = Path(__file__).resolve().parent.parent / "assets" / "dragonfly_silhouette.csv"
+
+
+def wing_root_positions(distance=WING_ROOT_DISTANCE, midpoint_z=WING_ROOT_MIDPOINT_Z, tilt_deg=WING_ROOT_TILT_DEG):
+    """Compute fore and hind wing root (x, z) from distance, midpoint z, and tilt angle."""
+    half = 0.5 * float(distance)
+    tilt = np.radians(float(tilt_deg))
+    dx, dz = half * np.cos(tilt), half * np.sin(tilt)
+    fore_root = np.array([dx, midpoint_z + dz], dtype=float)
+    hind_root = np.array([-dx, midpoint_z - dz], dtype=float)
+    return fore_root, hind_root
+
+
+def load_silhouette():
+    """Load the processed dragonfly silhouette as (N, 2) array of (x, z) coords."""
+    return np.loadtxt(SILHOUETTE_PATH, delimiter=",")
 
 
 def _normalize_name(name):
@@ -59,15 +83,90 @@ def resolve_right_wings(available):
     return fore, hind
 
 
+def _to_float(value):
+    if value is None:
+        return None
+    arr = np.asarray(value)
+    if arr.shape == ():
+        return float(arr)
+    return None
+
+
+def is_single_wingbeat_periodic(params, *, tol=PERIOD_TOL):
+    """Return True when available harmonic-period metadata indicates 1-wingbeat periodicity."""
+    periods = []
+
+    global_period = _to_float(params.get("harmonic_period_wingbeats"))
+    if global_period is not None:
+        periods.append(global_period)
+
+    wing_periods = params.get("wing_harmonic_period_wingbeats")
+    if isinstance(wing_periods, dict):
+        for value in wing_periods.values():
+            period = _to_float(value)
+            if period is not None:
+                periods.append(period)
+
+    if not periods:
+        return False
+
+    for period in periods:
+        if not np.isfinite(period):
+            return False
+        if abs(period - 1.0) > float(tol):
+            return False
+    return True
+
+
+def trim_to_wingbeats(time, wings, omega, n_wingbeats):
+    """Trim time/wing arrays to the first n_wingbeats based on omega."""
+    omega = float(omega)
+    n_wingbeats = float(n_wingbeats)
+    if omega <= 0.0:
+        raise ValueError("omega must be > 0")
+    if n_wingbeats <= 0.0:
+        raise ValueError("n_wingbeats must be > 0")
+    if len(time) == 0:
+        return time, wings
+
+    wingbeat_time = np.asarray(time, dtype=float) * omega / (2.0 * np.pi)
+    cutoff = float(wingbeat_time[0]) + n_wingbeats + 1e-12
+    keep = np.nonzero(wingbeat_time <= cutoff)[0]
+    if keep.size == 0:
+        return time, wings
+    last = int(keep[-1] + 1)
+    if last >= len(time):
+        return time, wings
+
+    trimmed_time = np.asarray(time)[:last]
+    trimmed_wings = {
+        wing_name: {key: np.asarray(values)[:last] for key, values in wing_data.items()}
+        for wing_name, wing_data in wings.items()
+    }
+    return trimmed_time, trimmed_wings
+
+
+def resolve_stations(single_station, multi_stations):
+    """Resolve station list from CLI inputs."""
+    if multi_stations is None or len(multi_stations) == 0:
+        values = [float(single_station)]
+    else:
+        values = [float(v) for v in multi_stations]
+    for station in values:
+        if station < 0.0 or station > 1.0:
+            raise ValueError(f"station must be in [0, 1], got {station}")
+    return values
+
+
 def project_xz(vec):
     return np.array([vec[0], vec[2]], dtype=float)
 
 
-def compute_stick_endpoints(wing_state, x_offset, stick_length, station, lambda0):
+def compute_stick_endpoints(wing_state, root_offset, stick_length, station, lambda0):
     """Compute stick center, leading edge, and trailing edge in nondimensional (X,Z)."""
     if not 0.0 <= float(station) <= 1.0:
         raise ValueError("station must be in [0, 1]")
-    center = float(station) * float(lambda0) * project_xz(wing_state["e_r"]) + np.array([x_offset, 0.0], dtype=float)
+    center = float(station) * float(lambda0) * project_xz(wing_state["e_r"]) + np.asarray(root_offset, dtype=float)
 
     chord_dir = project_xz(wing_state["e_c"])
     chord_norm = np.linalg.norm(chord_dir)
@@ -76,9 +175,9 @@ def compute_stick_endpoints(wing_state, x_offset, stick_length, station, lambda0
     else:
         chord_dir = chord_dir / chord_norm
 
-    half = 0.5 * float(stick_length)
-    leading = center + half * chord_dir
-    trailing = center - half * chord_dir
+    length = float(stick_length)
+    leading = center + 0.25 * length * chord_dir
+    trailing = center - 0.75 * length * chord_dir
     return center, leading, trailing
 
 
@@ -90,7 +189,7 @@ def animate_stroke(
     outfile,
     omega,
     style=None,
-    station=2.0 / 3.0,
+    stations=(2.0 / 3.0,),
     fore_lambda0=1.0,
     hind_lambda0=1.0,
 ):
@@ -101,61 +200,87 @@ def animate_stroke(
     time_scale = omega / (2.0 * np.pi)
 
     fig, ax = plt.subplots(figsize=figure_size(0.6))
+    stations = tuple(float(s) for s in stations)
     n_frames = len(time)
-    fore_centers = np.zeros((n_frames, 2), dtype=float)
-    hind_centers = np.zeros((n_frames, 2), dtype=float)
-    fore_leading = np.zeros((n_frames, 2), dtype=float)
-    fore_trailing = np.zeros((n_frames, 2), dtype=float)
-    hind_leading = np.zeros((n_frames, 2), dtype=float)
-    hind_trailing = np.zeros((n_frames, 2), dtype=float)
+    n_stations = len(stations)
+    fore_centers = np.zeros((n_stations, n_frames, 2), dtype=float)
+    hind_centers = np.zeros((n_stations, n_frames, 2), dtype=float)
+    fore_leading = np.zeros((n_stations, n_frames, 2), dtype=float)
+    fore_trailing = np.zeros((n_stations, n_frames, 2), dtype=float)
+    hind_leading = np.zeros((n_stations, n_frames, 2), dtype=float)
+    hind_trailing = np.zeros((n_stations, n_frames, 2), dtype=float)
 
     fore_wing = wings[fore_wing_name]
     hind_wing = wings[hind_wing_name]
+    fore_root, hind_root = wing_root_positions()
 
-    for i in range(n_frames):
-        fore_state = {k: v[i] for k, v in fore_wing.items()}
-        hind_state = {k: v[i] for k, v in hind_wing.items()}
-        fore_center, fore_le, fore_te = compute_stick_endpoints(
-            fore_state,
-            x_offset=FORE_X_OFFSET,
-            stick_length=STICK_LENGTH,
-            station=station,
-            lambda0=fore_lambda0,
-        )
-        hind_center, hind_le, hind_te = compute_stick_endpoints(
-            hind_state,
-            x_offset=HIND_X_OFFSET,
-            stick_length=STICK_LENGTH,
-            station=station,
-            lambda0=hind_lambda0,
-        )
-        fore_centers[i] = fore_center
-        hind_centers[i] = hind_center
-        fore_leading[i] = fore_le
-        fore_trailing[i] = fore_te
-        hind_leading[i] = hind_le
-        hind_trailing[i] = hind_te
+    for station_idx, station in enumerate(stations):
+        for i in range(n_frames):
+            fore_state = {k: v[i] for k, v in fore_wing.items()}
+            hind_state = {k: v[i] for k, v in hind_wing.items()}
+            fore_center, fore_le, fore_te = compute_stick_endpoints(
+                fore_state,
+                root_offset=fore_root,
+                stick_length=STICK_LENGTH,
+                station=station,
+                lambda0=fore_lambda0,
+            )
+            hind_center, hind_le, hind_te = compute_stick_endpoints(
+                hind_state,
+                root_offset=hind_root,
+                stick_length=STICK_LENGTH,
+                station=station,
+                lambda0=hind_lambda0,
+            )
+            fore_centers[station_idx, i] = fore_center
+            hind_centers[station_idx, i] = hind_center
+            fore_leading[station_idx, i] = fore_le
+            fore_trailing[station_idx, i] = fore_te
+            hind_leading[station_idx, i] = hind_le
+            hind_trailing[station_idx, i] = hind_te
 
-    all_centers = np.vstack([fore_centers, hind_centers])
+    all_centers = np.vstack([fore_centers.reshape(-1, 2), hind_centers.reshape(-1, 2)])
     half_len = 0.5 * STICK_LENGTH
     pad = 0.08
     ax.set_xlim([
         float(np.min(all_centers[:, 0]) - half_len - pad),
         float(np.max(all_centers[:, 0]) + half_len + pad),
     ])
-    ax.set_xlim([-0.75,0.75])
-    ax.set_ylim([-0.75,0.75])
+    ax.set_xlim([-1,0.6])
+    ax.set_ylim([-0.8,0.8])
     ax.set_aspect("equal")
     ax.set_xlabel(r"$\tilde{X}$")
     ax.set_ylabel(r"$\tilde{Z}$")
     ax.grid(True, alpha=0.3)
 
-    ax.plot(
-        fore_centers[:, 0], fore_centers[:, 1], "-", color=style.muted_text_color, linewidth=0.5
-    )
-    ax.plot(
-        hind_centers[:, 0], hind_centers[:, 1], "-", color=style.muted_text_color, linewidth=0.5
-    )
+    if SILHOUETTE_PATH.exists():
+        silhouette = load_silhouette()
+        ax.plot(
+            silhouette[:, 0],
+            silhouette[:, 1],
+            "-",
+            color=style.muted_text_color,
+            linewidth=0.5,
+        )
+
+    for root in (fore_root, hind_root):
+        ax.plot(root[0], root[1], ".", color=style.muted_text_color, markersize=4)
+
+    for station_idx in range(n_stations):
+        ax.plot(
+            fore_centers[station_idx, :, 0],
+            fore_centers[station_idx, :, 1],
+            "-",
+            color=style.muted_text_color,
+            linewidth=0.5,
+        )
+        ax.plot(
+            hind_centers[station_idx, :, 0],
+            hind_centers[station_idx, :, 1],
+            "-",
+            color=style.muted_text_color,
+            linewidth=0.5,
+        )
 
     le_marker = dict(
         marker="o",
@@ -165,32 +290,49 @@ def animate_stroke(
         linestyle="none",
     )
 
-    fore_stick, = ax.plot([], [], "-", color=style.body_color, linewidth=2.2)
-    hind_stick, = ax.plot([], [], "-", color=style.body_color, linewidth=2.2)
-    fore_le_marker, = ax.plot([], [], markeredgecolor=style.body_color, **le_marker)
-    hind_le_marker, = ax.plot([], [], markeredgecolor=style.body_color, **le_marker)
+    fore_sticks = [ax.plot([], [], "-", color=style.body_color, linewidth=2.2)[0] for _ in range(n_stations)]
+    hind_sticks = [ax.plot([], [], "-", color=style.body_color, linewidth=2.2)[0] for _ in range(n_stations)]
+    fore_le_markers = [ax.plot([], [], markeredgecolor=style.body_color, **le_marker)[0] for _ in range(n_stations)]
+    hind_le_markers = [ax.plot([], [], markeredgecolor=style.body_color, **le_marker)[0] for _ in range(n_stations)]
     time_text = ax.text(0.02, 0.98, "", transform=ax.transAxes, va="top", ha="left", color=style.text_color)
 
     fig.tight_layout()
 
     def update(frame):
-        fore_stick.set_data(
-            [fore_trailing[frame, 0], fore_leading[frame, 0]],
-            [fore_trailing[frame, 1], fore_leading[frame, 1]],
-        )
-        hind_stick.set_data(
-            [hind_trailing[frame, 0], hind_leading[frame, 0]],
-            [hind_trailing[frame, 1], hind_leading[frame, 1]],
-        )
-        fore_le_marker.set_data([fore_leading[frame, 0]], [fore_leading[frame, 1]])
-        hind_le_marker.set_data([hind_leading[frame, 0]], [hind_leading[frame, 1]])
+        artists = []
+        for station_idx in range(n_stations):
+            fore_sticks[station_idx].set_data(
+                [fore_trailing[station_idx, frame, 0], fore_leading[station_idx, frame, 0]],
+                [fore_trailing[station_idx, frame, 1], fore_leading[station_idx, frame, 1]],
+            )
+            hind_sticks[station_idx].set_data(
+                [hind_trailing[station_idx, frame, 0], hind_leading[station_idx, frame, 0]],
+                [hind_trailing[station_idx, frame, 1], hind_leading[station_idx, frame, 1]],
+            )
+            fore_le_markers[station_idx].set_data(
+                [fore_leading[station_idx, frame, 0]],
+                [fore_leading[station_idx, frame, 1]],
+            )
+            hind_le_markers[station_idx].set_data(
+                [hind_leading[station_idx, frame, 0]],
+                [hind_leading[station_idx, frame, 1]],
+            )
+            artists.extend(
+                [
+                    fore_sticks[station_idx],
+                    hind_sticks[station_idx],
+                    fore_le_markers[station_idx],
+                    hind_le_markers[station_idx],
+                ]
+            )
         time_text.set_text(r"$t/T_{wb} = %.2f$" % (time[frame] * time_scale))
-        return fore_stick, hind_stick, fore_le_marker, hind_le_marker, time_text
+        artists.append(time_text)
+        return tuple(artists)
 
     # Create animation
     anim = ani.FuncAnimation(fig, update, frames=n_frames, interval=50, blit=False)
 
-    save_animation(anim, outfile, fps=20)
+    save_animation(anim, outfile, fps=STICK_FPS, bitrate=STICK_BITRATE, dpi=STICK_DPI)
 
     plt.close()
     print(f"Saved: {outfile}")
@@ -211,7 +353,14 @@ def main():
         "--station",
         type=float,
         default=2.0 / 3.0,
-        help="Wing station along span in [0,1] (default: 2/3)",
+        help="Single wing station along span in [0,1] (default: 2/3). Ignored if --stations is set.",
+    )
+    parser.add_argument(
+        "--stations",
+        type=float,
+        nargs="+",
+        default=None,
+        help="One or more wing stations along span in [0,1] (example: --stations 0.25 0.5 0.75).",
     )
     args = parser.parse_args()
 
@@ -219,9 +368,15 @@ def main():
     params, time, _, wings = read_simulation(args.input)
 
     if not args.arg2:
-        print("\nUsage: python -m post.plot_stick <input.h5> <output.mp4|gif> [--theme light|dark] [--station 0.6667]")
+        print(
+            "\nUsage: python -m post.plot_stick <input.h5> <output.mp4|gif> "
+            "[--theme light|dark] [--station 0.6667] [--stations 0.25 0.5 0.75]"
+        )
         print("Legacy usage (still supported):")
-        print("  python -m post.plot_stick <input.h5> <wing_name> <output.mp4|gif> [--theme light|dark] [--station 0.6667]")
+        print(
+            "  python -m post.plot_stick <input.h5> <wing_name> <output.mp4|gif> "
+            "[--theme light|dark] [--station 0.6667] [--stations 0.25 0.5 0.75]"
+        )
         print("\nAvailable wings:")
         for name in wings.keys():
             print(f"  {name}")
@@ -242,9 +397,10 @@ def main():
             print(f"  {name}")
         sys.exit(1)
 
-    station = float(args.station)
-    if station < 0.0 or station > 1.0:
-        print(f"Error: --station must be in [0, 1], got {station}")
+    try:
+        stations = resolve_stations(args.station, args.stations)
+    except ValueError as exc:
+        print(f"Error: {exc}")
         sys.exit(1)
 
     wing_lb0 = params.get("wing_lb0", {})
@@ -252,12 +408,20 @@ def main():
     hind_lambda0 = float(wing_lb0.get(hind_wing_name, 1.0))
     omega = float(params["omega"])
 
-    print(f"Fore wing: {fore_wing_name} (X offset {FORE_X_OFFSET:+.3f})")
-    print(f"Hind wing: {hind_wing_name} (X offset {HIND_X_OFFSET:+.3f})")
-    print(f"Relative X offset: {FORE_X_OFFSET - HIND_X_OFFSET:.3f}")
+    if is_single_wingbeat_periodic(params):
+        trimmed_time, trimmed_wings = trim_to_wingbeats(time, wings, omega, n_wingbeats=1.0)
+        if len(trimmed_time) < len(time):
+            print("Detected 1-wingbeat-periodic kinematics; limiting stick plot to first wingbeat.")
+            time = trimmed_time
+            wings = trimmed_wings
+
+    fore_root, hind_root = wing_root_positions()
+    print(f"Fore wing: {fore_wing_name} (root {fore_root[0]:+.4f}, {fore_root[1]:+.4f})")
+    print(f"Hind wing: {hind_wing_name} (root {hind_root[0]:+.4f}, {hind_root[1]:+.4f})")
+    print(f"Wing root distance: {WING_ROOT_DISTANCE:.3f}, midpoint Z: {WING_ROOT_MIDPOINT_Z:.3f}, tilt: {WING_ROOT_TILT_DEG:.1f} deg")
     print(f"Fore lambda0 (lb0): {fore_lambda0:.4f}")
     print(f"Hind lambda0 (lb0): {hind_lambda0:.4f}")
-    print(f"Wing station: {station:.4f}")
+    print("Wing stations: " + ", ".join(f"{station:.4f}" for station in stations))
     print(f"Stick length (nondimensional): {STICK_LENGTH:.3f}")
     print(f"Frames: {len(time)}")
 
@@ -272,7 +436,7 @@ def main():
         hind_wing_name,
         outfile,
         style=style,
-        station=station,
+        stations=stations,
         fore_lambda0=fore_lambda0,
         hind_lambda0=hind_lambda0,
         omega=omega,

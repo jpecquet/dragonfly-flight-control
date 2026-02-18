@@ -30,7 +30,7 @@ bool testTerminalVelocity(double psi, const std::string& case_name) {
         return {M_PI / 2.0, 0.0, 0.0, 0.0, psi};
     };
 
-    Wing wing("test", mu0, lb0, WingSide::Left, Cd0, Cl0, fixedAngles);
+    Wing wing("test", mu0, lb0, WingSide::Left, Cd0, Cl0, 0.0, fixedAngles);
     std::vector<Wing> wings = {wing};
 
     // Integration parameters

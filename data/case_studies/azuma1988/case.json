@@ -1,0 +1,598 @@
+{
+  "schema_version": 1,
+  "case_id": "azuma1988",
+  "paper": {
+    "citation_key": "azuma1988",
+    "label": "Azuma (1988), experiments 1-4"
+  },
+  "default_experiment_id": "1",
+  "specimen": {
+    "body_length_m": 0.075,
+    "body_mass_kg": 0.00079,
+    "fore_span_m": 0.05,
+    "fore_area_m2": 0.0005,
+    "hind_span_m": 0.0485,
+    "hind_area_m2": 0.0006
+  },
+  "simulation_defaults": {
+    "frequency_hz": 26.5,
+    "rho_air_kg_m3": 1.225,
+    "gravity_m_s2": 9.81,
+    "wing_cd0": 0.4,
+    "wing_cl0": 1.2,
+    "n_harmonics": 4,
+    "coning_angles_deg": {
+      "fore": 8.0,
+      "hind": -2.0
+    }
+  },
+  "convention": {
+    "source_world_axes": {
+      "X": "backward",
+      "Y": "right",
+      "Z": "up"
+    },
+    "source_to_sim_rotation": [
+      [-1.0, 0.0, 0.0],
+      [0.0, -1.0, 0.0],
+      [0.0, 0.0, 1.0]
+    ],
+    "source_angle_names": {
+      "gamma": "stroke plane angle",
+      "phi": "flapping angle psi (paper notation)",
+      "psi": "pitch angle theta (paper notation)"
+    },
+    "source_typos": [],
+    "sim_transforms": {
+      "gamma": {
+        "scale": 1.0,
+        "offset_deg": 0.0,
+        "phase_shift_deg": 0.0
+      },
+      "phi": {
+        "scale": -1.0,
+        "offset_deg": 0.0,
+        "phase_shift_deg": 0.0
+      },
+      "psi": {
+        "scale": 1.0,
+        "offset_deg": -90.0,
+        "phase_shift_deg": 0.0
+      }
+    },
+    "notes": [
+      "Paper world frame (X backward, Y right, Z up) is rotated 180 deg about +Z to simulator frame (X forward, Y left, Z up).",
+      "Azuma flapping angle psi has opposite sign to simulator phi.",
+      "Azuma pitch angle theta maps to simulator psi by psi_sim = theta - 90 deg.",
+      "Coning angles (beta_fw=8 deg, beta_hw=-2 deg) are handled separately as static wing geometry.",
+      "For experiments 1-4, gamma uses stroke-plane inclination measured from horizontal line.",
+      "Feathering Fourier coefficients are taken at 0.75R because this model does not include wing twist."
+    ]
+  },
+  "kinematics": {
+    "kind": "fourier_series_deg",
+    "angles": {
+      "fore": {
+        "gamma": {
+          "mean_deg": 40.0,
+          "terms": []
+        },
+        "phi": {
+          "mean_deg": 0.0,
+          "terms": [
+            {
+              "harmonic": 1,
+              "amplitude_deg": -36.0,
+              "phase_deg": 0.0
+            }
+          ]
+        },
+        "psi": {
+          "mean_deg": 100.0,
+          "terms": [
+            {
+              "harmonic": 1,
+              "amplitude_deg": 54.0,
+              "phase_deg": 89.0
+            },
+            {
+              "harmonic": 2,
+              "amplitude_deg": 2.0,
+              "phase_deg": -88.0
+            },
+            {
+              "harmonic": 3,
+              "amplitude_deg": 7.0,
+              "phase_deg": 52.0
+            },
+            {
+              "harmonic": 4,
+              "amplitude_deg": 1.0,
+              "phase_deg": -7.0
+            }
+          ]
+        }
+      },
+      "hind": {
+        "gamma": {
+          "mean_deg": 38.0,
+          "terms": []
+        },
+        "phi": {
+          "mean_deg": 0.0,
+          "terms": [
+            {
+              "harmonic": 1,
+              "amplitude_deg": -26.0,
+              "phase_deg": 51.0
+            }
+          ]
+        },
+        "psi": {
+          "mean_deg": 107.0,
+          "terms": [
+            {
+              "harmonic": 1,
+              "amplitude_deg": 38.0,
+              "phase_deg": -178.0
+            },
+            {
+              "harmonic": 2,
+              "amplitude_deg": 6.0,
+              "phase_deg": -112.0
+            },
+            {
+              "harmonic": 3,
+              "amplitude_deg": 2.0,
+              "phase_deg": -37.0
+            },
+            {
+              "harmonic": 4,
+              "amplitude_deg": 1.0,
+              "phase_deg": -216.0
+            }
+          ]
+        }
+      }
+    }
+  },
+  "output_references": [
+    {
+      "kind": "flight_condition",
+      "name": "body_speed_and_direction",
+      "speed_m_s": 0.7,
+      "direction_deg": -12.0,
+      "direction_definition": "atan2(z, x) in XZ plane"
+    }
+  ],
+  "experiments": {
+    "1": {
+      "label": "Experiment 1",
+      "dragonfly": "A",
+      "simulation_defaults": {
+        "frequency_hz": 26.5
+      },
+      "kinematics": {
+        "kind": "fourier_series_deg",
+        "angles": {
+          "fore": {
+            "gamma": {
+              "mean_deg": 40.0,
+              "terms": []
+            },
+            "phi": {
+              "mean_deg": 0.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": -36.0,
+                  "phase_deg": 0.0
+                }
+              ]
+            },
+            "psi": {
+              "mean_deg": 100.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": 54.0,
+                  "phase_deg": 89.0
+                },
+                {
+                  "harmonic": 2,
+                  "amplitude_deg": 2.0,
+                  "phase_deg": -88.0
+                },
+                {
+                  "harmonic": 3,
+                  "amplitude_deg": 7.0,
+                  "phase_deg": 52.0
+                },
+                {
+                  "harmonic": 4,
+                  "amplitude_deg": 1.0,
+                  "phase_deg": -7.0
+                }
+              ]
+            }
+          },
+          "hind": {
+            "gamma": {
+              "mean_deg": 38.0,
+              "terms": []
+            },
+            "phi": {
+              "mean_deg": 0.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": -26.0,
+                  "phase_deg": 51.0
+                }
+              ]
+            },
+            "psi": {
+              "mean_deg": 107.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": 38.0,
+                  "phase_deg": -178.0
+                },
+                {
+                  "harmonic": 2,
+                  "amplitude_deg": 6.0,
+                  "phase_deg": -112.0
+                },
+                {
+                  "harmonic": 3,
+                  "amplitude_deg": 2.0,
+                  "phase_deg": -37.0
+                },
+                {
+                  "harmonic": 4,
+                  "amplitude_deg": 1.0,
+                  "phase_deg": -216.0
+                }
+              ]
+            }
+          }
+        }
+      },
+      "output_references": [
+        {
+          "kind": "flight_condition",
+          "name": "body_speed_and_direction",
+          "speed_m_s": 0.7,
+          "direction_deg": -12.0,
+          "direction_definition": "atan2(z, x) in XZ plane"
+        }
+      ],
+      "table2": {
+        "body_attitude_deg": 20.0,
+        "load_factor": 1.1
+      }
+    },
+    "2": {
+      "label": "Experiment 2",
+      "dragonfly": "A",
+      "simulation_defaults": {
+        "frequency_hz": 28.1
+      },
+      "kinematics": {
+        "kind": "fourier_series_deg",
+        "angles": {
+          "fore": {
+            "gamma": {
+              "mean_deg": 55.0,
+              "terms": []
+            },
+            "phi": {
+              "mean_deg": 0.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": -25.0,
+                  "phase_deg": 0.0
+                }
+              ]
+            },
+            "psi": {
+              "mean_deg": 88.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": 54.0,
+                  "phase_deg": 93.0
+                },
+                {
+                  "harmonic": 2,
+                  "amplitude_deg": 4.0,
+                  "phase_deg": 135.0
+                },
+                {
+                  "harmonic": 3,
+                  "amplitude_deg": 4.0,
+                  "phase_deg": -68.0
+                },
+                {
+                  "harmonic": 4,
+                  "amplitude_deg": 5.0,
+                  "phase_deg": 113.0
+                }
+              ]
+            }
+          },
+          "hind": {
+            "gamma": {
+              "mean_deg": 48.0,
+              "terms": []
+            },
+            "phi": {
+              "mean_deg": 0.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": -26.0,
+                  "phase_deg": 61.0
+                }
+              ]
+            },
+            "psi": {
+              "mean_deg": 81.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": 30.0,
+                  "phase_deg": 154.0
+                },
+                {
+                  "harmonic": 2,
+                  "amplitude_deg": 6.0,
+                  "phase_deg": -69.0
+                },
+                {
+                  "harmonic": 3,
+                  "amplitude_deg": 2.0,
+                  "phase_deg": -52.0
+                },
+                {
+                  "harmonic": 4,
+                  "amplitude_deg": 2.0,
+                  "phase_deg": 83.0
+                }
+              ]
+            }
+          }
+        }
+      },
+      "output_references": [
+        {
+          "kind": "flight_condition",
+          "name": "body_speed_and_direction",
+          "speed_m_s": 1.5,
+          "direction_deg": -1.1,
+          "direction_definition": "atan2(z, x) in XZ plane"
+        }
+      ],
+      "table2": {
+        "body_attitude_deg": 12.0,
+        "load_factor": 0.97
+      }
+    },
+    "3": {
+      "label": "Experiment 3",
+      "dragonfly": "A",
+      "simulation_defaults": {
+        "frequency_hz": 29.0
+      },
+      "kinematics": {
+        "kind": "fourier_series_deg",
+        "angles": {
+          "fore": {
+            "gamma": {
+              "mean_deg": 58.0,
+              "terms": []
+            },
+            "phi": {
+              "mean_deg": 0.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": -25.0,
+                  "phase_deg": 0.0
+                }
+              ]
+            },
+            "psi": {
+              "mean_deg": 81.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": 46.0,
+                  "phase_deg": 91.0
+                },
+                {
+                  "harmonic": 2,
+                  "amplitude_deg": 6.0,
+                  "phase_deg": 154.0
+                },
+                {
+                  "harmonic": 3,
+                  "amplitude_deg": 3.0,
+                  "phase_deg": 45.0
+                },
+                {
+                  "harmonic": 4,
+                  "amplitude_deg": 4.0,
+                  "phase_deg": 106.0
+                }
+              ]
+            }
+          },
+          "hind": {
+            "gamma": {
+              "mean_deg": 52.0,
+              "terms": []
+            },
+            "phi": {
+              "mean_deg": 0.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": -26.0,
+                  "phase_deg": 61.0
+                }
+              ]
+            },
+            "psi": {
+              "mean_deg": 79.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": 24.0,
+                  "phase_deg": -164.0
+                },
+                {
+                  "harmonic": 2,
+                  "amplitude_deg": 11.0,
+                  "phase_deg": -81.0
+                },
+                {
+                  "harmonic": 3,
+                  "amplitude_deg": 2.0,
+                  "phase_deg": -66.0
+                },
+                {
+                  "harmonic": 4,
+                  "amplitude_deg": 2.0,
+                  "phase_deg": 169.0
+                }
+              ]
+            }
+          }
+        }
+      },
+      "output_references": [
+        {
+          "kind": "flight_condition",
+          "name": "body_speed_and_direction",
+          "speed_m_s": 2.3,
+          "direction_deg": 4.8,
+          "direction_definition": "atan2(z, x) in XZ plane"
+        }
+      ],
+      "table2": {
+        "body_attitude_deg": 4.0,
+        "load_factor": 1.25
+      }
+    },
+    "4": {
+      "label": "Experiment 4",
+      "dragonfly": "B",
+      "simulation_defaults": {
+        "frequency_hz": 27.0
+      },
+      "kinematics": {
+        "kind": "fourier_series_deg",
+        "angles": {
+          "fore": {
+            "gamma": {
+              "mean_deg": 63.0,
+              "terms": []
+            },
+            "phi": {
+              "mean_deg": 0.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": -38.0,
+                  "phase_deg": 0.0
+                }
+              ]
+            },
+            "psi": {
+              "mean_deg": 83.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": 48.0,
+                  "phase_deg": 99.0
+                },
+                {
+                  "harmonic": 2,
+                  "amplitude_deg": 6.0,
+                  "phase_deg": 98.0
+                },
+                {
+                  "harmonic": 3,
+                  "amplitude_deg": 4.0,
+                  "phase_deg": 142.0
+                },
+                {
+                  "harmonic": 4,
+                  "amplitude_deg": 4.0,
+                  "phase_deg": -117.0
+                }
+              ]
+            }
+          },
+          "hind": {
+            "gamma": {
+              "mean_deg": 68.0,
+              "terms": []
+            },
+            "phi": {
+              "mean_deg": 0.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": -34.0,
+                  "phase_deg": 93.0
+                }
+              ]
+            },
+            "psi": {
+              "mean_deg": 76.0,
+              "terms": [
+                {
+                  "harmonic": 1,
+                  "amplitude_deg": 41.0,
+                  "phase_deg": 174.0
+                },
+                {
+                  "harmonic": 2,
+                  "amplitude_deg": 3.0,
+                  "phase_deg": -88.0
+                },
+                {
+                  "harmonic": 3,
+                  "amplitude_deg": 3.0,
+                  "phase_deg": -10.0
+                },
+                {
+                  "harmonic": 4,
+                  "amplitude_deg": 3.0,
+                  "phase_deg": 53.0
+                }
+              ]
+            }
+          }
+        }
+      },
+      "output_references": [
+        {
+          "kind": "flight_condition",
+          "name": "body_speed_and_direction",
+          "speed_m_s": 3.2,
+          "direction_deg": 0.0,
+          "direction_definition": "atan2(z, x) in XZ plane"
+        }
+      ],
+      "table2": {
+        "body_attitude_deg": 2.0,
+        "load_factor": 1.05
+      }
+    }
+  }
+}

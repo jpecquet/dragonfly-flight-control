@@ -102,7 +102,7 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     // Store wing config arrays
     std::vector<std::string> names;
     std::vector<int> sides;
-    std::vector<double> mu0_vals, lb0_vals, Cd0_vals, Cl0_vals, phase_vals;
+    std::vector<double> mu0_vals, lb0_vals, Cd0_vals, Cl0_vals, phase_vals, cone_vals;
 
     for (const auto& wc : output.wingConfigs) {
         names.push_back(wc.name + (wc.side == WingSide::Left ? "_left" : "_right"));
@@ -112,6 +112,7 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
         Cd0_vals.push_back(wc.Cd0);
         Cl0_vals.push_back(wc.Cl0);
         phase_vals.push_back(wc.phase_offset);
+        cone_vals.push_back(wc.cone_angle);
     }
 
     H5Easy::dump(file, "/parameters/wings/names", names);
@@ -121,6 +122,7 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     H5Easy::dump(file, "/parameters/wings/Cd0", Cd0_vals);
     H5Easy::dump(file, "/parameters/wings/Cl0", Cl0_vals);
     H5Easy::dump(file, "/parameters/wings/phase_offset", phase_vals);
+    H5Easy::dump(file, "/parameters/wings/cone_angle", cone_vals);
 
     // Optional per-wing kinematic parameters (resolved values actually used in simulation).
     const size_t n_harmonics = static_cast<size_t>(std::max(0, output.kin.n_harmonics));

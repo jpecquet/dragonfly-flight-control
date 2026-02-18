@@ -15,5 +15,5 @@ struct WingOrientation {
 };
 
 // Compute wing orientation from Euler angles (radians)
-// gam: stroke plane angle, phi: stroke angle, psi: pitch angle
-WingOrientation computeWingOrientation(double gam, double phi, double psi, bool is_left);
+// gam: stroke plane angle, phi: stroke angle, psi: pitch angle, cone: coning angle
+WingOrientation computeWingOrientation(double gam, double phi, double psi, double cone, bool is_left);

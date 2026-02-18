@@ -205,7 +205,7 @@ int runWingtest(int argc, char* argv[]) {
             else if (sweep_key == "psi") psi_deg = sweep_val;
 
             auto orient = computeWingOrientation(
-                deg2rad(gam_deg), deg2rad(phi_deg), deg2rad(psi_deg), cfg.is_left);
+                deg2rad(gam_deg), deg2rad(phi_deg), deg2rad(psi_deg), 0.0, cfg.is_left);
 
             frame_vec.push_back(frame);
             gam_vec.push_back(gam_deg);

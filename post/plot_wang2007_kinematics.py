@@ -18,11 +18,18 @@ import numpy as np
 
 from post.style import apply_matplotlib_style, figure_size, resolve_style
 
+try:
+    from case_data import load_case_data
+except ModuleNotFoundError:
+    from scripts.case_data import load_case_data
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WANG_DIR = REPO_ROOT / "data" / "kinematics" / "wang2007"
-DEFAULT_N_COMPONENTS = 35
-DEFAULT_N_WINGBEATS = 5
+WANG2007_CASE = load_case_data("wang2007")
+WANG2007_SIM_DEFAULTS = WANG2007_CASE["simulation_defaults"]
+DEFAULT_N_WINGBEATS = int(WANG2007_SIM_DEFAULTS["n_wingbeats"])
+DEFAULT_N_COMPONENTS = int(WANG2007_SIM_DEFAULTS["harmonics_per_wingbeat"]) * DEFAULT_N_WINGBEATS
 DEFAULT_N_POINTS = 2000
 PLOT_HEIGHT_OVER_WIDTH = 0.6
 

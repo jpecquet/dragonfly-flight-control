@@ -38,7 +38,13 @@ def read_simulation(filename):
         wing_names_raw = f["/parameters/wings/names"][:]
         wing_names_param = decode_string_array(wing_names_raw)
         wing_lb0 = f["/parameters/wings/lb0"][:]
-        params['wing_lb0'] = dict(zip(wing_names_param, wing_lb0))
+        params["wing_lb0"] = dict(zip(wing_names_param, wing_lb0))
+        if "/parameters/wings/harmonic_period_wingbeats" in f:
+            wing_period = f["/parameters/wings/harmonic_period_wingbeats"][:]
+            params["wing_harmonic_period_wingbeats"] = dict(zip(wing_names_param, wing_period))
+        if "/parameters/wings/omega" in f:
+            wing_omega = f["/parameters/wings/omega"][:]
+            params["wing_omega"] = dict(zip(wing_names_param, wing_omega))
 
         # Read time and state
         time = f["/time"][:]
@@ -54,7 +60,7 @@ def read_simulation(filename):
             wings[wname] = {}
             for vname in vec_names:
                 wings[wname][vname] = f[f"/wings/{wname}/{vname}"][:]
-            wings[wname]['u'] = np.zeros((n_steps, 3))
+            wings[wname]["u"] = np.zeros((n_steps, 3))
 
     return params, time, states, wings
 

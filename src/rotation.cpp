@@ -32,7 +32,7 @@ Mat3 rotZ(double angle) {
     return R;
 }
 
-WingOrientation computeWingOrientation(double gam, double phi, double psi, bool is_left) {
+WingOrientation computeWingOrientation(double gam, double phi, double psi, double cone, bool is_left) {
     Vec3 ex(1, 0, 0);
     Vec3 ey(0, 1, 0);
     Vec3 ez(0, 0, 1);
@@ -41,11 +41,11 @@ WingOrientation computeWingOrientation(double gam, double phi, double psi, bool 
     Vec3 e_c;
 
     if (is_left) {
-        Rs = rotY(-gam) * rotZ(-phi);
+        Rs = rotY(-gam) * rotX(-cone) * rotZ(-phi);
         Rp = Rs * rotY(-psi);
         e_c = Rp * ez * -1.0;
     } else {
-        Rs = rotX(-M_PI) * rotY(gam) * rotZ(-phi);
+        Rs = rotX(-M_PI) * rotY(gam) * rotX(cone) * rotZ(-phi);
         Rp = Rs * rotY(psi);
         e_c = Rp * ez;
     }

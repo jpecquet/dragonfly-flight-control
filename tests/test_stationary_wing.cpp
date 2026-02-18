@@ -32,7 +32,7 @@ int main() {
         };
     };
 
-    Wing wing("test", mu0, lb0, WingSide::Left, Cd0, Cl0, stationaryAngles);
+    Wing wing("test", mu0, lb0, WingSide::Left, Cd0, Cl0, 0.0, stationaryAngles);
 
     double tol = 1e-10;
     bool all_passed = true;

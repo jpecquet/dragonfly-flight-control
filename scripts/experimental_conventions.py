@@ -7,6 +7,11 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+try:
+    from case_data import load_case_data, select_experiment
+except ModuleNotFoundError:
+    from scripts.case_data import load_case_data, select_experiment
+
 
 @dataclass(frozen=True)
 class CosineTermDeg:
@@ -150,6 +155,73 @@ class ExperimentalConventionAdapter:
         }
 
 
+def _build_series_from_case(case_data: dict[str, Any]) -> dict[str, WingSeriesPaper]:
+    kinematics = case_data["kinematics"]
+    if kinematics["kind"] != "fourier_series_deg":
+        raise ValueError(
+            f"Case '{case_data['case_id']}' uses unsupported kinematics kind "
+            f"for adapter: {kinematics['kind']}"
+        )
+
+    def build_angle_series(payload: dict[str, Any]) -> HarmonicSeriesDeg:
+        return HarmonicSeriesDeg(
+            mean_deg=float(payload["mean_deg"]),
+            terms=tuple(
+                CosineTermDeg(
+                    harmonic=int(term["harmonic"]),
+                    amplitude_deg=float(term["amplitude_deg"]),
+                    phase_deg=float(term["phase_deg"]),
+                )
+                for term in payload["terms"]
+            ),
+        )
+
+    out: dict[str, WingSeriesPaper] = {}
+    for wing in ("fore", "hind"):
+        wing_payload = kinematics["angles"][wing]
+        out[wing] = WingSeriesPaper(
+            gamma=build_angle_series(wing_payload["gamma"]),
+            phi=build_angle_series(wing_payload["phi"]),
+            psi=build_angle_series(wing_payload["psi"]),
+        )
+    return out
+
+
+def _adapter_from_case(case_data: dict[str, Any]) -> ExperimentalConventionAdapter:
+    convention = case_data["convention"]
+    dataset_id = str(case_data["case_id"])
+    selected_experiment = case_data.get("selected_experiment")
+    if isinstance(selected_experiment, dict) and "id" in selected_experiment:
+        dataset_id = f"{dataset_id}:exp{selected_experiment['id']}"
+    return ExperimentalConventionAdapter(
+        dataset_id=dataset_id,
+        source_world_axes={
+            "X": str(convention["source_world_axes"]["X"]),
+            "Y": str(convention["source_world_axes"]["Y"]),
+            "Z": str(convention["source_world_axes"]["Z"]),
+        },
+        source_to_sim_rotation=tuple(
+            tuple(float(v) for v in row) for row in convention["source_to_sim_rotation"]
+        ),
+        source_angle_names={
+            "gamma": str(convention["source_angle_names"]["gamma"]),
+            "phi": str(convention["source_angle_names"]["phi"]),
+            "psi": str(convention["source_angle_names"]["psi"]),
+        },
+        source_typos=tuple(str(item) for item in convention.get("source_typos", [])),
+        source_series=_build_series_from_case(case_data),
+        sim_transforms={
+            angle: SeriesTransform(
+                scale=float(payload["scale"]),
+                offset_deg=float(payload["offset_deg"]),
+                phase_shift_deg=float(payload["phase_shift_deg"]),
+            )
+            for angle, payload in convention["sim_transforms"].items()
+        },
+        notes=tuple(str(item) for item in convention["notes"]),
+    )
+
+
 def _cos(x: Any) -> Any:
     try:
         import numpy as np  # type: ignore
@@ -205,77 +277,12 @@ def build_sim_wing_motion(
 
 
 def azuma1985_adapter() -> ExperimentalConventionAdapter:
-    """Raw Azuma (1985) series in paper notation + explicit simulator mapping."""
-    return ExperimentalConventionAdapter(
-        dataset_id="azuma1985",
-        source_world_axes={
-            "X": "backward",
-            "Y": "right",
-            "Z": "up",
-        },
-        source_to_sim_rotation=(
-            (-1.0, 0.0, 0.0),
-            (0.0, -1.0, 0.0),
-            (0.0, 0.0, 1.0),
-        ),
-        source_angle_names={
-            "gamma": "stroke plane angle",
-            "phi": "flapping angle theta (paper figure typo labels this phi)",
-            "psi": "pitch angle",
-        },
-        source_typos=(
-            "In azuma1985_coords.png, phi in the transform table should be theta.",
-        ),
-        source_series={
-            "fore": WingSeriesPaper(
-                gamma=HarmonicSeriesDeg(
-                    mean_deg=37.0,
-                    terms=(),
-                ),
-                phi=HarmonicSeriesDeg(
-                    mean_deg=-3.0,
-                    terms=(
-                        CosineTermDeg(harmonic=1, amplitude_deg=-43.0, phase_deg=0.0),
-                    ),
-                ),
-                psi=HarmonicSeriesDeg(
-                    mean_deg=98.0,
-                    terms=(
-                        CosineTermDeg(harmonic=1, amplitude_deg=-77.0, phase_deg=-49.0),
-                        CosineTermDeg(harmonic=2, amplitude_deg=-3.0, phase_deg=67.0),
-                        CosineTermDeg(harmonic=3, amplitude_deg=-8.0, phase_deg=29.0),
-                    ),
-                ),
-            ),
-            "hind": WingSeriesPaper(
-                gamma=HarmonicSeriesDeg(
-                    mean_deg=40.0,
-                    terms=(),
-                ),
-                phi=HarmonicSeriesDeg(
-                    mean_deg=2.0,
-                    terms=(
-                        CosineTermDeg(harmonic=1, amplitude_deg=-47.0, phase_deg=77.0),
-                    ),
-                ),
-                psi=HarmonicSeriesDeg(
-                    mean_deg=93.0,
-                    terms=(
-                        CosineTermDeg(harmonic=1, amplitude_deg=-65.0, phase_deg=18.0),
-                        CosineTermDeg(harmonic=2, amplitude_deg=8.0, phase_deg=74.0),
-                        CosineTermDeg(harmonic=3, amplitude_deg=8.0, phase_deg=28.0),
-                    ),
-                ),
-            ),
-        },
-        sim_transforms={
-            "gamma": SeriesTransform(scale=1.0, offset_deg=0.0, phase_shift_deg=0.0),
-            "phi": SeriesTransform(scale=-1.0, offset_deg=0.0, phase_shift_deg=0.0),
-            "psi": SeriesTransform(scale=1.0, offset_deg=-90.0, phase_shift_deg=0.0),
-        },
-        notes=(
-            "Paper world frame (X backward, Y right, Z up) is rotated 180 deg about +Z to simulator frame (X forward, Y left, Z up).",
-            "Azuma flapping angle theta has opposite sign to simulator phi in current model mapping.",
-            "Azuma pitch angle beta/theta maps to simulator psi by psi_sim = theta - 90 deg.",
-        ),
-    )
+    """Azuma (1985) series and mappings loaded from data/case_studies."""
+    return _adapter_from_case(load_case_data("azuma1985"))
+
+
+def azuma1988_adapter(experiment: str | int | None = None) -> ExperimentalConventionAdapter:
+    """Azuma (1988) series and mappings loaded from data/case_studies."""
+    case = load_case_data("azuma1988")
+    resolved = select_experiment(case, experiment_id=experiment)
+    return _adapter_from_case(resolved)

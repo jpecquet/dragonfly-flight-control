@@ -1,0 +1,40 @@
+name: Case Data
+
+on:
+  pull_request:
+    paths:
+      - "data/**"
+      - "scripts/case_data.py"
+      - "scripts/validate_case_data.py"
+      - "data/schema/**"
+      - ".github/workflows/case-data.yml"
+  push:
+    branches: [ main ]
+    paths:
+      - "data/**"
+      - "scripts/case_data.py"
+      - "scripts/validate_case_data.py"
+      - "data/schema/**"
+      - ".github/workflows/case-data.yml"
+
+jobs:
+  validate-case-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install jsonschema
+
+      - name: Validate case-study data against schema
+        run: |
+          python scripts/validate_case_data.py

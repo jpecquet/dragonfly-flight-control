@@ -5,8 +5,9 @@ constexpr double SPAN_EVAL_POINT = 2.0 / 3.0;
 }  // namespace
 
 Wing::Wing(const std::string& name, double mu0, double lb0, WingSide side,
-           double Cd0, double Cl0, AngleFunc angleFunc)
-    : name_(name), mu0_(mu0), lb0_(lb0), side_(side), blade_(Cd0, Cl0), angleFunc_(std::move(angleFunc)) {}
+           double Cd0, double Cl0, double cone_angle, AngleFunc angleFunc)
+    : name_(name), mu0_(mu0), lb0_(lb0), side_(side), cone_angle_(cone_angle),
+      blade_(Cd0, Cl0), angleFunc_(std::move(angleFunc)) {}
 
 Vec3 Wing::computeForce(
     double t,
@@ -21,7 +22,7 @@ Vec3 Wing::computeForce(
 
     // Compute wing orientation using shared rotation logic
     WingOrientation orient = computeWingOrientation(
-        gam, angles.phi, angles.psi, side_ == WingSide::Left);
+        gam, angles.phi, angles.psi, cone_angle_, side_ == WingSide::Left);
 
     // Store orientation vectors
     vecs.e_s = orient.e_s;

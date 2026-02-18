@@ -16,6 +16,7 @@ struct WingConfigEntry {
     double Cd0 = 0.0;
     double Cl0 = 0.0;
     double phase = 0.0;
+    double cone = 0.0;  // Coning angle (radians): tilts the wing's flapping plane about the stroke direction
     std::map<std::string, std::string> motion_overrides;  // Optional per-wing kinematic overrides
 };
 

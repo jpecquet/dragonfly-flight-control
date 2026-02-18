@@ -19,10 +19,25 @@ import numpy as np
 
 from post.style import apply_matplotlib_style, figure_size, resolve_style
 
-DEFAULT_BODY_LENGTH_M = 4.0e-2
-DEFAULT_GRAVITY_M_S2 = 9.81
-DEFAULT_SPEED_REF_MPS = 0.54
-DEFAULT_DIRECTION_REF_DEG = 60.0
+try:
+    from case_data import find_output_reference, load_case_data
+except ModuleNotFoundError:
+    from scripts.case_data import find_output_reference, load_case_data
+
+
+AZUMA1985_CASE = load_case_data("azuma1985")
+AZUMA1985_SPECIMEN = AZUMA1985_CASE["specimen"]
+AZUMA1985_SIM_DEFAULTS = AZUMA1985_CASE["simulation_defaults"]
+AZUMA1985_FLIGHT_REF = find_output_reference(
+    AZUMA1985_CASE,
+    kind="flight_condition",
+    name="body_speed_and_direction",
+)
+
+DEFAULT_BODY_LENGTH_M = float(AZUMA1985_SPECIMEN["body_length_m"])
+DEFAULT_GRAVITY_M_S2 = float(AZUMA1985_SIM_DEFAULTS["gravity_m_s2"])
+DEFAULT_SPEED_REF_MPS = float(AZUMA1985_FLIGHT_REF["speed_m_s"])
+DEFAULT_DIRECTION_REF_DEG = float(AZUMA1985_FLIGHT_REF["direction_deg"])
 PLOT_HEIGHT_OVER_WIDTH = 0.4
 
 

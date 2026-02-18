@@ -27,21 +27,22 @@ struct WingConfig : MotionParams {
     double Cd0 = 0.0;             // Drag coefficient
     double Cl0 = 0.0;             // Lift coefficient
     double phase_offset = 0.0;    // Phase offset from reference (radians)
+    double cone_angle = 0.0;      // Coning angle (radians): tilts the flapping plane about the stroke direction
 
     // Optional per-wing kinematic parameters (if empty, global simulation parameters are used).
     bool has_custom_motion = false;
 
     WingConfig() = default;
     WingConfig(const std::string& name_, WingSide side_, double mu0_, double lb0_,
-               double Cd0_, double Cl0_, double phase_offset_ = 0.0)
+               double Cd0_, double Cl0_, double phase_offset_ = 0.0, double cone_angle_ = 0.0)
         : name(name_), side(side_), mu0(mu0_), lb0(lb0_),
-          Cd0(Cd0_), Cl0(Cl0_), phase_offset(phase_offset_) {}
+          Cd0(Cd0_), Cl0(Cl0_), phase_offset(phase_offset_), cone_angle(cone_angle_) {}
 };
 
 class Wing {
 public:
     Wing(const std::string& name, double mu0, double lb0, WingSide side,
-         double Cd0, double Cl0, AngleFunc angleFunc);
+         double Cd0, double Cl0, double cone_angle, AngleFunc angleFunc);
 
     // Compute force at time t given body velocity
     Vec3 computeForce(
@@ -64,6 +65,7 @@ private:
     double mu0_;           // Wing mass parameter
     double lb0_;           // Wing length
     WingSide side_;        // Left or Right
+    double cone_angle_;    // Coning angle (radians)
     BladeElement blade_;   // Blade element model (owns Cd0, Cl0)
     AngleFunc angleFunc_;  // Function to compute angles from time
 };
