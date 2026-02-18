@@ -145,6 +145,30 @@ def build_env(extra_env: dict[str, str] | None) -> dict[str, str]:
     return env
 
 
+def run_entry(entry: dict[str, Any], dry_run: bool) -> dict[str, Any]:
+    """Run one registry entry sequentially."""
+    eid = entry["id"]
+    print(f"\n== {eid} ==")
+    env = build_env(entry.get("env"))
+    commands = entry.get("commands", [])
+    for cmd in commands:
+        run_command([str(x) for x in cmd], env=env, dry_run=dry_run)
+
+    outputs = entry.get("outputs", [])
+    ensure_outputs(outputs, dry_run=dry_run)
+
+    sync_items = entry.get("sync", [])
+    sync_artifacts(sync_items, dry_run=dry_run)
+
+    return {
+        "id": eid,
+        "completed_at_utc": now_utc_iso(),
+        "commands": commands,
+        "outputs": outputs,
+        "sync": sync_items,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--registry", default=str(DEFAULT_REGISTRY), help="Path to docs media registry JSON.")
@@ -186,28 +210,7 @@ def main() -> int:
     }
 
     for entry in selected:
-        eid = entry["id"]
-        print(f"\n== {eid} ==")
-        env = build_env(entry.get("env"))
-        commands = entry.get("commands", [])
-        for cmd in commands:
-            run_command([str(x) for x in cmd], env=env, dry_run=args.dry_run)
-
-        outputs = entry.get("outputs", [])
-        ensure_outputs(outputs, dry_run=args.dry_run)
-
-        sync_items = entry.get("sync", [])
-        sync_artifacts(sync_items, dry_run=args.dry_run)
-
-        run_log["entries"].append(
-            {
-                "id": eid,
-                "completed_at_utc": now_utc_iso(),
-                "commands": commands,
-                "outputs": outputs,
-                "sync": sync_items,
-            }
-        )
+        run_log["entries"].append(run_entry(entry, dry_run=args.dry_run))
 
     if not args.dry_run:
         log_path = Path(args.log)

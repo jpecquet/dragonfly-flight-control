@@ -11,13 +11,14 @@ Renders transparent PNG overlays with:
 """
 
 import os
-from concurrent.futures import ProcessPoolExecutor
+import tempfile
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 # Optional tqdm support for progress bars
 try:
-    from tqdm.contrib.concurrent import process_map
+    from tqdm import tqdm
     TQDM_AVAILABLE = True
 except ImportError:
     TQDM_AVAILABLE = False
@@ -41,9 +42,27 @@ from .constants import (
 from .hybrid_config import CameraConfig, StyleConfig, ViewportConfig, HybridConfig
 from .style import apply_matplotlib_style
 
+_CHUNK_STATES = None
+_CHUNK_WING_VECTORS = None
+_CHUNK_PARAMS = None
+_CHUNK_CONTROLLER = None
+_CHUNK_CONFIG_DICT = None
+_CHUNK_OUTPUT_PATH = None
+_CHUNK_DRAW_MODELS = False
+
 
 def _major_tick_step(extent: float) -> float:
     return 0.5 if extent < 2.0 else 1.0
+
+
+def _trail_points(states: np.ndarray, frame_idx: int, trail_length: int) -> Optional[np.ndarray]:
+    """Return the trajectory segment to draw for this frame (<=0 means full trail)."""
+    if frame_idx <= 0:
+        return None
+    if trail_length <= 0:
+        return states[0:frame_idx + 1, 0:3]
+    start = max(0, frame_idx - trail_length + 1)
+    return states[start:frame_idx + 1, 0:3]
 
 
 def compute_blender_ortho_scale(
@@ -291,6 +310,7 @@ def render_simulation_frame(
     config: HybridConfig,
     output_path: Path,
     draw_models: bool = False,
+    render_context: Optional[Tuple[plt.Figure, Axes3D]] = None,
 ) -> str:
     """
     Render matplotlib overlay for a simulation frame.
@@ -306,9 +326,13 @@ def render_simulation_frame(
     Returns:
         Path to rendered PNG file
     """
-    apply_matplotlib_style(config.style)
     style = config.style
-    fig, ax = create_overlay_figure(config.camera, style)
+    if render_context is None:
+        apply_matplotlib_style(style)
+        fig, ax = create_overlay_figure(config.camera, style)
+    else:
+        fig, ax = render_context
+        ax.cla()
     setup_axes(ax, config.viewport, config.camera, style)
 
     wing_lb0 = params.get('wing_lb0', {})
@@ -320,9 +344,9 @@ def render_simulation_frame(
     if draw_models:
         _draw_body_and_wings(ax, xb, v, wing_lb0, style)
 
-    # Draw trajectory trail (full history)
-    if frame_idx > 0:
-        trail_points = states[0:frame_idx + 1, 0:3]
+    # Draw trajectory trail
+    trail_points = _trail_points(states, frame_idx, int(config.trail_length))
+    if trail_points is not None:
         ax.plot(trail_points[:, 0], trail_points[:, 1], trail_points[:, 2],
                 color=style.trajectory_color,
                 linewidth=style.trajectory_linewidth,
@@ -340,7 +364,8 @@ def render_simulation_frame(
     # Save to file
     output_file = output_path / f"mpl_{frame_idx:06d}.png"
     fig.savefig(output_file, dpi=config.camera.dpi, pad_inches=0)
-    plt.close(fig)
+    if render_context is None:
+        plt.close(fig)
 
     return str(output_file)
 
@@ -354,6 +379,7 @@ def render_tracking_frame(
     config: HybridConfig,
     output_path: Path,
     draw_models: bool = False,
+    render_context: Optional[Tuple[plt.Figure, Axes3D]] = None,
 ) -> str:
     """
     Render matplotlib overlay for a tracking frame.
@@ -372,9 +398,13 @@ def render_tracking_frame(
     Returns:
         Path to rendered PNG file
     """
-    apply_matplotlib_style(config.style)
     style = config.style
-    fig, ax = create_overlay_figure(config.camera, style)
+    if render_context is None:
+        apply_matplotlib_style(style)
+        fig, ax = create_overlay_figure(config.camera, style)
+    else:
+        fig, ax = render_context
+        ax.cla()
     setup_axes(ax, config.viewport, config.camera, style)
 
     wing_lb0 = params.get('wing_lb0', {})
@@ -396,9 +426,9 @@ def render_tracking_frame(
         ax.plot(target_positions[:, 0], target_positions[:, 1], target_positions[:, 2],
                 color=style.target_color, linewidth=1.0, alpha=0.3, linestyle='--')
 
-    # Draw actual trajectory trail (full history)
-    if frame_idx > 0:
-        trail_points = states[0:frame_idx + 1, 0:3]
+    # Draw actual trajectory trail
+    trail_points = _trail_points(states, frame_idx, int(config.trail_length))
+    if trail_points is not None:
         ax.plot(trail_points[:, 0], trail_points[:, 1], trail_points[:, 2],
                 color=style.trajectory_color,
                 linewidth=style.trajectory_linewidth,
@@ -443,7 +473,8 @@ def render_tracking_frame(
     # Save to file
     output_file = output_path / f"mpl_{frame_idx:06d}.png"
     fig.savefig(output_file, dpi=config.camera.dpi, pad_inches=0)
-    plt.close(fig)
+    if render_context is None:
+        plt.close(fig)
 
     return str(output_file)
 
@@ -500,20 +531,151 @@ def render_all_frames(
     return output_files
 
 
-def _frame_worker(args):
-    """Worker for parallel frame rendering."""
-    frame_idx, states, wing_vectors, params, controller, config_dict, output_path_str, draw_models = args
-    config = HybridConfig.from_dict(config_dict)
-    output_path = Path(output_path_str)
+def _split_frame_ranges(n_frames: int, n_workers: int) -> List[Tuple[int, int]]:
+    """Split frame indices into contiguous chunks for worker-level reuse."""
+    chunk_size = max(1, n_frames // max(1, n_workers * 4))
+    ranges = []
+    start = 0
+    while start < n_frames:
+        end = min(start + chunk_size, n_frames)
+        ranges.append((start, end))
+        start = end
+    return ranges
+
+
+def _save_array_npy(path: Path, array_like) -> str:
+    """Write an array-like object to .npy and return the path."""
+    np.save(path, np.asarray(array_like), allow_pickle=False)
+    return str(path)
+
+
+def _prepare_shared_payload(
+    states: np.ndarray,
+    wing_vectors: Dict,
+    controller: Optional[Dict],
+    shared_dir: Path,
+) -> Dict:
+    """
+    Prepare file-backed array payload for worker processes.
+
+    Large arrays are written once and loaded by workers using memmap.
+    """
+    payload = {
+        "states_path": _save_array_npy(shared_dir / "states.npy", states),
+        "wing_vectors": {},
+        "controller": None,
+    }
+
+    for wname, wdata in wing_vectors.items():
+        wing_payload = {}
+        for key, value in wdata.items():
+            wing_payload[key] = _save_array_npy(shared_dir / f"wing_{wname}_{key}.npy", value)
+        payload["wing_vectors"][wname] = wing_payload
+
     if controller is not None:
-        return render_tracking_frame(
-            frame_idx, states, wing_vectors, params, controller, config, output_path,
-            draw_models=draw_models,
-        )
-    return render_simulation_frame(
-        frame_idx, states, wing_vectors, params, config, output_path,
-        draw_models=draw_models,
+        controller_payload = {}
+        for key, value in controller.items():
+            if isinstance(value, np.ndarray):
+                controller_payload[key] = {
+                    "type": "array",
+                    "path": _save_array_npy(shared_dir / f"controller_{key}.npy", value),
+                }
+            else:
+                controller_payload[key] = {"type": "literal", "value": value}
+        payload["controller"] = controller_payload
+
+    return payload
+
+
+def _load_shared_payload(shared_payload: Dict) -> Tuple[np.ndarray, Dict, Optional[Dict]]:
+    """Load file-backed arrays from shared payload using memmap."""
+    states = np.load(shared_payload["states_path"], mmap_mode='r')
+
+    wing_vectors = {}
+    for wname, wdata in shared_payload["wing_vectors"].items():
+        wing_vectors[wname] = {}
+        for key, path in wdata.items():
+            wing_vectors[wname][key] = np.load(path, mmap_mode='r')
+
+    controller_payload = shared_payload.get("controller")
+    controller = None
+    if controller_payload is not None:
+        controller = {}
+        for key, entry in controller_payload.items():
+            if entry["type"] == "array":
+                controller[key] = np.load(entry["path"], mmap_mode='r')
+            else:
+                controller[key] = entry["value"]
+
+    return states, wing_vectors, controller
+
+
+def _render_frame_range(
+    start_frame: int,
+    end_frame: int,
+    states: np.ndarray,
+    wing_vectors: Dict,
+    params: Dict,
+    config: HybridConfig,
+    output_path: Path,
+    controller: Optional[Dict] = None,
+    draw_models: bool = False,
+) -> List[str]:
+    """Render a contiguous frame range, reusing one figure/axes context."""
+    apply_matplotlib_style(config.style)
+    fig, ax = create_overlay_figure(config.camera, config.style)
+    render_context = (fig, ax)
+
+    files = []
+    try:
+        for frame_idx in range(start_frame, end_frame):
+            if controller is not None:
+                files.append(
+                    render_tracking_frame(
+                        frame_idx, states, wing_vectors, params, controller, config, output_path,
+                        draw_models=draw_models, render_context=render_context,
+                    )
+                )
+            else:
+                files.append(
+                    render_simulation_frame(
+                        frame_idx, states, wing_vectors, params, config, output_path,
+                        draw_models=draw_models, render_context=render_context,
+                    )
+                )
+    finally:
+        plt.close(fig)
+    return files
+
+
+def _chunk_worker_init(
+    shared_payload: Dict,
+    params: Dict,
+    config_dict: Dict,
+    output_path_str: str,
+    draw_models: bool,
+):
+    """Initialize worker process globals once to avoid per-frame pickling."""
+    global _CHUNK_STATES, _CHUNK_WING_VECTORS, _CHUNK_PARAMS
+    global _CHUNK_CONTROLLER, _CHUNK_CONFIG_DICT, _CHUNK_OUTPUT_PATH, _CHUNK_DRAW_MODELS
+    _CHUNK_STATES, _CHUNK_WING_VECTORS, _CHUNK_CONTROLLER = _load_shared_payload(shared_payload)
+    _CHUNK_PARAMS = params
+    _CHUNK_CONFIG_DICT = config_dict
+    _CHUNK_OUTPUT_PATH = output_path_str
+    _CHUNK_DRAW_MODELS = draw_models
+
+
+def _chunk_worker(frame_range: Tuple[int, int]) -> Tuple[Tuple[int, int], List[str]]:
+    """Render one chunk of frames in a worker process."""
+    start, end = frame_range
+    config = HybridConfig.from_dict(_CHUNK_CONFIG_DICT)
+    output_path = Path(_CHUNK_OUTPUT_PATH)
+    files = _render_frame_range(
+        start, end,
+        _CHUNK_STATES, _CHUNK_WING_VECTORS, _CHUNK_PARAMS, config, output_path,
+        controller=_CHUNK_CONTROLLER, draw_models=_CHUNK_DRAW_MODELS,
     )
+    return frame_range, files
 
 
 def render_all_frames_parallel(
@@ -547,31 +709,64 @@ def render_all_frames_parallel(
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
 
+    n_frames = len(states)
+    frame_ranges = _split_frame_ranges(n_frames, n_workers)
+    config_dict = config.to_dict()
+
+    # Fast path for serial rendering: still use chunk renderer to reuse figure context.
     if n_workers == 1:
-        return render_all_frames(
-            states, wing_vectors, params, config, output_path,
+        return _render_frame_range(
+            0, n_frames, states, wing_vectors, params, config, output_path,
             controller=controller, draw_models=draw_models,
         )
 
-    n_frames = len(states)
-    config_dict = config.to_dict()
-    output_path_str = str(output_path)
+    print(f"  Matplotlib: rendering {n_frames} frames with {n_workers} workers...")
 
-    work = [
-        (i, states, wing_vectors, params, controller, config_dict, output_path_str, draw_models)
-        for i in range(n_frames)
-    ]
+    try:
+        with tempfile.TemporaryDirectory(prefix="mpl_shared_") as shared_tmp:
+            shared_payload = _prepare_shared_payload(
+                states, wing_vectors, controller, Path(shared_tmp)
+            )
+            with ProcessPoolExecutor(
+                max_workers=n_workers,
+                initializer=_chunk_worker_init,
+                initargs=(
+                    shared_payload, params,
+                    config_dict, str(output_path), draw_models,
+                ),
+            ) as executor:
+                futures = {executor.submit(_chunk_worker, frame_range): frame_range for frame_range in frame_ranges}
 
-    if TQDM_AVAILABLE:
-        results = process_map(
-            _frame_worker, work,
-            max_workers=n_workers, chunksize=10,
-            desc="Matplotlib   ", ncols=60
+                chunk_results: Dict[Tuple[int, int], List[str]] = {}
+                if TQDM_AVAILABLE:
+                    pbar = tqdm(total=n_frames, desc="Matplotlib   ", ncols=60)
+                else:
+                    pbar = None
+                    completed = 0
+
+                for future in as_completed(futures):
+                    frame_range, files = future.result()
+                    chunk_results[frame_range] = files
+                    chunk_len = frame_range[1] - frame_range[0]
+                    if pbar is not None:
+                        pbar.update(chunk_len)
+                    else:
+                        completed += chunk_len
+                        if completed % 100 == 0 or completed == n_frames:
+                            print(f"  Matplotlib: {completed}/{n_frames} frames")
+
+                if pbar is not None:
+                    pbar.close()
+    except (OSError, PermissionError) as exc:
+        # Restricted environments (e.g., some CI sandboxes) may block process pools.
+        print(f"  Matplotlib: parallel render unavailable ({exc}); falling back to 1 worker")
+        return _render_frame_range(
+            0, n_frames, states, wing_vectors, params, config, output_path,
+            controller=controller, draw_models=draw_models,
         )
-    else:
-        print(f"  Matplotlib: rendering {n_frames} frames with {n_workers} workers...")
-        with ProcessPoolExecutor(max_workers=n_workers) as executor:
-            results = list(executor.map(_frame_worker, work, chunksize=10))
-        print(f"  Matplotlib: done ({n_frames} frames)")
 
-    return results
+    ordered = []
+    for frame_range in sorted(chunk_results.keys()):
+        ordered.extend(chunk_results[frame_range])
+    print(f"  Matplotlib: done ({n_frames} frames)")
+    return ordered

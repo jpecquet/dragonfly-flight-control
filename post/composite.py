@@ -194,6 +194,51 @@ def assemble_video(
         raise RuntimeError(f"ffmpeg failed: {result.stderr}")
 
 
+def assemble_video_from_layers(
+    mpl_dir: Path,
+    blender_dir: Path,
+    output_file: str,
+    framerate: int = 30,
+    mpl_pattern: str = "mpl_%06d.png",
+    blender_pattern: str = "frame_%06d.png",
+):
+    """
+    Assemble hybrid video directly from matplotlib and Blender PNG sequences.
+
+    Uses ffmpeg overlay filter so we avoid writing intermediate composited PNGs.
+
+    Args:
+        mpl_dir: Directory containing matplotlib frames
+        blender_dir: Directory containing Blender frames
+        output_file: Output video file path
+        framerate: Video framerate
+        mpl_pattern: Printf-style matplotlib frame pattern
+        blender_pattern: Printf-style Blender frame pattern
+    """
+    mpl_dir = Path(mpl_dir)
+    blender_dir = Path(blender_dir)
+
+    cmd = [
+        'ffmpeg', '-y',
+        '-framerate', str(framerate),
+        '-i', str(mpl_dir / mpl_pattern),
+        '-framerate', str(framerate),
+        '-i', str(blender_dir / blender_pattern),
+        '-filter_complex',
+        # Scale Blender stream to match matplotlib stream, then alpha-overlay.
+        '[1:v][0:v]scale2ref[fg][bg];[bg][fg]overlay=shortest=1:format=auto[v]',
+        '-map', '[v]',
+        '-c:v', 'libx264',
+        '-pix_fmt', 'yuv420p',
+        '-crf', '18',
+        output_file,
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg overlay assembly failed: {result.stderr}")
+
+
 def extract_frame_data(states, wing_vectors):
     """
     Extract frame data to a JSON-serializable format for Blender.
@@ -509,7 +554,6 @@ def render_hybrid(
         tmpdir = Path(tmpdir)
         blender_dir = tmpdir / "blender"
         mpl_dir = tmpdir / "mpl"
-        composite_dir = tmpdir / "composite"
         config_file = tmpdir / "config.json"
         data_file = tmpdir / "frame_data.json"
 
@@ -529,13 +573,10 @@ def render_hybrid(
             str(data_file), n_frames, n_workers
         )
 
-        print("Compositing frames...")
-        composite_frames_parallel(
-            blender_dir, mpl_dir, composite_dir, n_frames, n_workers
+        print("Assembling video from Blender + matplotlib layers...")
+        assemble_video_from_layers(
+            mpl_dir, blender_dir, output_file, config.framerate
         )
-
-        print("Assembling video...")
-        assemble_video(composite_dir, output_file, config.framerate)
 
     print(f"Done: {output_file}")
 
