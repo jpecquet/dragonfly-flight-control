@@ -32,16 +32,17 @@ class ExternalForceSeries:
     label: str
 
 
-def read_aero_force_z(h5_path: Path) -> tuple[np.ndarray, np.ndarray]:
-    """Read total aerodynamic z-force from a simulation output HDF5 file."""
+def read_aero_force_z(h5_path: Path) -> tuple[np.ndarray, np.ndarray, float]:
+    """Read total aerodynamic z-force and omega from a simulation output HDF5 file."""
     with h5py.File(str(h5_path), "r") as f:
         time = f["/time"][:]
+        omega = float(f["/parameters/omega"][()])
         wing_names = sorted(k for k in f["/wings"].keys() if k != "num_wings")
         fz = np.zeros_like(time)
         for wname in wing_names:
             fz += f[f"/wings/{wname}/lift"][:, 2]
             fz += f[f"/wings/{wname}/drag"][:, 2]
-    return time, fz
+    return time, fz, omega
 
 
 def _resolve_csv_column_index(header: list[str], key: str) -> int:
@@ -94,16 +95,18 @@ def read_force_series_csv(csv_path: Path, x_col: str, y_col: str, label: str) ->
 def plot_force_comparison(
     h5_inputs: Sequence[Path] | None,
     output_path: Path,
-    omega_nondim: float,
+    omega_nondim: float | None = None,
     *,
     labels: Sequence[str] | None = None,
     external_series: Sequence[ExternalForceSeries] | None = None,
     theme: str | None = None,
     include_mean_in_label: bool = True,
 ) -> None:
-    """Plot vertical aerodynamic force for an arbitrary number of simulation outputs."""
-    if omega_nondim <= 0.0:
-        raise ValueError("omega_nondim must be > 0")
+    """Plot vertical aerodynamic force for an arbitrary number of simulation outputs.
+
+    omega_nondim is unused; each H5 file's omega is read directly from /parameters/omega.
+    The parameter is retained for backward compatibility.
+    """
     resolved_h5_inputs = list(h5_inputs or [])
     resolved_external = list(external_series or [])
     if not resolved_h5_inputs and not resolved_external:
@@ -119,12 +122,23 @@ def plot_force_comparison(
     series_data: list[tuple[np.ndarray, np.ndarray, str]] = []
 
     for h5_path, label in zip(resolved_h5_inputs, resolved_labels):
-        time, fz = read_aero_force_z(Path(h5_path))
-        wingbeats = time * omega_nondim / (2.0 * np.pi)
+        time, fz, omega = read_aero_force_z(Path(h5_path))
+        wingbeats = time * omega / (2.0 * np.pi)
         series_data.append((wingbeats, fz, label))
 
     for ext in resolved_external:
         series_data.append((ext.x, ext.fz, ext.label))
+
+    # Compute xlim from simulation (H5) series only so external reference data
+    # that extends slightly beyond the simulation range doesn't shorten the plot.
+    n_sim = len(resolved_h5_inputs)
+    if n_sim > 0:
+        sim_xlim: tuple[float, float] | None = (
+            float(min(series_data[i][0][0] for i in range(n_sim))),
+            float(max(series_data[i][0][-1] for i in range(n_sim))),
+        )
+    else:
+        sim_xlim = None
 
     for i, (x_values, fz, label) in enumerate(series_data):
         mean_force = float(np.mean(fz))
@@ -141,6 +155,7 @@ def plot_force_comparison(
         theme=theme,
         height_over_width=1.0 / 2.0,
         hlines=hlines,
+        xlim=sim_xlim,
         legend_loc="lower center",
         legend_bbox_to_anchor=(0.5, 1.03),
         legend_ncol=max(1, min(3, len(series))),
@@ -154,8 +169,8 @@ def main() -> int:
     parser.add_argument(
         "--omega-nondim",
         type=float,
-        required=True,
-        help="Nondimensional wing angular frequency omega.",
+        default=None,
+        help="Unused; omega is read from each HDF5 file. Retained for backward compatibility.",
     )
     parser.add_argument(
         "--series",

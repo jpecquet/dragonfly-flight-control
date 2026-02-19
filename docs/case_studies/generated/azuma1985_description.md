@@ -16,6 +16,10 @@ Source: `data/case_studies/azuma1985/case.json`.
 
 Flapping frequency: `41.5 Hz`
 
+Coning angles:
+- Fore: `8 deg`
+- Hind: `-2 deg`
+
 Paper-convention Fourier data (degrees):
 
 | Wing | Series | mean (deg) | Fourier terms |

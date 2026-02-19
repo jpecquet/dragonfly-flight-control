@@ -19,7 +19,11 @@
     "gravity_m_s2": 9.81,
     "wing_cd0": 0.4,
     "wing_cl0": 1.2,
-    "n_harmonics": 3
+    "n_harmonics": 3,
+    "coning_angles_deg": {
+      "fore": 8.0,
+      "hind": -2.0
+    }
   },
   "convention": {
     "source_world_axes": {

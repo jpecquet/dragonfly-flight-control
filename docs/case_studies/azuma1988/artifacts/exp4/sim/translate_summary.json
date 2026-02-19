@@ -18,6 +18,9 @@
       "hind_stroke_plane_deg": null,
       "stroke_plane_deg": null
     },
+    "pitch_twist_model": {
+      "enabled": false
+    },
     "resolved_stroke_plane_deg": {
       "fore": 63.0,
       "hind": 68.0

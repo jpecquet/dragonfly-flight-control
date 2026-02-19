@@ -23,6 +23,10 @@
     "stroke_plane_angles_deg": {
       "fore": 53.0,
       "hind": 44.0
+    },
+    "coning_angles_deg": {
+      "fore": 8.0,
+      "hind": -2.0
     }
   },
   "convention": {

@@ -164,11 +164,6 @@ def prepare_sim_config(
     return "\n".join(rewritten) + "\n"
 
 
-def _read_omega(h5_path: Path) -> float:
-    with h5py.File(str(h5_path), "r") as f:
-        return float(f["/parameters/omega"][()])
-
-
 def _validate_constant_velocity(h5_path: Path, velocity: VelocitySpec, tol: float = 1e-12) -> None:
     with h5py.File(str(h5_path), "r") as f:
         state = np.asarray(f["/state"][:], dtype=float)
@@ -217,8 +212,7 @@ def run_force_sweep(
                     raise FileNotFoundError(f"Expected output not found: {out_h5}")
 
                 _validate_constant_velocity(out_h5, velocity)
-                time, fz = read_aero_force_z(out_h5)
-                omega = _read_omega(out_h5)
+                time, fz, omega = read_aero_force_z(out_h5)
                 wingbeats = time * omega / (2.0 * np.pi)
                 results[(twist_enabled, int(nseg))] = (wingbeats, fz)
 
