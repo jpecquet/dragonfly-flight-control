@@ -34,11 +34,7 @@ import numpy as np
 script_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(script_dir))
 
-from post.constants import (
-    Lh, Lt, La, Rh, Rt, Ra, DW,
-    A_XC, T_XC, H_XC,
-    get_wing_offsets,
-)
+from post.constants import get_wing_offsets
 
 
 def setup_scene(width, height):
@@ -189,62 +185,6 @@ def _parse_rgba(color, default_rgba):
     return default_rgba
 
 
-def create_ellipsoid(name, radii, location):
-    """
-    Create an ellipsoid mesh.
-
-    Args:
-        name: Object name
-        radii: (rx, ry, rz) radii
-        location: (x, y, z) center position
-
-    Returns:
-        bpy.types.Object: The mesh object
-    """
-    bpy.ops.mesh.primitive_uv_sphere_add(
-        radius=1.0,
-        segments=24,
-        ring_count=16,
-        location=location
-    )
-    obj = bpy.context.active_object
-    obj.name = name
-    obj.scale = radii
-    bpy.ops.object.transform_apply(scale=True)
-    return obj
-
-
-def create_cylinder(name, radius, height, location, direction=(1, 0, 0)):
-    """
-    Create a cylinder mesh.
-
-    Args:
-        name: Object name
-        radius: Cylinder radius
-        height: Cylinder height
-        location: Center position
-        direction: Axis direction
-
-    Returns:
-        bpy.types.Object: The mesh object
-    """
-    # Default cylinder is along Z, we want it along X
-    bpy.ops.mesh.primitive_cylinder_add(
-        radius=radius,
-        depth=height,
-        location=location
-    )
-    obj = bpy.context.active_object
-    obj.name = name
-
-    # Rotate to align with X axis
-    if direction == (1, 0, 0):
-        obj.rotation_euler = (0, math.radians(90), 0)
-        bpy.ops.object.transform_apply(rotation=True)
-
-    return obj
-
-
 def create_body_material(style_cfg=None):
     """Create material for dragonfly body (Workbench-compatible)."""
     mat = bpy.data.materials.new(name="DragonBody")
@@ -261,41 +201,34 @@ def create_wing_material(style_cfg=None):
     return mat
 
 
-def create_body_mesh(style_cfg=None):
+def load_body_mesh(filepath, style_cfg=None):
     """
-    Create dragonfly body mesh at origin.
+    Load dragonfly body mesh from OBJ file.
+
+    The OBJ is modeled with origin at the wing attachment center (x=0, y=0, z=0),
+    matching the simulation reference point used for body_pos.
+
+    Args:
+        filepath: Path to body OBJ file
+        style_cfg: Optional style configuration dict
 
     Returns:
         bpy.types.Object: The body mesh
     """
-    # Create body parts
-    head = create_ellipsoid("Head", (Lh / 2, Rh, Lh / 2), (H_XC, 0, 0))
-    thorax = create_ellipsoid("Thorax", (Lt / 2, Rt, Rt * 1.5), (T_XC, 0, 0))
-    abdomen = create_ellipsoid("Abdomen", (La / 2, Ra, Ra), (A_XC, 0, 0))
-    connector = create_cylinder(
-        "Connector", Ra, T_XC - A_XC,
-        ((T_XC + A_XC) / 2, 0, 0)
-    )
-
-    # Join all parts into single mesh
-    bpy.ops.object.select_all(action='DESELECT')
-    for obj in [head, thorax, abdomen, connector]:
-        obj.select_set(True)
-    bpy.context.view_layer.objects.active = head
-    bpy.ops.object.join()
-
-    body = bpy.context.active_object
+    bpy.ops.wm.obj_import(filepath=str(filepath))
+    body = bpy.context.selected_objects[0]
     body.name = "Body"
 
-    # Recenter origin to the wing attachment center (x=0, y=0, z=0)
-    # This ensures body.location corresponds to the center of mass position
-    # used in the simulation trajectory
+    # Anchor origin to the wing attachment center (x=0, y=0, z=0)
+    # so that body.location == simulation body_pos
+    bpy.context.view_layer.objects.active = body
     saved_cursor = bpy.context.scene.cursor.location.copy()
     bpy.context.scene.cursor.location = (0, 0, 0)
     bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
     bpy.context.scene.cursor.location = saved_cursor
 
     # Apply material
+    body.data.materials.clear()
     mat = create_body_material(style_cfg)
     body.data.materials.append(mat)
 
@@ -471,11 +404,9 @@ def main():
 
     setup_lighting()
 
-    # Create body (will be moved each frame)
-    body = create_body_mesh(style_cfg=style_cfg)
-
-    # Load wing meshes
+    # Load body and wing meshes
     assets_dir = script_dir / "assets"
+    body = load_body_mesh(assets_dir / "dragonfly_body.obj", style_cfg=style_cfg)
     wing_templates = {}
     for base_name in ['fore', 'hind']:
         filepath = assets_dir / f"{base_name}wing.obj"
@@ -492,10 +423,10 @@ def main():
     wing_info = {}
     for wname in wing_names:
         base = 'fore' if 'fore' in wname else 'hind'
-        xoffset, yoffset = get_wing_offsets(wname)
+        xoffset, yoffset, zoffset = get_wing_offsets(wname)
         wing_info[wname] = {
             'base': base,
-            'offset': np.array([xoffset, yoffset, 0]),
+            'offset': np.array([xoffset, yoffset, zoffset]),
         }
 
     # Create wing instances

@@ -220,9 +220,9 @@ def _draw_forces(ax, xb, wing_vectors, wing_lb0, config):
     style = config.style
     for wname, wdata in wing_vectors.items():
         lb0 = wing_lb0.get(wname, DEFAULT_LB0)
-        xoffset, yoffset = get_wing_offsets(wname)
+        xoffset, yoffset, zoffset = get_wing_offsets(wname)
 
-        origin = xb + np.array([xoffset, yoffset, 0])
+        origin = xb + np.array([xoffset, yoffset, zoffset])
         cp = origin + FORCE_CENTER_FRACTION * lb0 * wdata['e_r']
 
         for force, color in [(wdata['lift'], style.lift_color),
@@ -262,8 +262,8 @@ def _draw_body_and_wings(ax, xb, wing_vectors, wing_lb0, style: StyleConfig):
     # Wings as thin oriented plates.
     for wname, wdata in wing_vectors.items():
         lb0 = wing_lb0.get(wname, DEFAULT_LB0)
-        xoffset, yoffset = get_wing_offsets(wname)
-        root = xb + np.array([xoffset, yoffset, 0.0])
+        xoffset, yoffset, zoffset = get_wing_offsets(wname)
+        root = xb + np.array([xoffset, yoffset, zoffset])
 
         e_r = np.asarray(wdata['e_r'], dtype=float)
         e_c = np.asarray(wdata['e_c'], dtype=float)
