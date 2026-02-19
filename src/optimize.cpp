@@ -140,11 +140,28 @@ PhysicalParams PhysicalParams::fromConfig(const Config& cfg) {
         throw std::runtime_error("Config must define wings using [[wing]] sections");
     }
 
+    const int global_n_blade_elements = cfg.getInt("n_blade_elements", 1);
+    if (global_n_blade_elements <= 0) {
+        throw std::runtime_error("n_blade_elements must be > 0");
+    }
+
     PhysicalParams params;
     for (const auto& entry : cfg.getWingEntries()) {
         WingSide side = parseSide(entry.side);
+        const int n_blade_elements =
+            (entry.n_blade_elements > 0) ? entry.n_blade_elements : global_n_blade_elements;
+        const bool has_twist = entry.has_psi_twist_h1_root_deg;
+        const double twist_root_rad = has_twist ? (entry.psi_twist_h1_root_deg * M_PI / 180.0) : 0.0;
+        const double twist_ref_eta = entry.psi_twist_ref_eta;
+        if (has_twist && (!std::isfinite(twist_ref_eta) || twist_ref_eta <= 0.0)) {
+            throw std::runtime_error(
+                "wing '" + entry.name + "_" + entry.side + "' psi_twist_ref_eta must be finite and > 0"
+            );
+        }
         params.wings.emplace_back(entry.name, side, entry.mu0, entry.lb0,
-                                  entry.Cd0, entry.Cl0, entry.phase);
+                                  entry.Cd0, entry.Cl0, entry.phase,
+                                  entry.cone, n_blade_elements,
+                                  has_twist, twist_root_rad, twist_ref_eta);
     }
     return params;
 }

@@ -89,6 +89,8 @@ def build_wing_block(
     phase: float,
     motion: dict[str, Any] | None = None,
     cone: float | None = None,
+    psi_twist_h1_root_deg: float | None = None,
+    psi_twist_ref_eta: float | None = None,
 ) -> str:
     """Build a [[wing]] config block for the simulator."""
     lines = [
@@ -103,6 +105,10 @@ def build_wing_block(
     ]
     if cone is not None and cone != 0.0:
         lines.append(f"cone = {fmt(cone)}")
+    if psi_twist_h1_root_deg is not None:
+        lines.append(f"psi_twist_h1_root_deg = {fmt(float(psi_twist_h1_root_deg))}")
+    if psi_twist_ref_eta is not None:
+        lines.append(f"psi_twist_ref_eta = {fmt(float(psi_twist_ref_eta))}")
 
     if motion is not None:
         lines.extend(

@@ -27,8 +27,8 @@ At each timestep, per wing:
 
 1. Evaluate wing angles from harmonic kinematics (`include/kinematics.hpp`)
 2. Build wing orientation vectors (`include/rotation.hpp`)
-3. Compute wing-point velocity at $2/3$ span (`src/wing.cpp`)
-4. Compute lift/drag via blade-element model (`src/blade_element.cpp`)
+3. Compute wing-point velocity at one or more span stations (`src/wing.cpp`)
+4. Compute lift/drag via blade-element model and sum over stations (`src/blade_element.cpp`, `src/wing.cpp`)
 
 ## Integration
 

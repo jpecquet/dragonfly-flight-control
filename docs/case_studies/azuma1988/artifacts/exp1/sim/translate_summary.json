@@ -18,6 +18,17 @@
       "hind_stroke_plane_deg": null,
       "stroke_plane_deg": null
     },
+    "pitch_twist_model": {
+      "applied_to": "first harmonic coefficient magnitude of pitch series",
+      "enabled": true,
+      "formula": "coeff(eta) = (coeff(ref_eta)-coeff(0))*(eta/ref_eta) + coeff(0)",
+      "kind": "linear_first_harmonic_along_span",
+      "ref_eta": 0.75,
+      "root_coeff_deg": {
+        "fore": 9.0,
+        "hind": 9.0
+      }
+    },
     "resolved_stroke_plane_deg": {
       "fore": 40.0,
       "hind": 38.0

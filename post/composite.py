@@ -239,13 +239,76 @@ def assemble_video_from_layers(
         raise RuntimeError(f"ffmpeg overlay assembly failed: {result.stderr}")
 
 
-def extract_frame_data(states, wing_vectors):
+def _first_harmonic_coeff(series) -> float:
+    """Return first harmonic coefficient from a per-wing harmonic series."""
+    if series is None:
+        return 0.0
+    arr = np.asarray(series, dtype=float).reshape(-1)
+    if arr.size < 1:
+        return 0.0
+    return float(arr[0])
+
+
+def _extract_wing_twist_h1(time_values, wing_names, params) -> Dict[str, Dict]:
+    """
+    Build per-wing pitch-twist metadata for Blender deformation.
+
+    Uses the same first-harmonic spanwise scaling model as the simulator.
+    """
+    if params is None:
+        return {}
+
+    has_twist = params.get("wing_has_psi_twist_h1", {})
+    twist_root = params.get("wing_psi_twist_h1_root", {})
+    twist_ref_eta = params.get("wing_psi_twist_ref_eta", {})
+    wing_phase = params.get("wing_phase_offset", {})
+    wing_omega = params.get("wing_omega", {})
+    wing_period = params.get("wing_harmonic_period_wingbeats", {})
+    psi_cos = params.get("wing_psi_cos", {})
+    psi_sin = params.get("wing_psi_sin", {})
+
+    twist_payload = {}
+    for wname in wing_names:
+        if not bool(has_twist.get(wname, 0)):
+            continue
+
+        ref_eta = float(twist_ref_eta.get(wname, 0.0))
+        root_coeff = float(twist_root.get(wname, 0.0))
+        omega = float(wing_omega.get(wname, 0.0))
+        period = float(wing_period.get(wname, 0.0))
+        phase_offset = float(wing_phase.get(wname, 0.0))
+        if ref_eta <= 0.0 or abs(period) <= 1e-12:
+            continue
+
+        c1 = _first_harmonic_coeff(psi_cos.get(wname))
+        s1 = _first_harmonic_coeff(psi_sin.get(wname))
+        ref_coeff = math.hypot(c1, s1)
+        if ref_coeff <= 1e-12:
+            continue
+
+        basis_omega = omega / period
+        psi_h1 = c1 * np.cos(basis_omega * time_values + phase_offset) + s1 * np.sin(
+            basis_omega * time_values + phase_offset
+        )
+        twist_payload[wname] = {
+            "ref_eta": ref_eta,
+            "root_coeff": root_coeff,
+            "ref_coeff": ref_coeff,
+            "psi_h1": psi_h1.tolist(),
+        }
+
+    return twist_payload
+
+
+def extract_frame_data(states, wing_vectors, params=None, time_values=None):
     """
     Extract frame data to a JSON-serializable format for Blender.
 
     Args:
         states: State array (N, 6)
         wing_vectors: Dict-of-arrays keyed by wing name
+        params: Optional simulation parameters dict (used for wing geometry metadata)
+        time_values: Optional time array matching frame count
 
     Returns:
         dict: Frame data suitable for JSON serialization
@@ -254,6 +317,14 @@ def extract_frame_data(states, wing_vectors):
     n_frames = len(states)
 
     states_list = states.tolist()
+    if time_values is None:
+        time_arr = np.arange(n_frames, dtype=float)
+    else:
+        time_arr = np.asarray(time_values, dtype=float).reshape(-1)
+        if time_arr.size != n_frames:
+            raise ValueError(
+                f"time_values length ({time_arr.size}) must match frame count ({n_frames})"
+            )
 
     wing_data = {}
     for wname in wing_names:
@@ -262,12 +333,19 @@ def extract_frame_data(states, wing_vectors):
             'e_c': wing_vectors[wname]['e_c'].tolist(),
         }
 
-    return {
+    payload = {
         'n_frames': n_frames,
+        'time': time_arr.tolist(),
         'states': states_list,
         'wing_names': wing_names,
         'wing_vectors': wing_data,
     }
+    if params is not None:
+        payload['wing_lb0'] = {
+            str(name): float(value) for name, value in params.get('wing_lb0', {}).items()
+        }
+        payload['wing_twist_h1'] = _extract_wing_twist_h1(time_arr, wing_names, params)
+    return payload
 
 
 def run_blender_render(
@@ -277,7 +355,9 @@ def run_blender_render(
     config_file: str,
     data_file: str,
     start_frame: int = 0,
-    end_frame: int = -1
+    end_frame: int = -1,
+    params: Optional[Dict] = None,
+    time_values: Optional[np.ndarray] = None,
 ):
     """
     Run Blender to render dragonfly frames.
@@ -296,7 +376,7 @@ def run_blender_render(
         raise RuntimeError("Blender not found")
 
     # Extract and save frame data
-    frame_data = extract_frame_data(states, wing_vectors)
+    frame_data = extract_frame_data(states, wing_vectors, params=params, time_values=time_values)
     with open(data_file, 'w') as f:
         json.dump(frame_data, f)
 
@@ -372,7 +452,9 @@ def run_blender_render_parallel(
     config_file: str,
     data_file: str,
     n_frames: int,
-    n_workers: Optional[int] = None
+    n_workers: Optional[int] = None,
+    params: Optional[Dict] = None,
+    time_values: Optional[np.ndarray] = None,
 ):
     """
     Run Blender to render dragonfly frames in parallel.
@@ -398,12 +480,12 @@ def run_blender_render_parallel(
     if n_workers == 1:
         run_blender_render(
             states, wing_vectors, output_dir, config_file, data_file,
-            start_frame=0, end_frame=n_frames
+            start_frame=0, end_frame=n_frames, params=params, time_values=time_values
         )
         return
 
     # Extract and save frame data (shared by all workers)
-    frame_data = extract_frame_data(states, wing_vectors)
+    frame_data = extract_frame_data(states, wing_vectors, params=params, time_values=time_values)
     with open(data_file, 'w') as f:
         json.dump(frame_data, f)
 
@@ -496,6 +578,7 @@ def render_hybrid(
     params: Dict,
     input_file: str,
     output_file: str,
+    time: Optional[np.ndarray] = None,
     controller: Optional[Dict] = None,
     config: Optional[HybridConfig] = None,
     frame_step: int = 1,
@@ -513,6 +596,7 @@ def render_hybrid(
         params: Simulation parameters
         input_file: Path to input HDF5 file (for Blender)
         output_file: Output video file path
+        time: Optional simulation time array matching states
         controller: Controller data dict (None for simulation mode)
         config: Optional HybridConfig (uses defaults if None)
         frame_step: Render every Nth frame (N>=1)
@@ -528,10 +612,21 @@ def render_hybrid(
     if config is None:
         config = HybridConfig()
 
+    if time is None:
+        time_values = np.arange(len(states), dtype=float)
+    else:
+        time_values = np.asarray(time, dtype=float).reshape(-1)
+        if time_values.size != len(states):
+            raise ValueError(
+                f"time length ({time_values.size}) must match states length ({len(states)})"
+            )
+
     original_n = len(states)
     states, wing_vectors, controller = _subsample_animation_inputs(
         states, wing_vectors, controller, frame_step
     )
+    if frame_step > 1:
+        time_values = time_values[::frame_step]
     if frame_step > 1:
         print(f"Frame skipping enabled: step={frame_step} ({original_n} -> {len(states)} frames)")
 
@@ -570,7 +665,7 @@ def render_hybrid(
         print(f"Rendering Blender frames ({n_workers} workers)...")
         run_blender_render_parallel(
             states, wing_vectors, blender_dir, str(config_file),
-            str(data_file), n_frames, n_workers
+            str(data_file), n_frames, n_workers, params=params, time_values=time_values
         )
 
         print("Assembling video from Blender + matplotlib layers...")

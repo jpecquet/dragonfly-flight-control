@@ -398,6 +398,217 @@ bool testWingMotionOverrideFlagSemantics() {
     return passed;
 }
 
+bool testBladeElementCountParsing() {
+    std::cout << "Test: n_blade_elements supports global default + per-wing override\n";
+
+    const std::string cfg_text =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "n_blade_elements = 6\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd0 = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = hind\n"
+        "side = right\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd0 = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n"
+        "n_blade_elements = 10\n";
+
+    fs::path path = writeTempConfig(cfg_text);
+    bool passed = true;
+    try {
+        Config cfg = Config::load(path.string());
+        SimKinematicParams kin = readKinematicParams(cfg);
+        auto wings = buildWingConfigs(cfg, kin);
+        if (wings.size() != 2) {
+            passed = false;
+            std::cout << "  FAILED: expected 2 wings, got " << wings.size() << "\n";
+        } else {
+            if (wings[0].n_blade_elements != 6) {
+                passed = false;
+                std::cout << "  FAILED: first wing should inherit global n_blade_elements=6\n";
+            }
+            if (wings[1].n_blade_elements != 10) {
+                passed = false;
+                std::cout << "  FAILED: second wing should use per-wing n_blade_elements=10\n";
+            }
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception: " << e.what() << "\n";
+    }
+
+    fs::remove(path);
+    std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
+    return passed;
+}
+
+bool testBladeElementCountValidation() {
+    std::cout << "Test: n_blade_elements rejects invalid values\n";
+
+    const std::string per_wing_bad =
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd0 = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n"
+        "n_blade_elements = 0\n";
+
+    const std::string global_bad =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "n_blade_elements = 0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd0 = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n";
+
+    fs::path p1 = writeTempConfig(per_wing_bad);
+    fs::path p2 = writeTempConfig(global_bad);
+
+    bool passed = true;
+    if (!expectThrow([&]() { (void)Config::load(p1.string()); })) {
+        passed = false;
+        std::cout << "  FAILED: per-wing n_blade_elements=0 should be rejected at parse time\n";
+    }
+
+    try {
+        Config cfg = Config::load(p2.string());
+        SimKinematicParams kin = readKinematicParams(cfg);
+        if (!expectThrow([&]() { (void)buildWingConfigs(cfg, kin); })) {
+            passed = false;
+            std::cout << "  FAILED: global n_blade_elements=0 should be rejected\n";
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception while validating global key: " << e.what() << "\n";
+    }
+
+    fs::remove(p1);
+    fs::remove(p2);
+    std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
+    return passed;
+}
+
+bool testPitchTwistParsing() {
+    std::cout << "Test: psi_twist_h1_root_deg and psi_twist_ref_eta parse into wing config\n";
+
+    const std::string cfg_text =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "psi_cos = 0.5\n"
+        "psi_sin = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd0 = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n"
+        "psi_twist_h1_root_deg = 9.0\n"
+        "psi_twist_ref_eta = 0.75\n";
+
+    fs::path path = writeTempConfig(cfg_text);
+    bool passed = true;
+    try {
+        Config cfg = Config::load(path.string());
+        SimKinematicParams kin = readKinematicParams(cfg);
+        auto wings = buildWingConfigs(cfg, kin);
+        if (wings.size() != 1) {
+            passed = false;
+            std::cout << "  FAILED: expected one wing\n";
+        } else {
+            if (!wings[0].has_psi_twist_h1) {
+                passed = false;
+                std::cout << "  FAILED: expected has_psi_twist_h1=true\n";
+            }
+            if (std::abs(wings[0].psi_twist_h1_root - (9.0 * M_PI / 180.0)) > 1e-12) {
+                passed = false;
+                std::cout << "  FAILED: psi_twist_h1_root radians conversion incorrect\n";
+            }
+            if (std::abs(wings[0].psi_twist_ref_eta - 0.75) > 1e-12) {
+                passed = false;
+                std::cout << "  FAILED: psi_twist_ref_eta incorrect\n";
+            }
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception: " << e.what() << "\n";
+    }
+
+    fs::remove(path);
+    std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
+    return passed;
+}
+
+bool testPitchTwistValidation() {
+    std::cout << "Test: psi_twist_ref_eta validation\n";
+
+    const std::string cfg_text =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "psi_cos = 0.5\n"
+        "psi_sin = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd0 = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n"
+        "psi_twist_h1_root_deg = 9.0\n"
+        "psi_twist_ref_eta = 0.0\n";
+
+    fs::path path = writeTempConfig(cfg_text);
+    bool passed = true;
+    try {
+        Config cfg = Config::load(path.string());
+        SimKinematicParams kin = readKinematicParams(cfg);
+        passed = expectThrow([&]() { (void)buildWingConfigs(cfg, kin); });
+        if (!passed) {
+            std::cout << "  FAILED: expected buildWingConfigs to reject psi_twist_ref_eta <= 0\n";
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception while loading config: " << e.what() << "\n";
+    }
+
+    fs::remove(path);
+    std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
+    return passed;
+}
+
 }  // namespace
 
 int main() {
@@ -405,7 +616,7 @@ int main() {
     std::cout << "===================\n\n";
 
     int passed = 0;
-    const int total = 9;
+    const int total = 13;
 
     if (testInlineComments()) passed++;
     if (testStrictGlobalNumeric()) passed++;
@@ -416,6 +627,10 @@ int main() {
     if (testWingMotionOverrides()) passed++;
     if (testUnknownWingMotionKeysRejected()) passed++;
     if (testWingMotionOverrideFlagSemantics()) passed++;
+    if (testBladeElementCountParsing()) passed++;
+    if (testBladeElementCountValidation()) passed++;
+    if (testPitchTwistParsing()) passed++;
+    if (testPitchTwistValidation()) passed++;
 
     std::cout << "Summary: " << passed << "/" << total << " tests passed\n";
     return (passed == total) ? 0 : 1;

@@ -17,6 +17,10 @@ struct WingConfigEntry {
     double Cl0 = 0.0;
     double phase = 0.0;
     double cone = 0.0;  // Coning angle (radians): tilts the wing's flapping plane about the stroke direction
+    int n_blade_elements = 0;  // Optional per-wing override. 0 means "use global/default"
+    bool has_psi_twist_h1_root_deg = false;
+    double psi_twist_h1_root_deg = 0.0;  // Optional first-harmonic pitch coefficient at root (degrees)
+    double psi_twist_ref_eta = 0.75;     // Normalized span station where input pitch Fourier coefficient is defined
     std::map<std::string, std::string> motion_overrides;  // Optional per-wing kinematic overrides
 };
 

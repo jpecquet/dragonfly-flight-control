@@ -99,6 +99,35 @@ class TestAzuma1988Experiments(unittest.TestCase):
         self.assertAlmostEqual(float(init_vel["uy0"]), 0.0, places=12)
         self.assertAlmostEqual(float(init_vel["uz0"]), speed_nd * math.sin(angle), places=12)
 
+    def test_experiment1_enables_linear_pitch_twist_model(self):
+        params = self._params_for_experiment("1")
+        with tempfile.TemporaryDirectory() as td:
+            run_dir = Path(td)
+            pipeline.stage_translate(run_dir=run_dir, params=params, experiment_id="1")
+            summary = json.loads((run_dir / "sim" / "translate_summary.json").read_text(encoding="utf-8"))
+            cfg_text = (run_dir / "sim" / "sim_azuma1988.cfg").read_text(encoding="utf-8")
+
+        twist = summary["convention_mapping"]["pitch_twist_model"]
+        self.assertTrue(bool(twist["enabled"]))
+        self.assertAlmostEqual(float(twist["ref_eta"]), 0.75, places=12)
+        self.assertAlmostEqual(float(twist["root_coeff_deg"]["fore"]), 9.0, places=12)
+        self.assertAlmostEqual(float(twist["root_coeff_deg"]["hind"]), 9.0, places=12)
+        self.assertEqual(cfg_text.count("psi_twist_h1_root_deg = 9.000000000000"), 4)
+        self.assertEqual(cfg_text.count("psi_twist_ref_eta = 0.750000000000"), 4)
+
+    def test_non_experiment1_disables_linear_pitch_twist_model(self):
+        params = self._params_for_experiment("2")
+        with tempfile.TemporaryDirectory() as td:
+            run_dir = Path(td)
+            pipeline.stage_translate(run_dir=run_dir, params=params, experiment_id="2")
+            summary = json.loads((run_dir / "sim" / "translate_summary.json").read_text(encoding="utf-8"))
+            cfg_text = (run_dir / "sim" / "sim_azuma1988.cfg").read_text(encoding="utf-8")
+
+        twist = summary["convention_mapping"]["pitch_twist_model"]
+        self.assertFalse(bool(twist["enabled"]))
+        self.assertNotIn("psi_twist_h1_root_deg", cfg_text)
+        self.assertNotIn("psi_twist_ref_eta", cfg_text)
+
 
 if __name__ == "__main__":
     unittest.main()

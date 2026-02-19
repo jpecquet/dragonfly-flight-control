@@ -225,6 +225,65 @@ int main() {
     }
 
     // ========== Summary ==========
+    // ========== Test 6: Blade-element split should preserve stationary force ==========
+    std::cout << "\nTest 6: Multi-element wing matches single-element in stationary flow\n";
+    {
+        Wing wing_multi("test", mu0, lb0, WingSide::Left, Cd0, Cl0, 0.0, stationaryAngles, 12);
+        Vec3 ub(1.3, 2.1, -0.8);  // includes spanwise component to exercise projection path
+        SingleWingVectors vecs_single;
+        SingleWingVectors vecs_multi;
+        Vec3 force_single = wing.computeForce(0.0, ub, vecs_single);
+        Vec3 force_multi = wing_multi.computeForce(0.0, ub, vecs_multi);
+
+        bool t1 = vecNear(force_single, force_multi, tol);
+        bool t2 = vecNear(vecs_single.drag, vecs_multi.drag, tol);
+        bool t3 = vecNear(vecs_single.lift, vecs_multi.lift, tol);
+
+        std::cout << "  Total force match: " << (t1 ? "PASS" : "FAIL") << "\n";
+        std::cout << "  Drag match: " << (t2 ? "PASS" : "FAIL") << "\n";
+        std::cout << "  Lift match: " << (t3 ? "PASS" : "FAIL") << "\n";
+
+        all_passed &= t1 && t2 && t3;
+    }
+
+    // ========== Test 7: First-harmonic pitch twist alters integrated force ==========
+    std::cout << "\nTest 7: Linear first-harmonic pitch twist changes blade-integrated force\n";
+    {
+        HarmonicSeries gamma_series{0.0, {0.0}, {0.0}};
+        HarmonicSeries phi_series{0.0, {0.0}, {0.0}};
+        HarmonicSeries psi_series{0.0, {0.5}, {0.0}};  // first harmonic only
+        AngleFunc harmonicAngles = makeAngleFunc(
+            gamma_series, phi_series, psi_series,
+            0.0, 1.0, 1.0
+        );
+
+        Wing wing_no_twist("test", mu0, lb0, WingSide::Left, Cd0, Cl0, 0.0, harmonicAngles, 12);
+        PitchTwistH1Model twist_model;
+        twist_model.enabled = true;
+        twist_model.root_coeff = 9.0 * M_PI / 180.0;
+        twist_model.ref_eta = 0.75;
+        twist_model.c1 = psi_series.cos_coeff[0];
+        twist_model.s1 = psi_series.sin_coeff[0];
+        twist_model.basis_omega = 1.0;
+        twist_model.phase_offset = 0.0;
+        Wing wing_with_twist(
+            "test", mu0, lb0, WingSide::Left, Cd0, Cl0, 0.0,
+            harmonicAngles, 12, twist_model
+        );
+
+        const Vec3 ub(1.2, 0.1, -0.4);
+        SingleWingVectors vecs_no_twist;
+        SingleWingVectors vecs_twist;
+        const Vec3 f_no_twist = wing_no_twist.computeForce(0.0, ub, vecs_no_twist);
+        const Vec3 f_twist = wing_with_twist.computeForce(0.0, ub, vecs_twist);
+
+        const double delta = (f_twist - f_no_twist).norm();
+        bool t1 = delta > 1e-6;
+        std::cout << "  |F_twist - F_no_twist| = " << delta
+                  << " expected > 1e-6: " << (t1 ? "PASS" : "FAIL") << "\n";
+        all_passed &= t1;
+    }
+
     std::cout << "\n==========================================\n";
     if (all_passed) {
         std::cout << "PASSED: All stationary wing tests passed\n";

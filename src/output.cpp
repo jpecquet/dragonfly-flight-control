@@ -103,6 +103,9 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     std::vector<std::string> names;
     std::vector<int> sides;
     std::vector<double> mu0_vals, lb0_vals, Cd0_vals, Cl0_vals, phase_vals, cone_vals;
+    std::vector<int> n_blade_elements_vals;
+    std::vector<int> has_psi_twist_h1_vals;
+    std::vector<double> psi_twist_h1_root_vals, psi_twist_ref_eta_vals;
 
     for (const auto& wc : output.wingConfigs) {
         names.push_back(wc.name + (wc.side == WingSide::Left ? "_left" : "_right"));
@@ -113,6 +116,10 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
         Cl0_vals.push_back(wc.Cl0);
         phase_vals.push_back(wc.phase_offset);
         cone_vals.push_back(wc.cone_angle);
+        n_blade_elements_vals.push_back(wc.n_blade_elements);
+        has_psi_twist_h1_vals.push_back(wc.has_psi_twist_h1 ? 1 : 0);
+        psi_twist_h1_root_vals.push_back(wc.psi_twist_h1_root);
+        psi_twist_ref_eta_vals.push_back(wc.psi_twist_ref_eta);
     }
 
     H5Easy::dump(file, "/parameters/wings/names", names);
@@ -123,6 +130,10 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     H5Easy::dump(file, "/parameters/wings/Cl0", Cl0_vals);
     H5Easy::dump(file, "/parameters/wings/phase_offset", phase_vals);
     H5Easy::dump(file, "/parameters/wings/cone_angle", cone_vals);
+    H5Easy::dump(file, "/parameters/wings/n_blade_elements", n_blade_elements_vals);
+    H5Easy::dump(file, "/parameters/wings/has_psi_twist_h1", has_psi_twist_h1_vals);
+    H5Easy::dump(file, "/parameters/wings/psi_twist_h1_root", psi_twist_h1_root_vals);
+    H5Easy::dump(file, "/parameters/wings/psi_twist_ref_eta", psi_twist_ref_eta_vals);
 
     // Optional per-wing kinematic parameters (resolved values actually used in simulation).
     const size_t n_harmonics = static_cast<size_t>(std::max(0, output.kin.n_harmonics));

@@ -77,7 +77,8 @@ def main():
         )
     elif check_blender_available():
         render_hybrid(
-            states, wings, params, input_file, output_file, config=config, frame_step=args.frame_step
+            states, wings, params, input_file, output_file,
+            time=time, config=config, frame_step=args.frame_step
         )
     else:
         print("Warning: Blender not available, using matplotlib-only fallback")

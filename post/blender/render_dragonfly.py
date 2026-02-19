@@ -35,6 +35,7 @@ script_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(script_dir))
 
 from post.constants import get_wing_offsets
+from post.wing_geometry import DEFAULT_ROOT_CHORD_RATIO, composite_ellipse_polygon_local
 
 
 def setup_scene(width, height):
@@ -235,20 +236,29 @@ def load_body_mesh(filepath, style_cfg=None):
     return body
 
 
-def load_wing_mesh(filepath, name, style_cfg=None):
+def create_composite_ellipse_wing(name, span, root_chord, style_cfg=None, n_span=32):
     """
-    Load wing mesh from OBJ file.
+    Create a thin wing mesh procedurally from a composite-ellipse planform.
 
-    Args:
-        filepath: Path to OBJ file
-        name: Name for the imported object
-
-    Returns:
-        bpy.types.Object: The imported mesh
+    The local pitching axis is the +Y/-Y span axis at x=0 (quarter-chord station).
     """
-    bpy.ops.wm.obj_import(filepath=str(filepath))
-    obj = bpy.context.selected_objects[0]
-    obj.name = name
+    mesh = bpy.data.meshes.new(f"{name}_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+
+    poly = composite_ellipse_polygon_local(
+        span=float(span),
+        root_chord=float(root_chord),
+        n_span=int(n_span),
+        span_sign=-1.0,  # keep legacy local convention (tip at -Y)
+    )
+
+    bm = bmesh.new()
+    verts = [bm.verts.new((float(v[0]), float(v[1]), float(v[2]))) for v in poly]
+    bm.verts.ensure_lookup_table()
+    bm.faces.new(verts)
+    bm.to_mesh(mesh)
+    bm.free()
 
     # Apply wing material
     obj.data.materials.clear()
@@ -302,6 +312,52 @@ def transform_wing(wing_obj, origin, e_r, e_c, mirror_y=True):
     wing_obj.matrix_world = trans_mat @ rot_mat @ mirror_mat
 
 
+def capture_wing_deform_data(wing_obj, span):
+    """Capture local-space wing vertices and per-vertex span stations."""
+    verts = wing_obj.data.vertices
+    base = np.array([[v.co.x, v.co.y, v.co.z] for v in verts], dtype=float)
+    span_abs = max(abs(float(span)), 1e-12)
+    eta = np.clip(np.abs(base[:, 1]) / span_abs, 0.0, 1.0)
+    return {
+        'base_vertices': base,
+        'eta': eta,
+    }
+
+
+def apply_wing_twist(wing_obj, deform_data, twist_model, frame_idx):
+    """
+    Deform wing mesh in local coordinates to visualize spanwise pitch twist.
+
+    The deformation rotates each vertex around local +Y by
+    delta_psi(eta,t) = (scale(eta)-1) * psi_h1(t), matching the simulator model.
+    """
+    base = deform_data['base_vertices']
+    eta = deform_data['eta']
+    coords = base
+
+    if twist_model:
+        ref_eta = float(twist_model.get('ref_eta', 0.0))
+        root_coeff = float(twist_model.get('root_coeff', 0.0))
+        ref_coeff = float(twist_model.get('ref_coeff', 0.0))
+        psi_h1_series = twist_model.get('psi_h1', [])
+        if ref_eta > 0.0 and abs(ref_coeff) > 1e-12 and frame_idx < len(psi_h1_series):
+            psi_h1_value = float(psi_h1_series[frame_idx])
+            coeff_eta = ((ref_coeff - root_coeff) * (eta / ref_eta)) + root_coeff
+            scale_eta = coeff_eta / ref_coeff
+            delta = (scale_eta - 1.0) * psi_h1_value
+            cos_delta = np.cos(delta)
+            sin_delta = np.sin(delta)
+
+            x0 = base[:, 0]
+            z0 = base[:, 2]
+            x_new = x0 * cos_delta + z0 * sin_delta
+            z_new = -x0 * sin_delta + z0 * cos_delta
+            coords = np.column_stack([x_new, base[:, 1], z_new])
+
+    wing_obj.data.vertices.foreach_set("co", coords.reshape(-1))
+    wing_obj.data.update()
+
+
 def render_frame(frame_idx, output_path):
     """
     Render current frame to file.
@@ -349,6 +405,8 @@ def main():
     states = frame_data['states']  # List of [x, y, z, ux, uy, uz]
     wing_names = frame_data['wing_names']
     wing_vectors = frame_data['wing_vectors']  # {wname: {e_r: [...], e_c: [...]}}
+    wing_lb0 = frame_data.get('wing_lb0', {})
+    wing_twist_h1 = frame_data.get('wing_twist_h1', {})
 
     # Determine frame range
     start_frame = args.start
@@ -404,44 +462,35 @@ def main():
 
     setup_lighting()
 
-    # Load body and wing meshes
+    # Load body mesh
     assets_dir = script_dir / "assets"
     body = load_body_mesh(assets_dir / "dragonfly_body.obj", style_cfg=style_cfg)
-    wing_templates = {}
-    for base_name in ['fore', 'hind']:
-        filepath = assets_dir / f"{base_name}wing.obj"
-        if filepath.exists():
-            mesh = load_wing_mesh(filepath, f"{base_name}_template", style_cfg=style_cfg)
-            wing_templates[base_name] = mesh
-            # Hide template
-            mesh.hide_render = True
-            mesh.hide_viewport = True
-        else:
-            print(f"Warning: Wing mesh not found: {filepath}")
 
     # Wing configuration
     wing_info = {}
     for wname in wing_names:
-        base = 'fore' if 'fore' in wname else 'hind'
         xoffset, yoffset, zoffset = get_wing_offsets(wname)
+        span = float(wing_lb0.get(wname, 0.75))
+        root_chord = DEFAULT_ROOT_CHORD_RATIO * span
         wing_info[wname] = {
-            'base': base,
             'offset': np.array([xoffset, yoffset, zoffset]),
+            'span': span,
+            'root_chord': root_chord,
         }
 
-    # Create wing instances
+    # Create wing meshes
     wing_objects = {}
+    wing_deform_data = {}
     for wname, info in wing_info.items():
-        if info['base'] in wing_templates:
-            # Duplicate template
-            template = wing_templates[info['base']]
-            wing_copy = template.copy()
-            wing_copy.data = template.data.copy()
-            wing_copy.name = wname
-            wing_copy.hide_render = False
-            wing_copy.hide_viewport = False
-            bpy.context.scene.collection.objects.link(wing_copy)
-            wing_objects[wname] = wing_copy
+        wing_obj = create_composite_ellipse_wing(
+            wname,
+            span=info['span'],
+            root_chord=info['root_chord'],
+            style_cfg=style_cfg,
+            n_span=32,
+        )
+        wing_objects[wname] = wing_obj
+        wing_deform_data[wname] = capture_wing_deform_data(wing_obj, info['span'])
 
     # Render frames (camera stays fixed at viewport center)
     for frame_idx in range(start_frame, end_frame):
@@ -458,6 +507,12 @@ def main():
             origin = np.array(body_pos) + info['offset']
             e_r = wing_vectors[wname]['e_r'][frame_idx]
             e_c = wing_vectors[wname]['e_c'][frame_idx]
+            apply_wing_twist(
+                wing_obj,
+                wing_deform_data[wname],
+                wing_twist_h1.get(wname),
+                frame_idx,
+            )
             transform_wing(wing_obj, origin, e_r, e_c)
 
         # Render

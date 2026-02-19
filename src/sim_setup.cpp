@@ -182,11 +182,27 @@ std::vector<WingConfig> buildWingConfigs(const Config& cfg, const SimKinematicPa
         throw std::runtime_error("Config must define wings using [[wing]] sections");
     }
 
+    const int global_n_blade_elements = cfg.getInt("n_blade_elements", 1);
+    if (global_n_blade_elements <= 0) {
+        throw std::runtime_error("n_blade_elements must be > 0");
+    }
+
     std::vector<WingConfig> wingConfigs;
     for (const auto& entry : cfg.getWingEntries()) {
         WingSide side = parseSide(entry.side);
+        const int n_blade_elements =
+            (entry.n_blade_elements > 0) ? entry.n_blade_elements : global_n_blade_elements;
+        const bool has_twist = entry.has_psi_twist_h1_root_deg;
+        const double twist_root_rad = has_twist ? (entry.psi_twist_h1_root_deg * M_PI / 180.0) : 0.0;
+        const double twist_ref_eta = entry.psi_twist_ref_eta;
+        if (has_twist && (!std::isfinite(twist_ref_eta) || twist_ref_eta <= 0.0)) {
+            throw std::runtime_error(
+                "wing '" + entry.name + "_" + entry.side + "' psi_twist_ref_eta must be finite and > 0"
+            );
+        }
         WingConfig config(entry.name, side, entry.mu0, entry.lb0,
-                          entry.Cd0, entry.Cl0, entry.phase, entry.cone);
+                          entry.Cd0, entry.Cl0, entry.phase, entry.cone, n_blade_elements,
+                          has_twist, twist_root_rad, twist_ref_eta);
         populateWingMotion(entry, default_kin, config);
         wingConfigs.push_back(std::move(config));
     }
@@ -205,7 +221,25 @@ std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinema
             motion.gamma, motion.phi, motion.psi,
             w.phase_offset, motion.omega, motion.harmonic_period_wingbeats
         );
-        wings.emplace_back(w.name, w.mu0, w.lb0, w.side, w.Cd0, w.Cl0, w.cone_angle, angleFunc);
+        PitchTwistH1Model twist;
+        if (w.has_psi_twist_h1) {
+            if (motion.psi.cos_coeff.empty() || motion.psi.sin_coeff.empty()) {
+                throw std::runtime_error(
+                    "wing '" + w.name + "' pitch twist requires at least 1 psi harmonic coefficient"
+                );
+            }
+            twist.enabled = true;
+            twist.root_coeff = w.psi_twist_h1_root;
+            twist.ref_eta = w.psi_twist_ref_eta;
+            twist.c1 = motion.psi.cos_coeff[0];
+            twist.s1 = motion.psi.sin_coeff[0];
+            twist.basis_omega = motion.omega / motion.harmonic_period_wingbeats;
+            twist.phase_offset = w.phase_offset;
+        }
+        wings.emplace_back(
+            w.name, w.mu0, w.lb0, w.side, w.Cd0, w.Cl0, w.cone_angle,
+            std::move(angleFunc), w.n_blade_elements, twist
+        );
     }
     return wings;
 }

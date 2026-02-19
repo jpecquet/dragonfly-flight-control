@@ -185,7 +185,7 @@ def main():
         elif check_blender_available():
             render_hybrid(
                 states, wings, params,
-                input_file, out, controller=controller, config=config,
+                input_file, out, time=time, controller=controller, config=config,
                 frame_step=args.frame_step
             )
         else:

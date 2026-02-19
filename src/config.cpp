@@ -66,6 +66,15 @@ double parseDoubleAtLine(const std::string& value, const std::string& key, int l
     }
 }
 
+int parseIntAtLine(const std::string& value, const std::string& key, int line_num) {
+    try {
+        return parseutil::parseIntStrict(value, "'" + key + "'");
+    } catch (const std::exception&) {
+        throw std::runtime_error("Invalid value for '" + key + "' at line " +
+                                 std::to_string(line_num) + ": " + value);
+    }
+}
+
 }  // namespace
 
 std::vector<double> Config::getDoubleList(const std::string& key) const {
@@ -152,6 +161,17 @@ Config Config::load(const std::string& filename) {
                 current_wing.phase = parseDoubleAtLine(value, key, line_num);
             } else if (key == "cone") {
                 current_wing.cone = parseDoubleAtLine(value, key, line_num);
+            } else if (key == "n_blade_elements") {
+                current_wing.n_blade_elements = parseIntAtLine(value, key, line_num);
+                if (current_wing.n_blade_elements <= 0) {
+                    throw std::runtime_error("Invalid value for 'n_blade_elements' at line " +
+                                             std::to_string(line_num) + ": must be > 0");
+                }
+            } else if (key == "psi_twist_h1_root_deg") {
+                current_wing.psi_twist_h1_root_deg = parseDoubleAtLine(value, key, line_num);
+                current_wing.has_psi_twist_h1_root_deg = true;
+            } else if (key == "psi_twist_ref_eta") {
+                current_wing.psi_twist_ref_eta = parseDoubleAtLine(value, key, line_num);
             } else if (isWingMotionKey(key)) {
                 current_wing.motion_overrides[key] = value;
             } else {

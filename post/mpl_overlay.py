@@ -41,6 +41,7 @@ from .constants import (
 )
 from .hybrid_config import CameraConfig, StyleConfig, ViewportConfig, HybridConfig
 from .style import apply_matplotlib_style
+from .wing_geometry import DEFAULT_ROOT_CHORD_RATIO, composite_ellipse_polygon_world
 
 _CHUNK_STATES = None
 _CHUNK_WING_VECTORS = None
@@ -259,7 +260,7 @@ def _draw_body_and_wings(ax, xb, wing_vectors, wing_lb0, style: StyleConfig):
         zorder=3,
     )
 
-    # Wings as thin oriented plates.
+    # Wings as thin composite-ellipse plates around the 1/4-chord axis.
     for wname, wdata in wing_vectors.items():
         lb0 = wing_lb0.get(wname, DEFAULT_LB0)
         xoffset, yoffset, zoffset = get_wing_offsets(wname)
@@ -274,15 +275,19 @@ def _draw_body_and_wings(ax, xb, wing_vectors, wing_lb0, style: StyleConfig):
         e_r = e_r / nr
         e_c = e_c / nc
 
-        span = lb0
-        chord = 0.24 * lb0
-        root_le = root + 0.5 * chord * e_c
-        root_te = root - 0.5 * chord * e_c
-        tip_le = root_le + span * e_r
-        tip_te = root_te + span * e_r
+        span = float(lb0)
+        root_chord = DEFAULT_ROOT_CHORD_RATIO * span
+        verts = composite_ellipse_polygon_world(
+            root=root,
+            e_r=e_r,
+            e_c=e_c,
+            span=span,
+            root_chord=root_chord,
+            n_span=24,
+        )
 
         wing_poly = Poly3DCollection(
-            [[root_le, tip_le, tip_te, root_te]],
+            [verts],
             facecolors=wing_color,
             edgecolors=wing_edge,
             linewidths=0.6,
