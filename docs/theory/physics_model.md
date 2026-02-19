@@ -27,15 +27,32 @@ In `src/blade_element.cpp`:
 - $c_\alpha = \cos\alpha = \hat{\mathbf{u}}\cdot\mathbf{e}_c$
 - $s_\alpha = \sin\alpha = (\hat{\mathbf{u}}\times\mathbf{e}_c)\cdot\mathbf{e}_r$
 
-Coefficient model:
+Default sinusoidal coefficient model (`*_model = sinusoidal`):
 
 $$
-C_d = (C_{d0}+1) - \cos(2\alpha)
+C_d = (C_{d,\min}+1) - \cos\left(2(\alpha-\alpha_{d,\text{neutral}})\right)
 $$
 
 $$
-C_l = C_{l0}\sin(2\alpha)
+C_l = C_{l0}\sin\left(2(\alpha-\alpha_{l,\text{neutral}})\right)
 $$
+
+Optional linear lift model (`lift_model = linear`):
+
+$$
+C_l(\alpha) = a(\alpha - \alpha_\text{neutral})
+$$
+
+with saturation:
+
+$$
+C_l \in [C_{l,\min}, C_{l,\max}]
+$$
+
+where:
+- `a` corresponds to `Cl_alpha_slope`
+- `alpha_neutral` corresponds to `Cl_alpha_neutral`
+- `Cl_min`, `Cl_max` are lower/upper saturation values
 
 Force vectors:
 
@@ -56,6 +73,15 @@ Each `[[wing]]` block can optionally specify:
 - `n_blade_elements = N` (integer, `N >= 1`)
 - `psi_twist_h1_root_deg = value` (optional root coefficient for first pitch harmonic)
 - `psi_twist_ref_eta = value` (optional reference span station, default convention uses `0.75`)
+- `drag_model = sinusoidal` (currently supported drag model)
+- `drag_coeff_set = custom | wang2004 | azuma1988`
+- `lift_model = sinusoidal | linear`
+- `lift_coeff_set = custom | wang2004 | azuma1988`
+- For sinusoidal drag/lift with `*_coeff_set = custom`: provide `Cd_min`, `Cl0`; optional `Cd_max` and neutral offsets `Cd_alpha_neutral`, `Cl_alpha_neutral` (`Cd0` is accepted as a legacy alias for `Cd_min`)
+- For `wang2004` preset: `Cd_alpha_neutral = 0`, `Cl_alpha_neutral = 0`
+- For drag `azuma1988` preset: `Cd_min=0.07`, `Cd_max=2`, `Cd_alpha_neutral=7 deg`
+- For linear lift: provide `Cl_alpha_slope`, `Cl_alpha_neutral` and optional `Cl_min`, `Cl_max`
+- For linear lift `azuma1988` preset: `Cl_min=-1.2`, `Cl_max=1.2`, `Cl_alpha_neutral=-7 deg`, `Cl_alpha_slope=0.052/deg`
 
 There is also a global fallback key:
 

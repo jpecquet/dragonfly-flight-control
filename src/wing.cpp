@@ -117,14 +117,21 @@ void buildTwistH1Scales(const PitchTwistH1Model& twist_model,
 }  // namespace
 
 Wing::Wing(const std::string& name, double mu0, double lb0, WingSide side,
-           double Cd0, double Cl0, double cone_angle, AngleFunc angleFunc,
+           const BladeElementAeroParams& aero_params, double cone_angle, AngleFunc angleFunc,
            int n_blade_elements, const PitchTwistH1Model& pitch_twist_h1)
     : name_(name), mu0_(mu0), lb0_(lb0), side_(side), cone_angle_(cone_angle),
       n_blade_elements_(std::max(1, n_blade_elements)),
-      blade_(Cd0, Cl0), pitch_twist_h1_(pitch_twist_h1), angleFunc_(std::move(angleFunc)) {
+      blade_(aero_params), pitch_twist_h1_(pitch_twist_h1), angleFunc_(std::move(angleFunc)) {
     buildCompositeEllipseBladeGrid(n_blade_elements_, blade_eta_, blade_area_weights_);
     buildTwistH1Scales(pitch_twist_h1_, blade_eta_, twist_h1_scales_);
 }
+
+Wing::Wing(const std::string& name, double mu0, double lb0, WingSide side,
+           double Cd_min, double Cl0, double cone_angle, AngleFunc angleFunc,
+           int n_blade_elements, const PitchTwistH1Model& pitch_twist_h1)
+    : Wing(name, mu0, lb0, side,
+           BladeElementAeroParams::sinusoidal(Cd_min, Cl0),
+           cone_angle, std::move(angleFunc), n_blade_elements, pitch_twist_h1) {}
 
 Vec3 Wing::computeForce(
     double t,

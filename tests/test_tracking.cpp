@@ -76,7 +76,7 @@ bool testRunTrackControllerStartupAndStorage() {
         "side = left\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n";
 

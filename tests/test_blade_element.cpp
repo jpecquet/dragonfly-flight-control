@@ -2,18 +2,36 @@
 
 #include <cmath>
 #include <iostream>
+#include <vector>
 
 // Analytical formulas for lift and drag coefficients
-// Cd(α) = Cd0 + 2*sin²(α)
+// Cd(α) = Cd_min + (Cd_max - Cd_min)*sin²(α)
 // Cl(α) = Cl0*sin(2α)
 
-double analyticalCd(double Cd0, double alpha) {
+double analyticalCd(double Cd_min, double Cd_max, double alpha) {
     double s = std::sin(alpha);
-    return Cd0 + 2.0 * s * s;
+    return Cd_min + (Cd_max - Cd_min) * s * s;
+}
+
+double analyticalCdShifted(double Cd_min, double Cd_max, double alpha, double alpha_neutral) {
+    const double a = alpha - alpha_neutral;
+    const double s = std::sin(a);
+    return Cd_min + (Cd_max - Cd_min) * s * s;
 }
 
 double analyticalCl(double Cl0, double alpha) {
     return Cl0 * std::sin(2.0 * alpha);
+}
+
+double analyticalClShifted(double Cl0, double alpha, double alpha_neutral) {
+    return Cl0 * std::sin(2.0 * (alpha - alpha_neutral));
+}
+
+double analyticalClLinear(double slope, double alpha_neutral, double alpha, double cl_min, double cl_max) {
+    double cl = slope * (alpha - alpha_neutral);
+    if (cl < cl_min) cl = cl_min;
+    if (cl > cl_max) cl = cl_max;
+    return cl;
 }
 
 int main() {
@@ -21,12 +39,12 @@ int main() {
     std::cout << "===================================================================\n\n";
 
     // Aerodynamic coefficients
-    double Cd0 = 0.4;
+    double Cd_min = 0.4;
     double Cl0 = 1.2;
 
-    std::cout << "Parameters: Cd0 = " << Cd0 << ", Cl0 = " << Cl0 << "\n\n";
+    std::cout << "Parameters: Cd_min = " << Cd_min << ", Cl0 = " << Cl0 << "\n\n";
 
-    BladeElement blade(Cd0, Cl0);
+    BladeElement blade(Cd_min, Cl0);
 
     // Set up coordinate frame:
     // e_r = radial direction (spanwise), pointing along Y
@@ -65,7 +83,7 @@ int main() {
         double Cl_sim = lift.norm();
 
         // Analytical values (magnitudes)
-        double Cd_exact = analyticalCd(Cd0, alpha);
+        double Cd_exact = analyticalCd(Cd_min, Cd_min + 2.0, alpha);
         double Cl_exact = std::abs(analyticalCl(Cl0, alpha));
 
         // Track errors
@@ -85,6 +103,82 @@ int main() {
     // Pass/fail criteria
     double tolerance = 1e-10;
     bool passed = (max_Cd_error < tolerance) && (max_Cl_error < tolerance);
+
+    // Shifted sinusoidal test for drag/lift neutral angles
+    BladeElementAeroParams shifted_params;
+    shifted_params.drag_model = DragCoefficientModel::Sinusoidal;
+    shifted_params.lift_model = LiftCoefficientModel::Sinusoidal;
+    shifted_params.Cd_min = Cd_min;
+    shifted_params.Cd_max = 2.05;
+    shifted_params.Cd_alpha_neutral = 0.2;
+    shifted_params.Cl0 = Cl0;
+    shifted_params.Cl_alpha_neutral = -0.15;
+    BladeElement blade_shifted(shifted_params);
+
+    std::cout << "\nShifted sinusoidal model spot checks:\n";
+    for (double alpha_deg : std::vector<double>{-20.0, 10.0, 35.0, 70.0}) {
+        const double alpha = alpha_deg * M_PI / 180.0;
+        Vec3 u = U * (std::cos(alpha) * e_c + std::sin(alpha) * Vec3(0.0, 0.0, 1.0));
+        Vec3 lift, drag;
+        blade_shifted.computeForce(u, e_r, e_c, force_coefficient, lift, drag);
+
+        const double Cd_sim = drag.norm();
+        const double Cl_sim = lift.norm();
+        const double Cd_exact = analyticalCdShifted(
+            shifted_params.Cd_min, shifted_params.Cd_max, alpha, shifted_params.Cd_alpha_neutral
+        );
+        const double Cl_exact = std::abs(analyticalClShifted(Cl0, alpha, shifted_params.Cl_alpha_neutral));
+
+        const double cd_err = std::abs(Cd_sim - Cd_exact);
+        const double cl_err = std::abs(Cl_sim - Cl_exact);
+        max_Cd_error = std::max(max_Cd_error, cd_err);
+        max_Cl_error = std::max(max_Cl_error, cl_err);
+
+        printf("  alpha=%6.1f deg: Cd_sim=%8.5f Cd_exact=%8.5f Cl_sim=%8.5f |Cl_exact|=%8.5f\n",
+               alpha_deg, Cd_sim, Cd_exact, Cl_sim, Cl_exact);
+    }
+
+    // Linear lift test with sinusoidal drag
+    BladeElementAeroParams linear_params;
+    linear_params.drag_model = DragCoefficientModel::Sinusoidal;
+    linear_params.lift_model = LiftCoefficientModel::Linear;
+    linear_params.Cd_min = Cd_min;
+    linear_params.Cl_alpha_slope = 2.0;
+    linear_params.Cl_alpha_neutral = 0.1;
+    linear_params.Cl_min = -0.4;
+    linear_params.Cl_max = 0.8;
+    BladeElement blade_linear(linear_params);
+
+    std::cout << "\nLinear lift model spot checks:\n";
+    const std::vector<double> test_alpha_deg = {-30.0, 0.0, 15.0, 30.0, 60.0};
+    for (double alpha_deg : test_alpha_deg) {
+        const double alpha = alpha_deg * M_PI / 180.0;
+        Vec3 u = U * (std::cos(alpha) * e_c + std::sin(alpha) * Vec3(0.0, 0.0, 1.0));
+        Vec3 lift, drag;
+        blade_linear.computeForce(u, e_r, e_c, force_coefficient, lift, drag);
+
+        const double Cd_sim = drag.norm();
+        const double Cl_sim = lift.norm();
+        const double Cd_exact = analyticalCd(Cd_min, Cd_min + 2.0, alpha);
+        const double Cl_exact_signed = analyticalClLinear(
+            linear_params.Cl_alpha_slope,
+            linear_params.Cl_alpha_neutral,
+            alpha,
+            linear_params.Cl_min,
+            linear_params.Cl_max
+        );
+        const double Cl_exact = std::abs(Cl_exact_signed);
+
+        const double cd_err = std::abs(Cd_sim - Cd_exact);
+        const double cl_err = std::abs(Cl_sim - Cl_exact);
+        max_Cd_error = std::max(max_Cd_error, cd_err);
+        max_Cl_error = std::max(max_Cl_error, cl_err);
+
+        printf("  alpha=%6.1f deg: Cd_sim=%8.5f Cd_exact=%8.5f Cl_sim=%8.5f |Cl_exact|=%8.5f\n",
+               alpha_deg, Cd_sim, Cd_exact, Cl_sim, Cl_exact);
+    }
+
+    passed = passed && (max_Cd_error < tolerance) && (max_Cl_error < tolerance);
 
     if (passed) {
         std::cout << "PASSED: Errors within tolerance (" << tolerance << ")\n";

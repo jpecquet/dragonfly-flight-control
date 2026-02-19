@@ -11,8 +11,6 @@ struct WingRequiredFields {
     bool side = false;
     bool mu0 = false;
     bool lb0 = false;
-    bool Cd0 = false;
-    bool Cl0 = false;
 };
 
 std::string stripInlineComment(const std::string& s) {
@@ -29,8 +27,6 @@ void validateWingSection(const WingRequiredFields& fields, int section_start_lin
     if (!fields.side) missing.push_back("side");
     if (!fields.mu0) missing.push_back("mu0");
     if (!fields.lb0) missing.push_back("lb0");
-    if (!fields.Cd0) missing.push_back("Cd0");
-    if (!fields.Cl0) missing.push_back("Cl0");
 
     if (missing.empty()) {
         return;
@@ -151,12 +147,38 @@ Config Config::load(const std::string& filename) {
             } else if (key == "lb0") {
                 current_wing.lb0 = parseDoubleAtLine(value, key, line_num);
                 wing_fields.lb0 = true;
-            } else if (key == "Cd0") {
-                current_wing.Cd0 = parseDoubleAtLine(value, key, line_num);
-                wing_fields.Cd0 = true;
+            } else if (key == "Cd_min" || key == "Cd0") {
+                current_wing.Cd_min = parseDoubleAtLine(value, key, line_num);
+                current_wing.has_Cd_min = true;
+            } else if (key == "Cd_max") {
+                current_wing.Cd_max = parseDoubleAtLine(value, key, line_num);
+                current_wing.has_Cd_max = true;
+            } else if (key == "Cd_alpha_neutral") {
+                current_wing.Cd_alpha_neutral = parseDoubleAtLine(value, key, line_num);
+                current_wing.has_Cd_alpha_neutral = true;
             } else if (key == "Cl0") {
                 current_wing.Cl0 = parseDoubleAtLine(value, key, line_num);
-                wing_fields.Cl0 = true;
+                current_wing.has_Cl0 = true;
+            } else if (key == "drag_model") {
+                current_wing.drag_model = value;
+            } else if (key == "drag_coeff_set") {
+                current_wing.drag_coeff_set = value;
+            } else if (key == "lift_model") {
+                current_wing.lift_model = value;
+            } else if (key == "lift_coeff_set") {
+                current_wing.lift_coeff_set = value;
+            } else if (key == "Cl_alpha_slope") {
+                current_wing.Cl_alpha_slope = parseDoubleAtLine(value, key, line_num);
+                current_wing.has_Cl_alpha_slope = true;
+            } else if (key == "Cl_alpha_neutral") {
+                current_wing.Cl_alpha_neutral = parseDoubleAtLine(value, key, line_num);
+                current_wing.has_Cl_alpha_neutral = true;
+            } else if (key == "Cl_min") {
+                current_wing.Cl_min = parseDoubleAtLine(value, key, line_num);
+                current_wing.has_Cl_min = true;
+            } else if (key == "Cl_max") {
+                current_wing.Cl_max = parseDoubleAtLine(value, key, line_num);
+                current_wing.has_Cl_max = true;
             } else if (key == "phase") {
                 current_wing.phase = parseDoubleAtLine(value, key, line_num);
             } else if (key == "cone") {

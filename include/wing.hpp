@@ -24,8 +24,16 @@ struct WingConfig : MotionParams {
     WingSide side;          // Left or Right
     double mu0 = 0.0;             // Mass parameter
     double lb0 = 0.0;             // Span length
-    double Cd0 = 0.0;             // Drag coefficient
+    DragCoefficientModel drag_model = DragCoefficientModel::Sinusoidal;
+    LiftCoefficientModel lift_model = LiftCoefficientModel::Sinusoidal;
+    double Cd_min = 0.0;          // Minimum drag coefficient
+    double Cd_max = 0.0;          // Max drag coefficient for sinusoidal model
+    double Cd_alpha_neutral = 0.0; // Neutral AoA (rad) for sinusoidal drag
     double Cl0 = 0.0;             // Lift coefficient
+    double Cl_alpha_slope = 0.0;   // Linear model slope (Cl/rad)
+    double Cl_alpha_neutral = 0.0; // Neutral AoA (rad) for lift models
+    double Cl_min = -1.0e12;       // Linear model lower saturation
+    double Cl_max = 1.0e12;        // Linear model upper saturation
     double phase_offset = 0.0;    // Phase offset from reference (radians)
     double cone_angle = 0.0;      // Coning angle (radians): tilts the flapping plane about the stroke direction
     int n_blade_elements = 1;     // Number of spanwise blade elements for force integration
@@ -38,11 +46,11 @@ struct WingConfig : MotionParams {
 
     WingConfig() = default;
     WingConfig(const std::string& name_, WingSide side_, double mu0_, double lb0_,
-               double Cd0_, double Cl0_, double phase_offset_ = 0.0, double cone_angle_ = 0.0,
+               double Cd_min_, double Cl0_, double phase_offset_ = 0.0, double cone_angle_ = 0.0,
                int n_blade_elements_ = 1, bool has_psi_twist_h1_ = false,
                double psi_twist_h1_root_ = 0.0, double psi_twist_ref_eta_ = 0.75)
         : name(name_), side(side_), mu0(mu0_), lb0(lb0_),
-          Cd0(Cd0_), Cl0(Cl0_), phase_offset(phase_offset_), cone_angle(cone_angle_),
+          Cd_min(Cd_min_), Cd_max(Cd_min_ + 2.0), Cl0(Cl0_), phase_offset(phase_offset_), cone_angle(cone_angle_),
           n_blade_elements(n_blade_elements_), has_psi_twist_h1(has_psi_twist_h1_),
           psi_twist_h1_root(psi_twist_h1_root_), psi_twist_ref_eta(psi_twist_ref_eta_) {}
 };
@@ -60,7 +68,12 @@ struct PitchTwistH1Model {
 class Wing {
 public:
     Wing(const std::string& name, double mu0, double lb0, WingSide side,
-         double Cd0, double Cl0, double cone_angle, AngleFunc angleFunc,
+         const BladeElementAeroParams& aero_params, double cone_angle, AngleFunc angleFunc,
+         int n_blade_elements = 1,
+         const PitchTwistH1Model& pitch_twist_h1 = PitchTwistH1Model());
+
+    Wing(const std::string& name, double mu0, double lb0, WingSide side,
+         double Cd_min, double Cl0, double cone_angle, AngleFunc angleFunc,
          int n_blade_elements = 1,
          const PitchTwistH1Model& pitch_twist_h1 = PitchTwistH1Model());
 
@@ -91,7 +104,7 @@ private:
     WingSide side_;        // Left or Right
     double cone_angle_;    // Coning angle (radians)
     int n_blade_elements_; // Number of spanwise blade elements
-    BladeElement blade_;   // Blade element model (owns Cd0, Cl0)
+    BladeElement blade_;   // Blade element model (owns Cd_min, Cl0)
     std::vector<double> blade_eta_;          // Span stations (0..1, root->tip)
     std::vector<double> blade_area_weights_; // Area fractions, sum to 1
     PitchTwistH1Model pitch_twist_h1_;

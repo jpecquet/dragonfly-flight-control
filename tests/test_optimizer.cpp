@@ -1,9 +1,32 @@
+#include "config.hpp"
 #include "optimize.hpp"
 #include "wing.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <string>
+
+namespace fs = std::filesystem;
+
+namespace {
+
+fs::path writeTempConfig(const std::string& contents) {
+    static int counter = 0;
+    auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
+    fs::path path = fs::temp_directory_path() /
+                    ("dragonfly_optimizer_test_" + std::to_string(stamp) + "_" +
+                     std::to_string(counter++) + ".cfg");
+    std::ofstream out(path);
+    out << contents;
+    out.close();
+    return path;
+}
+
+}  // namespace
 
 // Helper to create default physical params (4-wing dragonfly)
 PhysicalParams defaultPhysicalParams() {
@@ -160,12 +183,79 @@ bool testVariableParams() {
     return passed;
 }
 
+bool testPhysicalParamsFromConfig() {
+    std::cout << "Testing PhysicalParams::fromConfig wing option consistency..." << std::endl;
+
+    const std::string cfg_text =
+        "n_blade_elements = 6\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd_min = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n"
+        "psi_twist_h1_root_deg = 9.0\n"
+        "psi_twist_ref_eta = 0.8\n"
+        "\n"
+        "[[wing]]\n"
+        "name = hind\n"
+        "side = right\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd_min = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 3.14159265359\n"
+        "n_blade_elements = 10\n";
+
+    const fs::path path = writeTempConfig(cfg_text);
+    bool passed = true;
+    try {
+        Config cfg = Config::load(path.string());
+        PhysicalParams phys = PhysicalParams::fromConfig(cfg);
+        if (phys.wings.size() != 2) {
+            passed = false;
+            std::cout << "  FAILED: expected 2 wings, got " << phys.wings.size() << std::endl;
+        } else {
+            const WingConfig& fore = phys.wings[0];
+            const WingConfig& hind = phys.wings[1];
+            if (fore.n_blade_elements != 6 || hind.n_blade_elements != 10) {
+                passed = false;
+                std::cout << "  FAILED: n_blade_elements inheritance/override mismatch" << std::endl;
+            }
+            if (!fore.has_psi_twist_h1 || std::abs(fore.psi_twist_h1_root - (9.0 * M_PI / 180.0)) > 1e-12) {
+                passed = false;
+                std::cout << "  FAILED: forewing twist config mismatch" << std::endl;
+            }
+            if (std::abs(fore.psi_twist_ref_eta - 0.8) > 1e-12) {
+                passed = false;
+                std::cout << "  FAILED: forewing twist ref eta mismatch" << std::endl;
+            }
+            if (hind.has_psi_twist_h1) {
+                passed = false;
+                std::cout << "  FAILED: hindwing should not have twist enabled" << std::endl;
+            }
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception: " << e.what() << std::endl;
+    }
+    fs::remove(path);
+
+    if (passed) {
+        std::cout << "  PASSED" << std::endl;
+    }
+    return passed;
+}
+
 int main() {
     std::cout << "Optimizer Unit Tests" << std::endl;
     std::cout << "====================" << std::endl << std::endl;
 
     int num_passed = 0;
-    int num_tests = 3;
+    int num_tests = 4;
 
     if (testWingBeatAccel()) num_passed++;
     std::cout << std::endl;
@@ -174,6 +264,9 @@ int main() {
     std::cout << std::endl;
 
     if (testVariableParams()) num_passed++;
+    std::cout << std::endl;
+
+    if (testPhysicalParamsFromConfig()) num_passed++;
     std::cout << std::endl;
 
     std::cout << "====================" << std::endl;

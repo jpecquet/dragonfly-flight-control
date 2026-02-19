@@ -26,7 +26,7 @@ simulation_output.h5
 │       ├── sides            (array)  - Wing sides (0=left, 1=right)
 │       ├── mu0              (array)  - Mass parameters
 │       ├── lb0              (array)  - Span lengths
-│       ├── Cd0              (array)  - Drag coefficients
+│       ├── Cd_min              (array)  - Drag coefficients
 │       ├── Cl0              (array)  - Lift coefficients
 │       ├── phase_offset     (array)  - Phase offsets (radians)
 │       ├── has_custom_motion(array int) - 1 if wing had explicit motion overrides
@@ -65,6 +65,8 @@ simulation_output.h5
     ├── psi_mean             (dataset) [N] - Controlled mean pitch history
     └── phi_amp              (dataset) [N] - Controlled stroke amplitude history
 ```
+
+For backward compatibility, `/parameters/wings/Cd0` is also written as an alias of `/parameters/wings/Cd_min`.
 
 ## Wing Names
 

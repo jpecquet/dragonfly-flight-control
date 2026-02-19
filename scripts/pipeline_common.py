@@ -84,13 +84,17 @@ def build_wing_block(
     side: str,
     wing_mu0: float,
     wing_lb0: float,
-    wing_cd0: float,
-    wing_cl0: float,
     phase: float,
+    wing_cd0: float | None = None,
+    wing_cl0: float | None = None,
     motion: dict[str, Any] | None = None,
     cone: float | None = None,
     psi_twist_h1_root_deg: float | None = None,
     psi_twist_ref_eta: float | None = None,
+    drag_model: str | None = None,
+    drag_coeff_set: str | None = None,
+    lift_model: str | None = None,
+    lift_coeff_set: str | None = None,
 ) -> str:
     """Build a [[wing]] config block for the simulator."""
     lines = [
@@ -99,10 +103,26 @@ def build_wing_block(
         f"side = {side}",
         f"mu0 = {fmt(wing_mu0)}",
         f"lb0 = {fmt(wing_lb0)}",
-        f"Cd0 = {fmt(wing_cd0)}",
-        f"Cl0 = {fmt(wing_cl0)}",
         f"phase = {fmt(phase)}",
     ]
+    if drag_model is not None:
+        lines.append(f"drag_model = {drag_model}")
+    if drag_coeff_set is not None:
+        lines.append(f"drag_coeff_set = {drag_coeff_set}")
+    elif wing_cd0 is not None:
+        lines.append(f"Cd_min = {fmt(wing_cd0)}")
+    else:
+        raise ValueError("build_wing_block requires wing_cd0 unless drag_coeff_set is provided")
+
+    if lift_model is not None:
+        lines.append(f"lift_model = {lift_model}")
+    if lift_coeff_set is not None:
+        lines.append(f"lift_coeff_set = {lift_coeff_set}")
+    elif wing_cl0 is not None:
+        lines.append(f"Cl0 = {fmt(wing_cl0)}")
+    else:
+        raise ValueError("build_wing_block requires wing_cl0 unless lift_coeff_set is provided")
+
     if cone is not None and cone != 0.0:
         lines.append(f"cone = {fmt(cone)}")
     if psi_twist_h1_root_deg is not None:

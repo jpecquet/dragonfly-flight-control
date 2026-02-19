@@ -58,16 +58,16 @@ z(t) = z₀ + u_z₀·t - ½gt²   (g = 1 in nondimensional units)
 
 **Analytical solution:**
 ```
-Cd(α) = Cd0 + 2·sin²(α)     — Drag coefficient
+Cd(α) = Cd_min + 2·sin²(α)     — Drag coefficient
 Cl(α) = Cl0·sin(2α)         — Lift coefficient (magnitude)
 ```
 
 **Method:** Sweeps angle of attack from 0° to 90°, compares computed coefficients against formulas.
 
 **Key values:**
-- α = 0°: Cd = Cd0 (minimum drag), Cl = 0
-- α = 45°: Cd = Cd0 + 1, Cl = Cl0 (maximum lift)
-- α = 90°: Cd = Cd0 + 2 (maximum drag), Cl = 0
+- α = 0°: Cd = Cd_min (minimum drag), Cl = 0
+- α = 45°: Cd = Cd_min + 1, Cl = Cl0 (maximum lift)
+- α = 90°: Cd = Cd_min + 2 (maximum drag), Cl = 0
 
 ---
 
@@ -107,8 +107,8 @@ Force magnitude: `|F| = (μ₀/2lb₀) · C · U²` where C is Cd or Cl.
 
 | Flow direction | α | Expected result |
 |---------------|---|-----------------|
-| Along X | 90° | Pure drag, Cd = Cd0 + 2 |
-| Along -Z | 0° | Minimum drag, Cd = Cd0 |
+| Along X | 90° | Pure drag, Cd = Cd_min + 2 |
+| Along -Z | 0° | Minimum drag, Cd = Cd_min |
 | 45° (X and -Z) | 45° | Maximum lift, Cl = Cl0 |
 | With Y component | — | Y projected out (span-normal) |
 

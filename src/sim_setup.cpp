@@ -10,8 +10,44 @@
 
 namespace {
 
+enum class CoeffSet {
+    Custom,
+    Wang2004,
+    Azuma1988
+};
+
 std::vector<double> zeroHarmonics(int n) {
     return std::vector<double>(static_cast<size_t>(n), 0.0);
+}
+
+std::string wingLabel(const WingConfigEntry& entry) {
+    return entry.name + "_" + entry.side;
+}
+
+CoeffSet parseCoeffSet(const std::string& value, const std::string& key,
+                       const std::string& wing_label) {
+    if (value == "custom") return CoeffSet::Custom;
+    if (value == "wang2004") return CoeffSet::Wang2004;
+    if (value == "azuma1988") return CoeffSet::Azuma1988;
+    throw std::runtime_error(
+        "wing '" + wing_label + "' key '" + key +
+        "' must be 'custom', 'wang2004', or 'azuma1988' (got '" + value + "')"
+    );
+}
+
+DragCoefficientModel parseDragModel(const std::string& value, const std::string& wing_label) {
+    if (value == "sinusoidal") return DragCoefficientModel::Sinusoidal;
+    throw std::runtime_error(
+        "wing '" + wing_label + "' key 'drag_model' must be 'sinusoidal' (got '" + value + "')"
+    );
+}
+
+LiftCoefficientModel parseLiftModel(const std::string& value, const std::string& wing_label) {
+    if (value == "sinusoidal") return LiftCoefficientModel::Sinusoidal;
+    if (value == "linear") return LiftCoefficientModel::Linear;
+    throw std::runtime_error(
+        "wing '" + wing_label + "' key 'lift_model' must be 'sinusoidal' or 'linear' (got '" + value + "')"
+    );
 }
 
 void requireHarmonicLength(const std::vector<double>& values, int expected,
@@ -51,20 +87,21 @@ void applyWingAngleOverrides(
     const std::string cos_key = prefix + "_cos";
     const std::string sin_key = prefix + "_sin";
 
-    const bool has_cos = findOverride(entry, cos_key) != nullptr;
-    const bool has_sin = findOverride(entry, sin_key) != nullptr;
+    const std::string* mean_val = findOverride(entry, mean_key);
+    const std::string* cos_val = findOverride(entry, cos_key);
+    const std::string* sin_val = findOverride(entry, sin_key);
 
-    if (const std::string* mean_val = findOverride(entry, mean_key)) {
+    if (mean_val != nullptr) {
         series.mean = parseutil::parseDoubleStrict(*mean_val, "wing '" + wing_label + "' key '" + mean_key + "'");
     }
 
-    if (has_cos) {
-        series.cos_coeff = parseutil::parseDoubleListStrict(*findOverride(entry, cos_key),
+    if (cos_val != nullptr) {
+        series.cos_coeff = parseutil::parseDoubleListStrict(*cos_val,
                                                      "wing '" + wing_label + "' key '" + cos_key + "'");
         requireHarmonicLength(series.cos_coeff, n_harmonics, "wing '" + wing_label + "' key '" + cos_key + "'");
     }
-    if (has_sin) {
-        series.sin_coeff = parseutil::parseDoubleListStrict(*findOverride(entry, sin_key),
+    if (sin_val != nullptr) {
+        series.sin_coeff = parseutil::parseDoubleListStrict(*sin_val,
                                                      "wing '" + wing_label + "' key '" + sin_key + "'");
         requireHarmonicLength(series.sin_coeff, n_harmonics, "wing '" + wing_label + "' key '" + sin_key + "'");
     }
@@ -98,7 +135,7 @@ void populateWingMotion(
         return;
     }
 
-    std::string wing_label = entry.name + "_" + entry.side;
+    std::string wing_label = wingLabel(entry);
     if (const std::string* omega_override = findOverride(entry, "omega")) {
         out.omega = parseutil::parseDoubleStrict(*omega_override, "wing '" + wing_label + "' key 'omega'");
     }
@@ -120,6 +157,169 @@ void populateWingMotion(
 }
 
 }  // namespace
+
+WingConfig buildWingConfigFromEntry(const WingConfigEntry& entry, int global_n_blade_elements) {
+    if (global_n_blade_elements <= 0) {
+        throw std::runtime_error("n_blade_elements must be > 0");
+    }
+
+    const std::string label = wingLabel(entry);
+    const WingSide side = parseSide(entry.side);
+    const int n_blade_elements =
+        (entry.n_blade_elements > 0) ? entry.n_blade_elements : global_n_blade_elements;
+    const DragCoefficientModel drag_model = parseDragModel(entry.drag_model, label);
+    const LiftCoefficientModel lift_model = parseLiftModel(entry.lift_model, label);
+    const CoeffSet drag_coeff_set = parseCoeffSet(entry.drag_coeff_set, "drag_coeff_set", label);
+    const CoeffSet lift_coeff_set = parseCoeffSet(entry.lift_coeff_set, "lift_coeff_set", label);
+
+    double Cd_min = 0.0;
+    double Cd_max = 0.0;
+    double Cd_alpha_neutral = 0.0;
+    if (drag_model == DragCoefficientModel::Sinusoidal) {
+        if (drag_coeff_set == CoeffSet::Wang2004) {
+            if (entry.has_Cd_min || entry.has_Cd_max) {
+                throw std::runtime_error(
+                    "wing '" + label + "' does not allow Cd_min/Cd_max when drag_coeff_set=wang2004"
+                );
+            }
+            if (entry.has_Cd_alpha_neutral && std::abs(entry.Cd_alpha_neutral) > 1e-12) {
+                throw std::runtime_error(
+                    "wing '" + label + "' requires Cd_alpha_neutral=0 when drag_coeff_set=wang2004"
+                );
+            }
+            Cd_min = aero_defaults::kWang2004CdMin;
+            Cd_max = aero_defaults::kWang2004CdMin + 2.0;
+            Cd_alpha_neutral = 0.0;
+        } else if (drag_coeff_set == CoeffSet::Custom) {
+            if (!entry.has_Cd_min) {
+                throw std::runtime_error(
+                    "wing '" + label + "' requires Cd_min (or legacy Cd0) when drag_coeff_set=custom"
+                );
+            }
+            Cd_min = entry.Cd_min;
+            Cd_max = entry.has_Cd_max ? entry.Cd_max : (Cd_min + 2.0);
+            Cd_alpha_neutral = entry.has_Cd_alpha_neutral ? entry.Cd_alpha_neutral : 0.0;
+        } else if (drag_coeff_set == CoeffSet::Azuma1988) {
+            if (entry.has_Cd_min || entry.has_Cd_max || entry.has_Cd_alpha_neutral) {
+                throw std::runtime_error(
+                    "wing '" + label + "' does not allow Cd_min/Cd_max/Cd_alpha_neutral when drag_coeff_set=azuma1988"
+                );
+            }
+            Cd_min = 0.07;
+            Cd_max = 2.0;
+            Cd_alpha_neutral = 7.0 * (M_PI / 180.0);
+        } else {
+            throw std::runtime_error("wing '" + label + "' unknown drag coefficient set");
+        }
+    }
+    if (!std::isfinite(Cd_min) || !std::isfinite(Cd_max) || !std::isfinite(Cd_alpha_neutral)) {
+        throw std::runtime_error(
+            "wing '" + label + "' requires finite Cd_min, Cd_max, and Cd_alpha_neutral"
+        );
+    }
+    if (Cd_max < Cd_min) {
+        throw std::runtime_error("wing '" + label + "' requires Cd_max >= Cd_min");
+    }
+
+    double Cl0 = 0.0;
+    double Cl_alpha_slope = 0.0;
+    double Cl_alpha_neutral = 0.0;
+    double Cl_min = -1.0e12;
+    double Cl_max = 1.0e12;
+    if (lift_model == LiftCoefficientModel::Sinusoidal) {
+        if (entry.has_Cl_alpha_slope || entry.has_Cl_min || entry.has_Cl_max) {
+            throw std::runtime_error(
+                "wing '" + label + "' Cl_alpha_slope/Cl_min/Cl_max are only valid when lift_model=linear"
+            );
+        }
+        if (lift_coeff_set == CoeffSet::Wang2004) {
+            if (entry.has_Cl0) {
+                throw std::runtime_error("wing '" + label + "' does not allow Cl0 when lift_coeff_set=wang2004");
+            }
+            if (entry.has_Cl_alpha_neutral && std::abs(entry.Cl_alpha_neutral) > 1e-12) {
+                throw std::runtime_error(
+                    "wing '" + label + "' requires Cl_alpha_neutral=0 when lift_coeff_set=wang2004"
+                );
+            }
+            Cl0 = aero_defaults::kWang2004Cl0;
+            Cl_alpha_neutral = 0.0;
+        } else if (lift_coeff_set == CoeffSet::Custom) {
+            if (!entry.has_Cl0) {
+                throw std::runtime_error("wing '" + label + "' requires Cl0 when lift_coeff_set=custom");
+            }
+            Cl0 = entry.Cl0;
+            Cl_alpha_neutral = entry.has_Cl_alpha_neutral ? entry.Cl_alpha_neutral : 0.0;
+        } else {
+            throw std::runtime_error(
+                "wing '" + label + "' lift_coeff_set=azuma1988 is only supported when lift_model=linear"
+            );
+        }
+        if (!std::isfinite(Cl0) || !std::isfinite(Cl_alpha_neutral)) {
+            throw std::runtime_error("wing '" + label + "' requires finite Cl0 and Cl_alpha_neutral");
+        }
+    } else {
+        if (entry.has_Cl0) {
+            throw std::runtime_error("wing '" + label + "' does not allow Cl0 when lift_model=linear");
+        }
+        if (lift_coeff_set == CoeffSet::Wang2004) {
+            throw std::runtime_error(
+                "wing '" + label + "' lift_coeff_set=wang2004 is not supported when lift_model=linear"
+            );
+        }
+        if (lift_coeff_set == CoeffSet::Azuma1988) {
+            if (entry.has_Cl_alpha_slope || entry.has_Cl_alpha_neutral || entry.has_Cl_min || entry.has_Cl_max) {
+                throw std::runtime_error(
+                    "wing '" + label + "' does not allow linear lift override parameters when lift_coeff_set=azuma1988"
+                );
+            }
+            // (Azuma, 1988) preset:
+            //   Cl_min = -1.2, Cl_max = 1.2, alpha_neutral = -7 deg, slope = 0.052 / deg
+            Cl_alpha_slope = 0.052 * (180.0 / M_PI);  // convert from per-degree to per-radian
+            Cl_alpha_neutral = -7.0 * (M_PI / 180.0);
+            Cl_min = -1.2;
+            Cl_max = 1.2;
+        } else {
+            if (!entry.has_Cl_alpha_slope || !entry.has_Cl_alpha_neutral) {
+                throw std::runtime_error(
+                    "wing '" + label + "' requires Cl_alpha_slope and Cl_alpha_neutral for lift_model=linear"
+                );
+            }
+            Cl_alpha_slope = entry.Cl_alpha_slope;
+            Cl_alpha_neutral = entry.Cl_alpha_neutral;
+            Cl_min = entry.has_Cl_min ? entry.Cl_min : -1.0e12;
+            Cl_max = entry.has_Cl_max ? entry.Cl_max : 1.0e12;
+        }
+        if (!std::isfinite(Cl_alpha_slope) || !std::isfinite(Cl_alpha_neutral) ||
+            !std::isfinite(Cl_min) || !std::isfinite(Cl_max)) {
+            throw std::runtime_error("wing '" + label + "' linear lift parameters must be finite");
+        }
+        if (Cl_min > Cl_max) {
+            throw std::runtime_error("wing '" + label + "' requires Cl_min <= Cl_max");
+        }
+    }
+
+    const bool has_twist = entry.has_psi_twist_h1_root_deg;
+    const double twist_root_rad = has_twist ? (entry.psi_twist_h1_root_deg * M_PI / 180.0) : 0.0;
+    const double twist_ref_eta = entry.psi_twist_ref_eta;
+    if (has_twist && (!std::isfinite(twist_ref_eta) || twist_ref_eta <= 0.0)) {
+        throw std::runtime_error(
+            "wing '" + label + "' psi_twist_ref_eta must be finite and > 0"
+        );
+    }
+
+    WingConfig config(entry.name, side, entry.mu0, entry.lb0,
+                      Cd_min, Cl0, entry.phase, entry.cone, n_blade_elements,
+                      has_twist, twist_root_rad, twist_ref_eta);
+    config.drag_model = drag_model;
+    config.lift_model = lift_model;
+    config.Cd_max = Cd_max;
+    config.Cd_alpha_neutral = Cd_alpha_neutral;
+    config.Cl_alpha_slope = Cl_alpha_slope;
+    config.Cl_alpha_neutral = Cl_alpha_neutral;
+    config.Cl_min = Cl_min;
+    config.Cl_max = Cl_max;
+    return config;
+}
 
 bool hasWingMotionSeries(const WingConfig& w) {
     return w.has_custom_motion;
@@ -183,26 +383,11 @@ std::vector<WingConfig> buildWingConfigs(const Config& cfg, const SimKinematicPa
     }
 
     const int global_n_blade_elements = cfg.getInt("n_blade_elements", 1);
-    if (global_n_blade_elements <= 0) {
-        throw std::runtime_error("n_blade_elements must be > 0");
-    }
 
     std::vector<WingConfig> wingConfigs;
+    wingConfigs.reserve(cfg.getWingEntries().size());
     for (const auto& entry : cfg.getWingEntries()) {
-        WingSide side = parseSide(entry.side);
-        const int n_blade_elements =
-            (entry.n_blade_elements > 0) ? entry.n_blade_elements : global_n_blade_elements;
-        const bool has_twist = entry.has_psi_twist_h1_root_deg;
-        const double twist_root_rad = has_twist ? (entry.psi_twist_h1_root_deg * M_PI / 180.0) : 0.0;
-        const double twist_ref_eta = entry.psi_twist_ref_eta;
-        if (has_twist && (!std::isfinite(twist_ref_eta) || twist_ref_eta <= 0.0)) {
-            throw std::runtime_error(
-                "wing '" + entry.name + "_" + entry.side + "' psi_twist_ref_eta must be finite and > 0"
-            );
-        }
-        WingConfig config(entry.name, side, entry.mu0, entry.lb0,
-                          entry.Cd0, entry.Cl0, entry.phase, entry.cone, n_blade_elements,
-                          has_twist, twist_root_rad, twist_ref_eta);
+        WingConfig config = buildWingConfigFromEntry(entry, global_n_blade_elements);
         populateWingMotion(entry, default_kin, config);
         wingConfigs.push_back(std::move(config));
     }
@@ -236,8 +421,19 @@ std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinema
             twist.basis_omega = motion.omega / motion.harmonic_period_wingbeats;
             twist.phase_offset = w.phase_offset;
         }
+        BladeElementAeroParams aero;
+        aero.drag_model = w.drag_model;
+        aero.lift_model = w.lift_model;
+        aero.Cd_min = w.Cd_min;
+        aero.Cd_max = w.Cd_max;
+        aero.Cd_alpha_neutral = w.Cd_alpha_neutral;
+        aero.Cl0 = w.Cl0;
+        aero.Cl_alpha_slope = w.Cl_alpha_slope;
+        aero.Cl_alpha_neutral = w.Cl_alpha_neutral;
+        aero.Cl_min = w.Cl_min;
+        aero.Cl_max = w.Cl_max;
         wings.emplace_back(
-            w.name, w.mu0, w.lb0, w.side, w.Cd0, w.Cl0, w.cone_angle,
+            w.name, w.mu0, w.lb0, w.side, aero, w.cone_angle,
             std::move(angleFunc), w.n_blade_elements, twist
         );
     }

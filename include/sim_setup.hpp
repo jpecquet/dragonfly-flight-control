@@ -42,6 +42,9 @@ struct TimeParams {
     int nsteps = 0;
 };
 
+// Build a physical wing config from a parsed [[wing]] entry and global defaults.
+WingConfig buildWingConfigFromEntry(const WingConfigEntry& entry, int global_n_blade_elements);
+
 SimKinematicParams readKinematicParams(const Config& cfg);
 State readInitialState(const Config& cfg);
 TimeParams readTimeParams(const Config& cfg, double omega);

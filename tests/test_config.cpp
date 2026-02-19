@@ -35,7 +35,7 @@ bool expectThrow(const std::function<void()>& fn) {
 }
 
 bool testInlineComments() {
-    std::cout << "Test: Inline comments in global and wing values\n";
+    std::cout << "Test: Inline comments in global and wing values (legacy Cd0 alias)\n";
 
     const std::string cfg_text =
         "omega = 25.1327412287  # 8*pi\n"
@@ -75,7 +75,7 @@ bool testInlineComments() {
             }
             if (std::abs(wings[0].mu0 - 0.075) > 1e-12 ||
                 std::abs(wings[0].lb0 - 0.75) > 1e-12 ||
-                std::abs(wings[0].Cd0 - 0.4) > 1e-12 ||
+                std::abs(wings[0].Cd_min - 0.4) > 1e-12 ||
                 std::abs(wings[0].Cl0 - 1.2) > 1e-12 ||
                 std::abs(wings[0].phase - 0.0) > 1e-12) {
                 passed = false;
@@ -103,7 +103,7 @@ bool testStrictGlobalNumeric() {
         "side = left\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n";
 
@@ -136,7 +136,7 @@ bool testStrictWingNumeric() {
         "side = left\n"
         "mu0 = 0.075oops\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n";
 
@@ -161,8 +161,8 @@ bool testMissingRequiredWingFields() {
         "name = fore\n"
         "side = left\n"
         "mu0 = 0.075\n"
-        "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
+        "Cl0 = 1.2\n"
         "phase = 0.0\n";
 
     fs::path path = writeTempConfig(cfg_text);
@@ -174,6 +174,372 @@ bool testMissingRequiredWingFields() {
     if (!passed) {
         std::cout << "  FAILED: expected Config::load to reject missing required wing fields\n";
     }
+    std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
+    return passed;
+}
+
+bool testAeroPresetParsing() {
+    std::cout << "Test: wang2004 aerodynamic preset applies expected sinusoidal coefficients\n";
+
+    const std::string cfg_text =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "drag_model = sinusoidal\n"
+        "drag_coeff_set = wang2004\n"
+        "lift_model = sinusoidal\n"
+        "lift_coeff_set = wang2004\n"
+        "phase = 0.0\n";
+
+    fs::path path = writeTempConfig(cfg_text);
+    bool passed = true;
+    try {
+        Config cfg = Config::load(path.string());
+        SimKinematicParams kin = readKinematicParams(cfg);
+        auto wings = buildWingConfigs(cfg, kin);
+        if (wings.size() != 1) {
+            passed = false;
+            std::cout << "  FAILED: expected one wing\n";
+        } else {
+            if (wings[0].drag_model != DragCoefficientModel::Sinusoidal ||
+                wings[0].lift_model != LiftCoefficientModel::Sinusoidal) {
+                passed = false;
+                std::cout << "  FAILED: expected sinusoidal drag/lift models\n";
+            }
+            if (std::abs(wings[0].Cd_min - 0.4) > 1e-12 || std::abs(wings[0].Cl0 - 1.2) > 1e-12) {
+                passed = false;
+                std::cout << "  FAILED: wang2004 preset coefficients not applied\n";
+            }
+            if (std::abs(wings[0].Cd_max - 2.4) > 1e-12) {
+                passed = false;
+                std::cout << "  FAILED: wang2004 preset Cd_max should be 2.4\n";
+            }
+            if (std::abs(wings[0].Cd_alpha_neutral) > 1e-12 ||
+                std::abs(wings[0].Cl_alpha_neutral) > 1e-12) {
+                passed = false;
+                std::cout << "  FAILED: wang2004 preset neutral angles should be zero\n";
+            }
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception: " << e.what() << "\n";
+    }
+
+    fs::remove(path);
+    std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
+    return passed;
+}
+
+bool testLinearLiftParsingAndValidation() {
+    std::cout << "Test: linear lift model parse + validation\n";
+
+    const std::string good_cfg =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd_min = 0.4\n"
+        "Cd_alpha_neutral = -0.2\n"
+        "lift_model = linear\n"
+        "Cl_alpha_slope = 2.0\n"
+        "Cl_alpha_neutral = 0.1\n"
+        "Cl_min = -0.4\n"
+        "Cl_max = 0.8\n"
+        "phase = 0.0\n";
+
+    const std::string good_sinusoidal_shift_cfg =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd_min = 0.4\n"
+        "Cd_alpha_neutral = -0.2\n"
+        "Cl0 = 1.2\n"
+        "Cl_alpha_neutral = 0.05\n"
+        "phase = 0.0\n";
+
+    const std::string good_linear_azuma_cfg =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd_min = 0.4\n"
+        "lift_model = linear\n"
+        "lift_coeff_set = azuma1988\n"
+        "phase = 0.0\n";
+
+    const std::string good_drag_azuma_cfg =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "drag_coeff_set = azuma1988\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n";
+
+    const std::string bad_missing_param =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd_min = 0.4\n"
+        "lift_model = linear\n"
+        "Cl_alpha_slope = 2.0\n"
+        "phase = 0.0\n";
+
+    const std::string bad_preset_mix =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "drag_coeff_set = wang2004\n"
+        "Cd_alpha_neutral = 0.1\n"
+        "lift_coeff_set = wang2004\n"
+        "Cl_alpha_neutral = 0.2\n"
+        "phase = 0.0\n";
+
+    const std::string bad_azuma_override =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd_min = 0.4\n"
+        "lift_model = linear\n"
+        "lift_coeff_set = azuma1988\n"
+        "Cl_max = 2.0\n"
+        "phase = 0.0\n";
+
+    const std::string bad_drag_azuma_override =
+        "omega = 10.0\n"
+        "gamma_mean = 1.0\n"
+        "phi_mean = 0.0\n"
+        "psi_mean = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "drag_coeff_set = azuma1988\n"
+        "Cd_min = 0.2\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n";
+
+    fs::path p_good = writeTempConfig(good_cfg);
+    fs::path p_good_shift = writeTempConfig(good_sinusoidal_shift_cfg);
+    fs::path p_good_azuma = writeTempConfig(good_linear_azuma_cfg);
+    fs::path p_good_drag_azuma = writeTempConfig(good_drag_azuma_cfg);
+    fs::path p_bad1 = writeTempConfig(bad_missing_param);
+    fs::path p_bad2 = writeTempConfig(bad_preset_mix);
+    fs::path p_bad3 = writeTempConfig(bad_azuma_override);
+    fs::path p_bad4 = writeTempConfig(bad_drag_azuma_override);
+
+    bool passed = true;
+    try {
+        Config cfg = Config::load(p_good.string());
+        SimKinematicParams kin = readKinematicParams(cfg);
+        auto wings = buildWingConfigs(cfg, kin);
+        if (wings.size() != 1) {
+            passed = false;
+            std::cout << "  FAILED: expected one wing in good config\n";
+        } else {
+            const auto& w = wings[0];
+            if (w.lift_model != LiftCoefficientModel::Linear) {
+                passed = false;
+                std::cout << "  FAILED: lift model should be linear\n";
+            }
+            if (std::abs(w.Cd_alpha_neutral + 0.2) > 1e-12 ||
+                std::abs(w.Cl_alpha_slope - 2.0) > 1e-12 ||
+                std::abs(w.Cl_alpha_neutral - 0.1) > 1e-12 ||
+                std::abs(w.Cl_min + 0.4) > 1e-12 ||
+                std::abs(w.Cl_max - 0.8) > 1e-12) {
+                passed = false;
+                std::cout << "  FAILED: linear lift / sinusoidal drag neutral parameters parsed incorrectly\n";
+            }
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception in good config: " << e.what() << "\n";
+    }
+
+    try {
+        Config cfg_shift = Config::load(p_good_shift.string());
+        SimKinematicParams kin_shift = readKinematicParams(cfg_shift);
+        auto wings_shift = buildWingConfigs(cfg_shift, kin_shift);
+        if (wings_shift.size() != 1) {
+            passed = false;
+            std::cout << "  FAILED: expected one wing in shifted sinusoidal config\n";
+        } else {
+            const auto& w = wings_shift[0];
+            if (std::abs(w.Cd_alpha_neutral + 0.2) > 1e-12 ||
+                std::abs(w.Cl_alpha_neutral - 0.05) > 1e-12) {
+                passed = false;
+                std::cout << "  FAILED: sinusoidal neutral angles parsed incorrectly\n";
+            }
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception in shifted sinusoidal config: "
+                  << e.what() << "\n";
+    }
+
+    try {
+        Config cfg_azuma = Config::load(p_good_azuma.string());
+        SimKinematicParams kin_azuma = readKinematicParams(cfg_azuma);
+        auto wings_azuma = buildWingConfigs(cfg_azuma, kin_azuma);
+        if (wings_azuma.size() != 1) {
+            passed = false;
+            std::cout << "  FAILED: expected one wing in azuma1988 linear preset config\n";
+        } else {
+            const auto& w = wings_azuma[0];
+            const double expected_slope = 0.052 * (180.0 / M_PI);
+            const double expected_neutral = -7.0 * (M_PI / 180.0);
+            if (std::abs(w.Cl_alpha_slope - expected_slope) > 1e-12 ||
+                std::abs(w.Cl_alpha_neutral - expected_neutral) > 1e-12 ||
+                std::abs(w.Cl_min + 1.2) > 1e-12 ||
+                std::abs(w.Cl_max - 1.2) > 1e-12) {
+                passed = false;
+                std::cout << "  FAILED: azuma1988 linear preset values incorrect\n";
+            }
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception in azuma1988 linear preset config: "
+                  << e.what() << "\n";
+    }
+
+    try {
+        Config cfg_drag_azuma = Config::load(p_good_drag_azuma.string());
+        SimKinematicParams kin_drag_azuma = readKinematicParams(cfg_drag_azuma);
+        auto wings_drag_azuma = buildWingConfigs(cfg_drag_azuma, kin_drag_azuma);
+        if (wings_drag_azuma.size() != 1) {
+            passed = false;
+            std::cout << "  FAILED: expected one wing in azuma1988 drag preset config\n";
+        } else {
+            const auto& w = wings_drag_azuma[0];
+            const double expected_neutral = 7.0 * (M_PI / 180.0);
+            if (std::abs(w.Cd_min - 0.07) > 1e-12 ||
+                std::abs(w.Cd_max - 2.0) > 1e-12 ||
+                std::abs(w.Cd_alpha_neutral - expected_neutral) > 1e-12) {
+                passed = false;
+                std::cout << "  FAILED: azuma1988 drag preset values incorrect\n";
+            }
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception in azuma1988 drag preset config: "
+                  << e.what() << "\n";
+    }
+
+    try {
+        Config cfg1 = Config::load(p_bad1.string());
+        SimKinematicParams kin1 = readKinematicParams(cfg1);
+        if (!expectThrow([&]() { (void)buildWingConfigs(cfg1, kin1); })) {
+            passed = false;
+            std::cout << "  FAILED: expected linear lift missing parameter to fail\n";
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception while validating missing-parameter config: "
+                  << e.what() << "\n";
+    }
+
+    try {
+        Config cfg2 = Config::load(p_bad2.string());
+        SimKinematicParams kin2 = readKinematicParams(cfg2);
+        if (!expectThrow([&]() { (void)buildWingConfigs(cfg2, kin2); })) {
+            passed = false;
+            std::cout << "  FAILED: expected nonzero neutral angles with wang2004 preset to fail\n";
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception while validating preset conflict config: "
+                  << e.what() << "\n";
+    }
+
+    try {
+        Config cfg3 = Config::load(p_bad3.string());
+        SimKinematicParams kin3 = readKinematicParams(cfg3);
+        if (!expectThrow([&]() { (void)buildWingConfigs(cfg3, kin3); })) {
+            passed = false;
+            std::cout << "  FAILED: expected azuma1988 preset + override mix to fail\n";
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception while validating azuma1988 override conflict: "
+                  << e.what() << "\n";
+    }
+
+    try {
+        Config cfg4 = Config::load(p_bad4.string());
+        SimKinematicParams kin4 = readKinematicParams(cfg4);
+        if (!expectThrow([&]() { (void)buildWingConfigs(cfg4, kin4); })) {
+            passed = false;
+            std::cout << "  FAILED: expected azuma1988 drag preset + override mix to fail\n";
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception while validating azuma1988 drag override conflict: "
+                  << e.what() << "\n";
+    }
+
+    fs::remove(p_good);
+    fs::remove(p_good_shift);
+    fs::remove(p_good_azuma);
+    fs::remove(p_good_drag_azuma);
+    fs::remove(p_bad1);
+    fs::remove(p_bad2);
+    fs::remove(p_bad3);
+    fs::remove(p_bad4);
     std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
     return passed;
 }
@@ -190,7 +556,7 @@ bool testDoubleListParsing() {
         "side = left\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n";
 
@@ -232,7 +598,7 @@ bool testDoubleListStrictness() {
         "side = left\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n";
 
@@ -273,7 +639,7 @@ bool testWingMotionOverrides() {
         "side = left\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n"
         "phi_cos = 0.3, 0.1\n"
@@ -323,7 +689,7 @@ bool testUnknownWingMotionKeysRejected() {
         "side = left\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n"
         "psi_scale = 0.3\n";
@@ -355,7 +721,7 @@ bool testWingMotionOverrideFlagSemantics() {
         "side = left\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n"
         "\n"
@@ -364,7 +730,7 @@ bool testWingMotionOverrideFlagSemantics() {
         "side = left\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n"
         "phi_mean = 0.1\n";
@@ -413,7 +779,7 @@ bool testBladeElementCountParsing() {
         "side = left\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n"
         "\n"
@@ -422,7 +788,7 @@ bool testBladeElementCountParsing() {
         "side = right\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n"
         "n_blade_elements = 10\n";
@@ -465,7 +831,7 @@ bool testBladeElementCountValidation() {
         "side = left\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n"
         "n_blade_elements = 0\n";
@@ -482,7 +848,7 @@ bool testBladeElementCountValidation() {
         "side = left\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n";
 
@@ -529,7 +895,7 @@ bool testPitchTwistParsing() {
         "side = left\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n"
         "psi_twist_h1_root_deg = 9.0\n"
@@ -584,7 +950,7 @@ bool testPitchTwistValidation() {
         "side = left\n"
         "mu0 = 0.075\n"
         "lb0 = 0.75\n"
-        "Cd0 = 0.4\n"
+        "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n"
         "psi_twist_h1_root_deg = 9.0\n"
@@ -616,12 +982,14 @@ int main() {
     std::cout << "===================\n\n";
 
     int passed = 0;
-    const int total = 13;
+    const int total = 15;
 
     if (testInlineComments()) passed++;
     if (testStrictGlobalNumeric()) passed++;
     if (testStrictWingNumeric()) passed++;
     if (testMissingRequiredWingFields()) passed++;
+    if (testAeroPresetParsing()) passed++;
+    if (testLinearLiftParsingAndValidation()) passed++;
     if (testDoubleListParsing()) passed++;
     if (testDoubleListStrictness()) passed++;
     if (testWingMotionOverrides()) passed++;

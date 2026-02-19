@@ -3,6 +3,7 @@
 #include <highfive/H5Easy.hpp>
 #include <highfive/H5File.hpp>
 #include <algorithm>
+#include <stdexcept>
 
 namespace {
 
@@ -22,7 +23,7 @@ Eigen::MatrixXd toMatrix(
     Vec3 SingleWingVectors::* vec_member
 ) {
     size_t n = wing_data.size();
-    Eigen::MatrixXd result(n, 3);
+    Eigen::MatrixXd result = Eigen::MatrixXd::Zero(static_cast<Eigen::Index>(n), 3);
 
     for (size_t i = 0; i < n; ++i) {
         if (wing_index < wing_data[i].size()) {
@@ -40,6 +41,9 @@ std::string wingGroupName(const Wing& wing) {
 void writeMatrixRow(Eigen::MatrixXd& matrix, Eigen::Index row,
                     const std::vector<double>& values) {
     const Eigen::Index ncols = matrix.cols();
+    if (values.size() != static_cast<size_t>(ncols)) {
+        throw std::runtime_error("writeMatrixRow: coefficient size does not match matrix columns");
+    }
     for (Eigen::Index col = 0; col < ncols; ++col) {
         matrix(row, col) = values[static_cast<size_t>(col)];
     }
@@ -102,7 +106,9 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     // Store wing config arrays
     std::vector<std::string> names;
     std::vector<int> sides;
-    std::vector<double> mu0_vals, lb0_vals, Cd0_vals, Cl0_vals, phase_vals, cone_vals;
+    std::vector<double> mu0_vals, lb0_vals, Cd_min_vals, Cd_max_vals, Cd_alpha_neutral_vals, Cl0_vals, phase_vals, cone_vals;
+    std::vector<std::string> drag_model_vals, lift_model_vals;
+    std::vector<double> cl_alpha_slope_vals, cl_alpha_neutral_vals, cl_min_vals, cl_max_vals;
     std::vector<int> n_blade_elements_vals;
     std::vector<int> has_psi_twist_h1_vals;
     std::vector<double> psi_twist_h1_root_vals, psi_twist_ref_eta_vals;
@@ -112,8 +118,16 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
         sides.push_back(wc.side == WingSide::Left ? 0 : 1);
         mu0_vals.push_back(wc.mu0);
         lb0_vals.push_back(wc.lb0);
-        Cd0_vals.push_back(wc.Cd0);
+        drag_model_vals.push_back(toString(wc.drag_model));
+        lift_model_vals.push_back(toString(wc.lift_model));
+        Cd_min_vals.push_back(wc.Cd_min);
+        Cd_max_vals.push_back(wc.Cd_max);
+        Cd_alpha_neutral_vals.push_back(wc.Cd_alpha_neutral);
         Cl0_vals.push_back(wc.Cl0);
+        cl_alpha_slope_vals.push_back(wc.Cl_alpha_slope);
+        cl_alpha_neutral_vals.push_back(wc.Cl_alpha_neutral);
+        cl_min_vals.push_back(wc.Cl_min);
+        cl_max_vals.push_back(wc.Cl_max);
         phase_vals.push_back(wc.phase_offset);
         cone_vals.push_back(wc.cone_angle);
         n_blade_elements_vals.push_back(wc.n_blade_elements);
@@ -126,8 +140,18 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     H5Easy::dump(file, "/parameters/wings/sides", sides);
     H5Easy::dump(file, "/parameters/wings/mu0", mu0_vals);
     H5Easy::dump(file, "/parameters/wings/lb0", lb0_vals);
-    H5Easy::dump(file, "/parameters/wings/Cd0", Cd0_vals);
+    H5Easy::dump(file, "/parameters/wings/drag_model", drag_model_vals);
+    H5Easy::dump(file, "/parameters/wings/lift_model", lift_model_vals);
+    H5Easy::dump(file, "/parameters/wings/Cd_min", Cd_min_vals);
+    // Backward-compatibility alias for older postprocessing code.
+    H5Easy::dump(file, "/parameters/wings/Cd0", Cd_min_vals);
+    H5Easy::dump(file, "/parameters/wings/Cd_max", Cd_max_vals);
+    H5Easy::dump(file, "/parameters/wings/Cd_alpha_neutral", Cd_alpha_neutral_vals);
     H5Easy::dump(file, "/parameters/wings/Cl0", Cl0_vals);
+    H5Easy::dump(file, "/parameters/wings/Cl_alpha_slope", cl_alpha_slope_vals);
+    H5Easy::dump(file, "/parameters/wings/Cl_alpha_neutral", cl_alpha_neutral_vals);
+    H5Easy::dump(file, "/parameters/wings/Cl_min", cl_min_vals);
+    H5Easy::dump(file, "/parameters/wings/Cl_max", cl_max_vals);
     H5Easy::dump(file, "/parameters/wings/phase_offset", phase_vals);
     H5Easy::dump(file, "/parameters/wings/cone_angle", cone_vals);
     H5Easy::dump(file, "/parameters/wings/n_blade_elements", n_blade_elements_vals);

@@ -237,22 +237,22 @@ def build_sim_cfg(
 
     fore_left = build_wing_block(
         name="fore", side="left", wing_mu0=fore_mu0, wing_lb0=fore_lb0,
-        wing_cd0=wing_cd0, wing_cl0=wing_cl0, phase=0.0, motion=fore,
+        phase=0.0, drag_coeff_set="azuma1988", lift_model="linear", lift_coeff_set="azuma1988", motion=fore,
         cone=FORE_CONE_RAD, psi_twist_h1_root_deg=twist_root_deg, psi_twist_ref_eta=twist_ref_eta,
     )
     fore_right = build_wing_block(
         name="fore", side="right", wing_mu0=fore_mu0, wing_lb0=fore_lb0,
-        wing_cd0=wing_cd0, wing_cl0=wing_cl0, phase=0.0, motion=fore,
+        phase=0.0, drag_coeff_set="azuma1988", lift_model="linear", lift_coeff_set="azuma1988", motion=fore,
         cone=FORE_CONE_RAD, psi_twist_h1_root_deg=twist_root_deg, psi_twist_ref_eta=twist_ref_eta,
     )
     hind_left = build_wing_block(
         name="hind", side="left", wing_mu0=hind_mu0, wing_lb0=hind_lb0,
-        wing_cd0=wing_cd0, wing_cl0=wing_cl0, phase=0.0, motion=hind,
+        phase=0.0, drag_coeff_set="azuma1988", lift_model="linear", lift_coeff_set="azuma1988", motion=hind,
         cone=HIND_CONE_RAD, psi_twist_h1_root_deg=twist_root_deg, psi_twist_ref_eta=twist_ref_eta,
     )
     hind_right = build_wing_block(
         name="hind", side="right", wing_mu0=hind_mu0, wing_lb0=hind_lb0,
-        wing_cd0=wing_cd0, wing_cl0=wing_cl0, phase=0.0, motion=hind,
+        phase=0.0, drag_coeff_set="azuma1988", lift_model="linear", lift_coeff_set="azuma1988", motion=hind,
         cone=HIND_CONE_RAD, psi_twist_h1_root_deg=twist_root_deg, psi_twist_ref_eta=twist_ref_eta,
     )
 
