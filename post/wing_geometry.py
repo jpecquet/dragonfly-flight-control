@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import numpy as np
 
-# For the default full-ellipse wing planform:
-#   S = (pi/4) * L * c_root
-# so aspect ratio AR = L^2/S = 4 / (pi * (c_root/L)).
-# Setting AR=8 gives c_root/L = 1/(2*pi).
-DEFAULT_ROOT_CHORD_RATIO = 1.0 / (2.0 * np.pi)
+DEFAULT_ASPECT_RATIO = 5
 
+def get_chord_ratio(AR):
+    # For the default full-ellipse wing planform:
+    #   S = (pi/4) * L * c_root
+    # so aspect ratio AR = L^2/S = 4 / (pi * (c_root/L)).
+    return 4 / (np.pi * AR)
+
+DEFAULT_ROOT_CHORD_RATIO = get_chord_ratio(DEFAULT_ASPECT_RATIO)
 
 def composite_ellipse_polygon_local(
     span: float,

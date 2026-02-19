@@ -112,6 +112,7 @@ class TestAzuma1988Experiments(unittest.TestCase):
         self.assertAlmostEqual(float(twist["ref_eta"]), 0.75, places=12)
         self.assertAlmostEqual(float(twist["root_coeff_deg"]["fore"]), 9.0, places=12)
         self.assertAlmostEqual(float(twist["root_coeff_deg"]["hind"]), 9.0, places=12)
+        self.assertIn("n_blade_elements = 5", cfg_text)
         self.assertEqual(cfg_text.count("psi_twist_h1_root_deg = 9.000000000000"), 4)
         self.assertEqual(cfg_text.count("psi_twist_ref_eta = 0.750000000000"), 4)
 
@@ -125,6 +126,7 @@ class TestAzuma1988Experiments(unittest.TestCase):
 
         twist = summary["convention_mapping"]["pitch_twist_model"]
         self.assertFalse(bool(twist["enabled"]))
+        self.assertIn("n_blade_elements = 5", cfg_text)
         self.assertNotIn("psi_twist_h1_root_deg", cfg_text)
         self.assertNotIn("psi_twist_ref_eta", cfg_text)
 

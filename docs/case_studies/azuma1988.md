@@ -97,6 +97,18 @@ The simulator motion inputs are constructed from the paper angles using:
 />
 ```
 
+### Vertical Force vs Blade Segments (One Wingbeat, Fixed Body Velocity)
+
+```{raw} html
+<img
+  class="case-study-image"
+  src="../_static/media/azuma1988/exp1/force_segments_twist.dark.png"
+  alt="Azuma 1988 experiment 1 vertical aerodynamic force over one wingbeat versus blade-element count, with and without wing twist"
+  data-light-src="../_static/media/azuma1988/exp1/force_segments_twist.light.png"
+  data-dark-src="../_static/media/azuma1988/exp1/force_segments_twist.dark.png"
+/>
+```
+
 ## Experiment 2 (Dragonfly A)
 
 ### Kinematics Data

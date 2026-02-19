@@ -92,7 +92,7 @@ DEFAULT_GRAVITY = float(AZUMA1988_SIM_DEFAULTS["gravity_m_s2"])
 DEFAULT_CD0 = float(AZUMA1988_SIM_DEFAULTS["wing_cd0"])
 DEFAULT_CL0 = float(AZUMA1988_SIM_DEFAULTS["wing_cl0"])
 DEFAULT_N_HARMONICS = int(AZUMA1988_SIM_DEFAULTS["n_harmonics"])
-DEFAULT_N_BLADE_ELEMENTS = 20
+DEFAULT_N_BLADE_ELEMENTS = 5
 
 # Coning angles (radians), loaded from case data.
 FORE_CONE_RAD = math.radians(float(AZUMA1988_SIM_DEFAULTS["coning_angles_deg"]["fore"]))

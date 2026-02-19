@@ -401,6 +401,34 @@
           "1",
           "--theme",
           "dark"
+        ],
+        [
+          "python",
+          "-m",
+          "post.plot_azuma1988_exp1_force_segments",
+          "docs/_static/media/azuma1988/exp1/force_segments_twist.light.png",
+          "--base-config",
+          "docs/case_studies/azuma1988/artifacts/exp1/sim/sim_azuma1988.cfg",
+          "--experiment",
+          "1",
+          "--segments",
+          "1,2,3,4,5",
+          "--theme",
+          "light"
+        ],
+        [
+          "python",
+          "-m",
+          "post.plot_azuma1988_exp1_force_segments",
+          "docs/_static/media/azuma1988/exp1/force_segments_twist.dark.png",
+          "--base-config",
+          "docs/case_studies/azuma1988/artifacts/exp1/sim/sim_azuma1988.cfg",
+          "--experiment",
+          "1",
+          "--segments",
+          "1,2,3,4,5",
+          "--theme",
+          "dark"
         ]
       ],
       "outputs": [
@@ -417,7 +445,9 @@
         "docs/_static/media/azuma1988/exp1/motion_mapping.light.png",
         "docs/_static/media/azuma1988/exp1/motion_mapping.dark.png",
         "docs/_static/media/azuma1988/exp1/flight_metrics.light.png",
-        "docs/_static/media/azuma1988/exp1/flight_metrics.dark.png"
+        "docs/_static/media/azuma1988/exp1/flight_metrics.dark.png",
+        "docs/_static/media/azuma1988/exp1/force_segments_twist.light.png",
+        "docs/_static/media/azuma1988/exp1/force_segments_twist.dark.png"
       ],
       "sync": []
     },
