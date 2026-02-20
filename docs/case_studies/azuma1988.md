@@ -331,6 +331,56 @@ The simulator motion inputs are constructed from the paper angles using:
 />
 ```
 
+### Angle of Attack Along Span and Wingbeat
+
+Angle of attack over one wingbeat of constant-velocity flight, viewed normal to
+the stroke plane, for the forewing (above) and hindwing (below)
+
+```{raw} html
+<img
+  class="case-study-image"
+  src="../_static/media/azuma1988/exp4/stroke_aoa_fore_right_down.dark.png"
+  alt="Azuma 1988 experiment 4 forewing right downstroke angle of attack in stroke plane"
+  data-light-src="../_static/media/azuma1988/exp4/stroke_aoa_fore_right_down.light.png"
+  data-dark-src="../_static/media/azuma1988/exp4/stroke_aoa_fore_right_down.dark.png"
+/>
+```
+
+```{raw} html
+<img
+  class="case-study-image"
+  src="../_static/media/azuma1988/exp4/stroke_aoa_hind_right_down.dark.png"
+  alt="Azuma 1988 experiment 4 hindwing right downstroke angle of attack in stroke plane"
+  data-light-src="../_static/media/azuma1988/exp4/stroke_aoa_hind_right_down.light.png"
+  data-dark-src="../_static/media/azuma1988/exp4/stroke_aoa_hind_right_down.dark.png"
+/>
+```
+
+### Pitch Angle Along Span and Wingbeat
+
+Pitch angle over one wingbeat of constant-velocity flight, viewed normal to the
+stroke plane, for the forewing (above) and hindwing (below)
+
+```{raw} html
+<img
+  class="case-study-image"
+  src="../_static/media/azuma1988/exp4/stroke_pitch_fore_right_down.dark.png"
+  alt="Azuma 1988 experiment 4 forewing right pitch angle in stroke plane"
+  data-light-src="../_static/media/azuma1988/exp4/stroke_pitch_fore_right_down.light.png"
+  data-dark-src="../_static/media/azuma1988/exp4/stroke_pitch_fore_right_down.dark.png"
+/>
+```
+
+```{raw} html
+<img
+  class="case-study-image"
+  src="../_static/media/azuma1988/exp4/stroke_pitch_hind_right_down.dark.png"
+  alt="Azuma 1988 experiment 4 hindwing right pitch angle in stroke plane"
+  data-light-src="../_static/media/azuma1988/exp4/stroke_pitch_hind_right_down.light.png"
+  data-dark-src="../_static/media/azuma1988/exp4/stroke_pitch_hind_right_down.dark.png"
+/>
+```
+
 ## Config Extract (Experiment 1)
 
 ```{literalinclude} azuma1988/artifacts/exp1/sim/sim_azuma1988.cfg
