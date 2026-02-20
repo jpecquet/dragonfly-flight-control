@@ -70,6 +70,7 @@ def compute_blender_ortho_scale(
     camera: CameraConfig,
     viewport: ViewportConfig,
     style: Optional[StyleConfig] = None,
+    show_axes: bool = True,
 ) -> Tuple[float, Tuple[float, float]]:
     """
     Compute the exact ortho_scale for Blender to match matplotlib projection.
@@ -92,7 +93,7 @@ def compute_blender_ortho_scale(
     resolved_style = style if style is not None else StyleConfig.themed('light')
     apply_matplotlib_style(resolved_style)
     fig, ax = create_overlay_figure(camera, resolved_style)
-    setup_axes(ax, viewport, camera, resolved_style)
+    setup_axes(ax, viewport, camera, resolved_style, show_axes=show_axes)
     fig.canvas.draw()  # Force projection matrix update
 
     proj = ax.get_proj()
@@ -161,7 +162,13 @@ def create_overlay_figure(camera: CameraConfig, style: StyleConfig) -> Tuple[plt
     return fig, ax
 
 
-def setup_axes(ax: Axes3D, viewport: ViewportConfig, camera: CameraConfig, style: StyleConfig):
+def setup_axes(
+    ax: Axes3D,
+    viewport: ViewportConfig,
+    camera: CameraConfig,
+    style: StyleConfig,
+    show_axes: bool = True,
+):
     """
     Configure axes limits and appearance.
 
@@ -176,13 +183,20 @@ def setup_axes(ax: Axes3D, viewport: ViewportConfig, camera: CameraConfig, style
     ax.set_ylim(viewport.center[1] - half[1], viewport.center[1] + half[1])
     ax.set_zlim(viewport.center[2] - half[2], viewport.center[2] + half[2])
 
+    # Keep equal data-unit scaling while allowing non-cubic extents.
+    ax.set_box_aspect(viewport.extent_xyz.tolist())
+
+    if not show_axes:
+        # Expand to full canvas and disable axis artists to avoid border artifacts.
+        ax.set_position([0.0, 0.0, 1.0, 1.0])
+        ax.grid(False)
+        ax.set_axis_off()
+        return
+
     # Labels
     ax.set_xlabel('X (forward)', fontsize=10, color=style.text_color, labelpad=12)
     ax.set_ylabel('Y (left)', fontsize=10, color=style.text_color, labelpad=12)
     ax.set_zlabel('Z (up)', fontsize=10, color=style.text_color, labelpad=10)
-
-    # Keep equal data-unit scaling while allowing non-cubic extents.
-    ax.set_box_aspect(viewport.extent_xyz.tolist())
 
     # Axis ticks: denser for compact extents, coarser for larger extents.
     ax.xaxis.set_major_locator(MultipleLocator(_major_tick_step(float(viewport.extent_xyz[0]))))
@@ -338,7 +352,7 @@ def render_simulation_frame(
     else:
         fig, ax = render_context
         ax.cla()
-    setup_axes(ax, config.viewport, config.camera, style)
+    setup_axes(ax, config.viewport, config.camera, style, show_axes=bool(config.show_axes))
 
     wing_lb0 = params.get('wing_lb0', {})
 
@@ -361,10 +375,11 @@ def render_simulation_frame(
         _draw_forces(ax, xb, v, wing_lb0, config)
 
     # Add velocity text
-    ux, uz = states[frame_idx][3], states[frame_idx][5]
-    ax.text2D(0.02, 0.98, f"$u_x$ = {ux:.2f}, $u_z$ = {uz:.2f}",
-              transform=ax.transAxes, fontsize=10, verticalalignment='top',
-              color=style.text_color)
+    if config.show_velocity_text:
+        ux, uz = states[frame_idx][3], states[frame_idx][5]
+        ax.text2D(0.02, 0.98, f"$u_x$ = {ux:.2f}, $u_z$ = {uz:.2f}",
+                  transform=ax.transAxes, fontsize=10, verticalalignment='top',
+                  color=style.text_color)
 
     # Save to file
     output_file = output_path / f"mpl_{frame_idx:06d}.png"
@@ -410,7 +425,7 @@ def render_tracking_frame(
     else:
         fig, ax = render_context
         ax.cla()
-    setup_axes(ax, config.viewport, config.camera, style)
+    setup_axes(ax, config.viewport, config.camera, style, show_axes=bool(config.show_axes))
 
     wing_lb0 = params.get('wing_lb0', {})
 
@@ -452,11 +467,15 @@ def render_tracking_frame(
         _draw_forces(ax, xb, v, wing_lb0, config)
 
     # Add info text
-    ux, uz = states[frame_idx][3], states[frame_idx][5]
-    text = (f"Error: {error_mag:.3f}\n"
-            f"Target: ({target[0]:.2f}, {target[1]:.2f}, {target[2]:.2f})\n"
-            f"Actual: ({xb[0]:.2f}, {xb[1]:.2f}, {xb[2]:.2f})\n"
-            f"$u_x$={ux:.2f}, $u_z$={uz:.2f}")
+    text_lines = [
+        f"Error: {error_mag:.3f}",
+        f"Target: ({target[0]:.2f}, {target[1]:.2f}, {target[2]:.2f})",
+        f"Actual: ({xb[0]:.2f}, {xb[1]:.2f}, {xb[2]:.2f})",
+    ]
+    if config.show_velocity_text:
+        ux, uz = states[frame_idx][3], states[frame_idx][5]
+        text_lines.append(f"$u_x$={ux:.2f}, $u_z$={uz:.2f}")
+    text = "\n".join(text_lines)
     ax.text2D(0.02, 0.98, text, transform=ax.transAxes, fontsize=9,
               verticalalignment='top', family='monospace',
               color=style.text_color)

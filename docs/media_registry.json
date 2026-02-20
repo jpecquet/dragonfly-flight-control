@@ -1213,6 +1213,46 @@
         "docs/_static/media/wang2007/motion_mapping.dark.png"
       ],
       "sync": []
+    },
+    {
+      "id": "modeling_wing_kinematics_side_y_light",
+      "description": "Regenerate Wing Kinematics section 1 side-view animation for docs (light theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/modeling/wing_kinematics/section1_anim1/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/modeling/wing_kinematics/section1_anim1/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "scripts/modeling_wing_kinematics_media.py",
+          "--theme",
+          "light"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/modeling/wing_kinematics/wing_kinematics_section1_anim1_side_y.light.mp4"
+      ],
+      "sync": []
+    },
+    {
+      "id": "modeling_wing_kinematics_side_y_dark",
+      "description": "Regenerate Wing Kinematics section 1 side-view animation for docs (dark theme).",
+      "env": {
+        "MPLCONFIGDIR": "runs/modeling/wing_kinematics/section1_anim1/.cache/matplotlib",
+        "XDG_CACHE_HOME": "runs/modeling/wing_kinematics/section1_anim1/.cache"
+      },
+      "commands": [
+        [
+          "python",
+          "scripts/modeling_wing_kinematics_media.py",
+          "--theme",
+          "dark"
+        ]
+      ],
+      "outputs": [
+        "docs/_static/media/modeling/wing_kinematics/wing_kinematics_section1_anim1_side_y.dark.mp4"
+      ],
+      "sync": []
     }
   ]
 }

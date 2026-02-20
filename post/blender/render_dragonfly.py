@@ -186,19 +186,46 @@ def _parse_rgba(color, default_rgba):
     return default_rgba
 
 
+_LIGHT_BODY_HEX = "#111111"
+_LIGHT_WING_HEX = "#d3d3d3"
+_DARK_BODY_HEX = "#f2f5f7"
+_DARK_WING_HEX = "#8f9aa6"
+
+
+def _resolve_material_color(style_cfg, key, default_rgba):
+    """
+    Resolve a style color token for Blender materials.
+
+    For default light-theme body/wing tokens, use the dark-theme material colors
+    so light/dark themes share the same mesh material appearance.
+    """
+    if not isinstance(style_cfg, dict):
+        return _parse_rgba(None, default_rgba)
+
+    value = style_cfg.get(key)
+    theme = str(style_cfg.get('theme', '')).strip().lower()
+
+    if theme == 'light' and isinstance(value, str):
+        normalized = value.strip().lower()
+        if key == 'body_color' and normalized == _LIGHT_BODY_HEX:
+            value = _DARK_BODY_HEX
+        elif key == 'wing_color' and normalized == _LIGHT_WING_HEX:
+            value = _DARK_WING_HEX
+
+    return _parse_rgba(value, default_rgba)
+
+
 def create_body_material(style_cfg=None):
     """Create material for dragonfly body (Workbench-compatible)."""
     mat = bpy.data.materials.new(name="DragonBody")
-    body_color = None if style_cfg is None else style_cfg.get('body_color')
-    mat.diffuse_color = _parse_rgba(body_color, (0.88, 0.88, 0.88, 1.0))
+    mat.diffuse_color = _resolve_material_color(style_cfg, 'body_color', (0.88, 0.88, 0.88, 1.0))
     return mat
 
 
 def create_wing_material(style_cfg=None):
     """Create opaque material for wings (Workbench-compatible)."""
     mat = bpy.data.materials.new(name="DragonWing")
-    wing_color = None if style_cfg is None else style_cfg.get('wing_color')
-    mat.diffuse_color = _parse_rgba(wing_color, (0.92, 0.92, 0.92, 1.0))
+    mat.diffuse_color = _resolve_material_color(style_cfg, 'wing_color', (0.92, 0.92, 0.92, 1.0))
     return mat
 
 
@@ -324,7 +351,7 @@ def capture_wing_deform_data(wing_obj, span):
     }
 
 
-def apply_wing_twist(wing_obj, deform_data, twist_model, frame_idx):
+def apply_wing_twist(wing_obj, deform_data, twist_model, frame_idx, wing_name=None):
     """
     Deform wing mesh in local coordinates to visualize spanwise pitch twist.
 
@@ -345,6 +372,11 @@ def apply_wing_twist(wing_obj, deform_data, twist_model, frame_idx):
             coeff_eta = ((ref_coeff - root_coeff) * (eta / ref_eta)) + root_coeff
             scale_eta = coeff_eta / ref_coeff
             delta = (scale_eta - 1.0) * psi_h1_value
+            # The simulator's left/right pitch conventions use opposite signs
+            # for increasing psi. Match that convention so mirrored wings
+            # receive mirrored spanwise twist in world coordinates.
+            if isinstance(wing_name, str) and "left" in wing_name:
+                delta = -delta
             cos_delta = np.cos(delta)
             sin_delta = np.sin(delta)
 
@@ -512,6 +544,7 @@ def main():
                 wing_deform_data[wname],
                 wing_twist_h1.get(wname),
                 frame_idx,
+                wing_name=wname,
             )
             transform_wing(wing_obj, origin, e_r, e_c)
 

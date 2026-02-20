@@ -634,7 +634,7 @@ def render_hybrid(
 
     # Compute exact ortho_scale and center offset from matplotlib projection
     ortho_scale, (offset_x, offset_y) = compute_blender_ortho_scale(
-        config.camera, config.viewport, config.style
+        config.camera, config.viewport, config.style, show_axes=bool(config.show_axes)
     )
     config.blender.computed_ortho_scale = ortho_scale
     config.blender.center_offset_x = offset_x

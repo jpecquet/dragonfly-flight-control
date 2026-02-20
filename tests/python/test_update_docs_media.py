@@ -48,6 +48,21 @@ class TestUpdateDocsMediaRegistryValidation(unittest.TestCase):
         self.assertIn("entry 'broken_entry'", str(ctx.exception))
         self.assertIn("sync[0].to", str(ctx.exception))
 
+    def test_modeling_wing_kinematics_entries_present(self):
+        registry = update_docs_media.load_registry(REPO_ROOT / "docs" / "media_registry.json")
+        by_id = {entry["id"]: entry for entry in registry["entries"]}
+
+        for entry_id, theme in [
+            ("modeling_wing_kinematics_side_y_light", "light"),
+            ("modeling_wing_kinematics_side_y_dark", "dark"),
+        ]:
+            self.assertIn(entry_id, by_id)
+            commands = by_id[entry_id]["commands"]
+            self.assertEqual(
+                commands,
+                [["python", "scripts/modeling_wing_kinematics_media.py", "--theme", theme]],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

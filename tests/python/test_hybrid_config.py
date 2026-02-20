@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from post.hybrid_config import ViewportConfig, compute_viewport
+from post.hybrid_config import HybridConfig, ViewportConfig, compute_viewport
 
 
 class TestHybridViewportConfig(unittest.TestCase):
@@ -27,6 +27,13 @@ class TestHybridViewportConfig(unittest.TestCase):
         payload = viewport.to_dict()
         self.assertEqual(payload["extent"], 4.0)
         self.assertEqual(payload["extent_xyz"], [4.0, 4.0, 4.0])
+
+    def test_hybrid_config_round_trip_preserves_axes_text_flags(self):
+        config = HybridConfig(show_axes=False, show_velocity_text=False)
+        payload = config.to_dict()
+        loaded = HybridConfig.from_dict(payload)
+        self.assertFalse(loaded.show_axes)
+        self.assertFalse(loaded.show_velocity_text)
 
 
 if __name__ == "__main__":

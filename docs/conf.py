@@ -82,6 +82,9 @@ if os.environ.get("DOCS_ENABLE_INTERSPHINX", "0") != "1":
     intersphinx_mapping = {}
 
 todo_include_todos = True
+suppress_warnings = [
+    "bibtex.duplicate_citation",
+]
 
 cpp_api_available = False
 

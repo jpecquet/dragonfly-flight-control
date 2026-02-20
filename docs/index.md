@@ -12,12 +12,12 @@ guides/contributing_docs
 
 ```{toctree}
 :maxdepth: 2
-:caption: Theory
+:caption: Modeling
 
-theory/overview
-theory/nondimensionalization
-theory/physics_model
-theory/wing_kinematics
+modeling/wing_kinematics
+modeling/overview
+modeling/nondimensionalization
+modeling/physics_model
 ```
 
 ```{toctree}

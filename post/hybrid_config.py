@@ -225,6 +225,8 @@ class HybridConfig:
     # Rendering options
     framerate: int = 30
     trail_length: int = -1  # <= 0 means draw full trajectory history
+    show_axes: bool = True
+    show_velocity_text: bool = True
     show_forces: bool = False
     force_scale: float = 0.05
 
@@ -239,6 +241,8 @@ class HybridConfig:
             'blender': self.blender.to_dict(),
             'framerate': self.framerate,
             'trail_length': self.trail_length,
+            'show_axes': self.show_axes,
+            'show_velocity_text': self.show_velocity_text,
             'show_forces': self.show_forces,
             'force_scale': self.force_scale,
             'n_workers': self.n_workers,
@@ -257,6 +261,8 @@ class HybridConfig:
             blender=blender,
             framerate=d.get('framerate', 30),
             trail_length=d.get('trail_length', -1),
+            show_axes=d.get('show_axes', True),
+            show_velocity_text=d.get('show_velocity_text', True),
             show_forces=d.get('show_forces', False),
             force_scale=d.get('force_scale', 0.05),
             n_workers=d.get('n_workers', 0),
