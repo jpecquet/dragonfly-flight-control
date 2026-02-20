@@ -41,11 +41,14 @@ WingOrientation computeWingOrientation(double gam, double phi, double psi, doubl
     Vec3 e_c;
 
     if (is_left) {
-        Rs = rotY(-gam) * rotX(-cone) * rotZ(-phi);
+        // Conical flapping: rotate around stroke-plane normal (z in stroke frame),
+        // with cone half-angle (pi/2 - cone). The rotX term sets the cone opening
+        // at phi=0 and rotZ performs the azimuthal sweep.
+        Rs = rotY(-gam) * rotZ(-phi) * rotX(-cone);
         Rp = Rs * rotY(-psi);
         e_c = Rp * ez * -1.0;
     } else {
-        Rs = rotX(-M_PI) * rotY(gam) * rotX(cone) * rotZ(-phi);
+        Rs = rotX(-M_PI) * rotY(gam) * rotZ(-phi) * rotX(cone);
         Rp = Rs * rotY(psi);
         e_c = Rp * ez;
     }

@@ -158,6 +158,8 @@ Vec3 Wing::computeForce(
     double gam_sign = (side_ == WingSide::Left) ? -1.0 : 1.0;
     Vec3 ey(0, 1, 0);
     Vec3 omega_gam = gam_sign * gam_dot * ey;
+    // For conical flapping, spanwise orbit radius about the cone axis is lb0*cos(cone).
+    const double flap_speed_scale = std::cos(cone_angle_);
     const double force_coefficient = 0.5 * mu0_ / lb0_;
     const double psi_h1_value = pitch_twist_h1_.enabled
         ? (pitch_twist_h1_.c1 * std::cos(pitch_twist_h1_.basis_omega * t + pitch_twist_h1_.phase_offset) +
@@ -179,7 +181,7 @@ Vec3 Wing::computeForce(
             : orient_ref;
 
         // Wing velocity at span station eta.
-        Vec3 v_phi = eta * lb0_ * angles.phi_dot * orient_eta.e_s;
+        Vec3 v_phi = eta * lb0_ * angles.phi_dot * flap_speed_scale * orient_eta.e_s;
         Vec3 r = eta * lb0_ * orient_eta.e_r;
         Vec3 v_gam = omega_gam.cross(r);
         Vec3 uw = ub + v_phi + v_gam;

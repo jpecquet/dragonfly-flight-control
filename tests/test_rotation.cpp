@@ -16,6 +16,10 @@ bool vecNear(const Vec3& a, const Vec3& b, double tol) {
     return (a - b).norm() < tol;
 }
 
+bool near(double a, double b, double tol) {
+    return std::abs(a - b) < tol;
+}
+
 // Test orthogonality: R^T * R = I
 bool testOrthogonality(const std::string& name, Mat3 (*rotFunc)(double),
                        const std::vector<double>& angles, double tol) {
@@ -128,6 +132,60 @@ int main() {
         bool ok = vecNear(R * t.input, t.expected, tol);
         std::cout << "  " << t.label << ": " << (ok ? "PASS" : "FAIL") << "\n";
         all_passed &= ok;
+    }
+
+    // ========== Conical flapping geometry tests ==========
+    std::cout << "\nConical flapping geometry tests:\n";
+    {
+        const double cone = 20.0 * M_PI / 180.0;
+        const double expected_z = -std::sin(cone);
+        const double expected_xy_radius = std::cos(cone);
+        const std::vector<double> phis = {
+            -M_PI / 2.0, -M_PI / 4.0, 0.0, M_PI / 4.0, M_PI / 2.0
+        };
+
+        bool left_small_circle = true;
+        bool right_small_circle = true;
+        bool left_derivative_relation = true;
+        const double deriv_eps = 1e-7;
+        const double geom_tol = 1e-12;
+        const double deriv_tol = 5e-8;
+
+        for (double phi : phis) {
+            const WingOrientation left = computeWingOrientation(
+                0.0, phi, 0.0, cone, true
+            );
+            const WingOrientation right = computeWingOrientation(
+                0.0, phi, 0.0, cone, false
+            );
+
+            const double left_xy = std::hypot(left.e_r.x(), left.e_r.y());
+            const double right_xy = std::hypot(right.e_r.x(), right.e_r.y());
+            left_small_circle &= near(left.e_r.z(), expected_z, geom_tol);
+            left_small_circle &= near(left_xy, expected_xy_radius, geom_tol);
+            right_small_circle &= near(right.e_r.z(), expected_z, geom_tol);
+            right_small_circle &= near(right_xy, expected_xy_radius, geom_tol);
+
+            const WingOrientation left_p = computeWingOrientation(
+                0.0, phi + deriv_eps, 0.0, cone, true
+            );
+            const WingOrientation left_m = computeWingOrientation(
+                0.0, phi - deriv_eps, 0.0, cone, true
+            );
+            const Vec3 de_r_dphi = (left_p.e_r - left_m.e_r) / (2.0 * deriv_eps);
+            left_derivative_relation &= vecNear(
+                de_r_dphi, std::cos(cone) * left.e_s, deriv_tol
+            );
+        }
+
+        std::cout << "  Left wing small-circle cone path: "
+                  << (left_small_circle ? "PASS" : "FAIL") << "\n";
+        std::cout << "  Right wing small-circle cone path: "
+                  << (right_small_circle ? "PASS" : "FAIL") << "\n";
+        std::cout << "  Left d(e_r)/dphi = cos(cone) * e_s: "
+                  << (left_derivative_relation ? "PASS" : "FAIL") << "\n";
+
+        all_passed &= left_small_circle && right_small_circle && left_derivative_relation;
     }
 
     // ========== Summary ==========

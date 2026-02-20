@@ -35,7 +35,7 @@ struct WingConfig : MotionParams {
     double Cl_min = -1.0e12;       // Linear model lower saturation
     double Cl_max = 1.0e12;        // Linear model upper saturation
     double phase_offset = 0.0;    // Phase offset from reference (radians)
-    double cone_angle = 0.0;      // Coning angle (radians): tilts the flapping plane about the stroke direction
+    double cone_angle = 0.0;      // Beta angle from stroke plane (radians): sets cone half-angle (pi/2 - beta)
     int n_blade_elements = 1;     // Number of spanwise blade elements for force integration
     bool has_psi_twist_h1 = false;   // Enable linear spanwise twist based on 1st pitch harmonic amplitude
     double psi_twist_h1_root = 0.0;  // Root coefficient (radians) for first pitch harmonic

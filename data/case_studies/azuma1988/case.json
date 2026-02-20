@@ -66,7 +66,7 @@
       "Azuma pitch angle theta maps to simulator psi by psi_sim = theta - 90 deg.",
       "Coning angles (beta_fw=8 deg, beta_hw=-2 deg) are handled separately as static wing geometry.",
       "For experiments 1-4, gamma uses stroke-plane inclination measured from horizontal line.",
-      "Feathering Fourier coefficients are taken at 0.75R because this model does not include wing twist."
+      "Feathering Fourier coefficients are taken at 0.75R; optional first-harmonic spanwise twist is experiment-configurable."
     ]
   },
   "kinematics": {
@@ -170,7 +170,16 @@
       "label": "Experiment 1",
       "dragonfly": "A",
       "simulation_defaults": {
-        "frequency_hz": 26.5
+        "frequency_hz": 26.5,
+        "pitch_twist_model": {
+          "kind": "linear_first_harmonic_along_span",
+          "enabled": true,
+          "ref_eta": 0.75,
+          "root_coeff_deg": {
+            "fore": 9.0,
+            "hind": 9.0
+          }
+        }
       },
       "kinematics": {
         "kind": "fourier_series_deg",
@@ -491,7 +500,16 @@
       "label": "Experiment 4",
       "dragonfly": "B",
       "simulation_defaults": {
-        "frequency_hz": 27.0
+        "frequency_hz": 27.0,
+        "pitch_twist_model": {
+          "kind": "linear_first_harmonic_along_span",
+          "enabled": true,
+          "ref_eta": 0.75,
+          "root_coeff_deg": {
+            "fore": 0.0,
+            "hind": 12.0
+          }
+        }
       },
       "kinematics": {
         "kind": "fourier_series_deg",

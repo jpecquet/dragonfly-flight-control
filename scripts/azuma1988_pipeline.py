@@ -97,13 +97,43 @@ DEFAULT_N_BLADE_ELEMENTS = 5
 # Coning angles (radians), loaded from case data.
 FORE_CONE_RAD = math.radians(float(AZUMA1988_SIM_DEFAULTS["coning_angles_deg"]["fore"]))
 HIND_CONE_RAD = math.radians(float(AZUMA1988_SIM_DEFAULTS["coning_angles_deg"]["hind"]))
-TWIST_EXP1_ROOT_COEFF_DEG = 9.0
-TWIST_REF_ETA = 0.75
+TWIST_FORMULA = "coeff(eta) = (coeff(ref_eta)-coeff(0))*(eta/ref_eta) + coeff(0)"
+TWIST_APPLIED_TO = "first harmonic coefficient magnitude of pitch series"
 
 
 def resolve_experiment_case(experiment_id: str | int | None) -> dict[str, Any]:
     exp_id = DEFAULT_EXPERIMENT_ID if experiment_id is None else str(experiment_id)
     return select_experiment(AZUMA1988_CASE, experiment_id=exp_id)
+
+
+def resolve_pitch_twist_model(experiment_case: dict[str, Any]) -> dict[str, Any]:
+    sim_defaults = experiment_case.get("simulation_defaults", {})
+    raw = sim_defaults.get("pitch_twist_model")
+    if not isinstance(raw, dict) or not bool(raw.get("enabled", False)):
+        return {"enabled": False}
+
+    root_obj = raw.get("root_coeff_deg")
+    if not isinstance(root_obj, dict):
+        raise ValueError("pitch_twist_model.root_coeff_deg must be an object with fore/hind values")
+
+    if "fore" not in root_obj or "hind" not in root_obj:
+        raise ValueError("pitch_twist_model.root_coeff_deg must define both 'fore' and 'hind'")
+
+    ref_eta = float(raw.get("ref_eta", 0.75))
+    if not math.isfinite(ref_eta) or ref_eta <= 0.0:
+        raise ValueError(f"pitch_twist_model.ref_eta must be finite and > 0 (got {ref_eta})")
+
+    return {
+        "kind": str(raw.get("kind", "linear_first_harmonic_along_span")),
+        "enabled": True,
+        "ref_eta": ref_eta,
+        "root_coeff_deg": {
+            "fore": float(root_obj["fore"]),
+            "hind": float(root_obj["hind"]),
+        },
+        "formula": str(raw.get("formula", TWIST_FORMULA)),
+        "applied_to": str(raw.get("applied_to", TWIST_APPLIED_TO)),
+    }
 
 
 def azuma1988_wing_motion(
@@ -154,22 +184,6 @@ def azuma1988_wing_motion(
         "fore": math.degrees(FORE_CONE_RAD),
         "hind": math.degrees(HIND_CONE_RAD),
     }
-    if str(experiment_id) == "1":
-        mapping_summary["pitch_twist_model"] = {
-            "kind": "linear_first_harmonic_along_span",
-            "enabled": True,
-            "ref_eta": TWIST_REF_ETA,
-            "root_coeff_deg": {
-                "fore": TWIST_EXP1_ROOT_COEFF_DEG,
-                "hind": TWIST_EXP1_ROOT_COEFF_DEG,
-            },
-            "formula": "coeff(eta) = (coeff(ref_eta)-coeff(0))*(eta/ref_eta) + coeff(0)",
-            "applied_to": "first harmonic coefficient magnitude of pitch series",
-        }
-    else:
-        mapping_summary["pitch_twist_model"] = {
-            "enabled": False,
-        }
     return wing_motion, mapping_summary
 
 
@@ -220,6 +234,7 @@ def build_sim_cfg(
     wing_cd0: float,
     wing_cl0: float,
     wing_motion: dict[str, dict[str, Any]],
+    pitch_twist_model: dict[str, Any],
     ux0: float,
     uy0: float,
     uz0: float,
@@ -228,9 +243,14 @@ def build_sim_cfg(
 
     fore = wing_motion["fore"]
     hind = wing_motion["hind"]
-    enable_twist_model = str(experiment_id) == "1"
-    twist_root_deg = TWIST_EXP1_ROOT_COEFF_DEG if enable_twist_model else None
-    twist_ref_eta = TWIST_REF_ETA if enable_twist_model else None
+    twist_enabled = bool(pitch_twist_model.get("enabled", False))
+    twist_ref_eta = float(pitch_twist_model["ref_eta"]) if twist_enabled else None
+    fore_twist_root_deg = (
+        float(pitch_twist_model["root_coeff_deg"]["fore"]) if twist_enabled else None
+    )
+    hind_twist_root_deg = (
+        float(pitch_twist_model["root_coeff_deg"]["hind"]) if twist_enabled else None
+    )
     gamma_mean_global = 0.5 * (float(fore["gamma_mean"]) + float(hind["gamma_mean"]))
     phi_mean_global = 0.5 * (float(fore["phi_mean"]) + float(hind["phi_mean"]))
     psi_mean_global = 0.5 * (float(fore["psi_mean"]) + float(hind["psi_mean"]))
@@ -238,22 +258,22 @@ def build_sim_cfg(
     fore_left = build_wing_block(
         name="fore", side="left", wing_mu0=fore_mu0, wing_lb0=fore_lb0,
         phase=0.0, drag_coeff_set="azuma1988", lift_model="linear", lift_coeff_set="azuma1988", motion=fore,
-        cone=FORE_CONE_RAD, psi_twist_h1_root_deg=twist_root_deg, psi_twist_ref_eta=twist_ref_eta,
+        cone=FORE_CONE_RAD, psi_twist_h1_root_deg=fore_twist_root_deg, psi_twist_ref_eta=twist_ref_eta,
     )
     fore_right = build_wing_block(
         name="fore", side="right", wing_mu0=fore_mu0, wing_lb0=fore_lb0,
         phase=0.0, drag_coeff_set="azuma1988", lift_model="linear", lift_coeff_set="azuma1988", motion=fore,
-        cone=FORE_CONE_RAD, psi_twist_h1_root_deg=twist_root_deg, psi_twist_ref_eta=twist_ref_eta,
+        cone=FORE_CONE_RAD, psi_twist_h1_root_deg=fore_twist_root_deg, psi_twist_ref_eta=twist_ref_eta,
     )
     hind_left = build_wing_block(
         name="hind", side="left", wing_mu0=hind_mu0, wing_lb0=hind_lb0,
         phase=0.0, drag_coeff_set="azuma1988", lift_model="linear", lift_coeff_set="azuma1988", motion=hind,
-        cone=HIND_CONE_RAD, psi_twist_h1_root_deg=twist_root_deg, psi_twist_ref_eta=twist_ref_eta,
+        cone=HIND_CONE_RAD, psi_twist_h1_root_deg=hind_twist_root_deg, psi_twist_ref_eta=twist_ref_eta,
     )
     hind_right = build_wing_block(
         name="hind", side="right", wing_mu0=hind_mu0, wing_lb0=hind_lb0,
         phase=0.0, drag_coeff_set="azuma1988", lift_model="linear", lift_coeff_set="azuma1988", motion=hind,
-        cone=HIND_CONE_RAD, psi_twist_h1_root_deg=twist_root_deg, psi_twist_ref_eta=twist_ref_eta,
+        cone=HIND_CONE_RAD, psi_twist_h1_root_deg=hind_twist_root_deg, psi_twist_ref_eta=twist_ref_eta,
     )
 
     return f"""# Auto-generated by scripts/azuma1988_pipeline.py
@@ -318,6 +338,7 @@ def stage_translate(run_dir: Path, params: PipelineParams, *, experiment_id: str
         body_mass_kg=params.body_mass_kg,
         rho_air=params.rho_air,
     )
+    pitch_twist_model = resolve_pitch_twist_model(experiment_case)
     wing_motion, mapping_summary = azuma1988_wing_motion(
         experiment_id=experiment_id,
         n_harmonics=n_harmonics,
@@ -325,6 +346,7 @@ def stage_translate(run_dir: Path, params: PipelineParams, *, experiment_id: str
         fore_stroke_plane_deg=params.fore_stroke_plane_deg,
         hind_stroke_plane_deg=params.hind_stroke_plane_deg,
     )
+    mapping_summary["pitch_twist_model"] = pitch_twist_model
     initial_velocity_nd, initial_velocity_meta = initial_velocity_from_experiment(
         experiment_case,
         body_length_m=params.body_length_m,
@@ -349,6 +371,7 @@ def stage_translate(run_dir: Path, params: PipelineParams, *, experiment_id: str
         wing_cd0=params.wing_cd0,
         wing_cl0=params.wing_cl0,
         wing_motion=wing_motion,
+        pitch_twist_model=pitch_twist_model,
         ux0=initial_velocity_nd["ux0"],
         uy0=initial_velocity_nd["uy0"],
         uz0=initial_velocity_nd["uz0"],

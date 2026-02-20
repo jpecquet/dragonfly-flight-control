@@ -30,6 +30,11 @@ class TestCaseData(unittest.TestCase):
         exp4 = select_experiment(case, experiment_id="4")
         self.assertEqual(exp4["selected_experiment"]["id"], "4")
         self.assertAlmostEqual(float(exp4["simulation_defaults"]["frequency_hz"]), 27.0, places=12)
+        twist = exp4["simulation_defaults"]["pitch_twist_model"]
+        self.assertTrue(bool(twist["enabled"]))
+        self.assertAlmostEqual(float(twist["ref_eta"]), 0.75, places=12)
+        self.assertAlmostEqual(float(twist["root_coeff_deg"]["fore"]), 0.0, places=12)
+        self.assertAlmostEqual(float(twist["root_coeff_deg"]["hind"]), 12.0, places=12)
         self.assertAlmostEqual(float(exp4["kinematics"]["angles"]["fore"]["gamma"]["mean_deg"]), 63.0, places=12)
 
         ref = find_output_reference(

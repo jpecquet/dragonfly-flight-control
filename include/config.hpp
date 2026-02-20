@@ -34,7 +34,7 @@ struct WingConfigEntry {
     bool has_Cl_max = false;
     double Cl_max = 0.0;
     double phase = 0.0;
-    double cone = 0.0;  // Coning angle (radians): tilts the wing's flapping plane about the stroke direction
+    double cone = 0.0;  // Beta angle from stroke plane (radians): sets flap-cone half-angle (pi/2 - beta)
     int n_blade_elements = 0;  // Optional per-wing override. 0 means "use global/default"
     bool has_psi_twist_h1_root_deg = false;
     double psi_twist_h1_root_deg = 0.0;  // Optional first-harmonic pitch coefficient at root (degrees)
