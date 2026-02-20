@@ -32,25 +32,23 @@ from post.style import apply_matplotlib_style, figure_size, resolve_style
 
 
 # ---------------------------------------------------------------------------
-# Fourier series helpers (match evaluateHarmonicValue / evaluateHarmonicRate
+# Harmonic series helpers (match evaluateHarmonicValue / evaluateHarmonicRate
 # in include/kinematics.hpp)
 # ---------------------------------------------------------------------------
 
-def _eval_series(cos_c, sin_c, phase):
-    """Evaluate sum_k [ c_k*cos(k*phase) + s_k*sin(k*phase) ] over a phase array."""
+def _eval_series(amp_c, phase_c, phase):
+    """Evaluate sum_k [ A_k*cos(k*phase + B_k) ] over a phase array."""
     val = np.zeros_like(phase)
-    for k, (c, s) in enumerate(zip(cos_c, sin_c), 1):
-        arg = k * phase
-        val += c * np.cos(arg) + s * np.sin(arg)
+    for k, (amp, phase_off) in enumerate(zip(amp_c, phase_c), 1):
+        val += amp * np.cos((k * phase) + phase_off)
     return val
 
 
-def _eval_series_dot(cos_c, sin_c, basis_omega, phase):
+def _eval_series_dot(amp_c, phase_c, basis_omega, phase):
     """Time derivative of _eval_series (via chain rule with d_phase/dt = basis_omega)."""
     val = np.zeros_like(phase)
-    for k, (c, s) in enumerate(zip(cos_c, sin_c), 1):
-        arg = k * phase
-        val += k * basis_omega * (-c * np.sin(arg) + s * np.cos(arg))
+    for k, (amp, phase_off) in enumerate(zip(amp_c, phase_c), 1):
+        val += -k * basis_omega * amp * np.sin((k * phase) + phase_off)
     return val
 
 
@@ -59,20 +57,20 @@ def _eval_series_dot(cos_c, sin_c, basis_omega, phase):
 # ---------------------------------------------------------------------------
 
 def _read_angle_params(filename, wing_names_param):
-    """Read per-wing phi and gamma Fourier parameters from the HDF5 file."""
+    """Read per-wing phi and gamma harmonic parameters from the HDF5 file."""
     angles = {}
     with h5py.File(filename, 'r') as f:
         for angle in ('phi', 'gamma'):
             mean_arr = f[f'/parameters/wings/{angle}_mean'][:]
-            cos_arr  = f[f'/parameters/wings/{angle}_cos'][:]
-            sin_arr  = f[f'/parameters/wings/{angle}_sin'][:]
+            amp_arr  = f[f'/parameters/wings/{angle}_amp'][:]
+            phase_arr  = f[f'/parameters/wings/{angle}_phase'][:]
             angles[f'{angle}_mean'] = dict(zip(wing_names_param, mean_arr))
-            angles[f'{angle}_cos']  = {
-                name: np.asarray(cos_arr[i], dtype=float)
+            angles[f'{angle}_amp']  = {
+                name: np.asarray(amp_arr[i], dtype=float)
                 for i, name in enumerate(wing_names_param)
             }
-            angles[f'{angle}_sin']  = {
-                name: np.asarray(sin_arr[i], dtype=float)
+            angles[f'{angle}_phase']  = {
+                name: np.asarray(phase_arr[i], dtype=float)
                 for i, name in enumerate(wing_names_param)
             }
     return angles
@@ -96,14 +94,14 @@ def _compute_angles(time, wing_name, params, angle_params):
     phase = basis_omega * time + phase_off
 
     phi = float(angle_params['phi_mean'][wing_name]) + _eval_series(
-        angle_params['phi_cos'][wing_name], angle_params['phi_sin'][wing_name], phase)
+        angle_params['phi_amp'][wing_name], angle_params['phi_phase'][wing_name], phase)
     phi_dot = _eval_series_dot(
-        angle_params['phi_cos'][wing_name], angle_params['phi_sin'][wing_name], basis_omega, phase)
+        angle_params['phi_amp'][wing_name], angle_params['phi_phase'][wing_name], basis_omega, phase)
 
     gam_raw = float(angle_params['gamma_mean'][wing_name]) + _eval_series(
-        angle_params['gamma_cos'][wing_name], angle_params['gamma_sin'][wing_name], phase)
+        angle_params['gamma_amp'][wing_name], angle_params['gamma_phase'][wing_name], phase)
     gam_raw_dot = _eval_series_dot(
-        angle_params['gamma_cos'][wing_name], angle_params['gamma_sin'][wing_name], basis_omega, phase)
+        angle_params['gamma_amp'][wing_name], angle_params['gamma_phase'][wing_name], basis_omega, phase)
 
     return phi, phi_dot, gam_raw, gam_raw_dot
 

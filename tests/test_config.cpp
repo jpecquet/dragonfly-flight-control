@@ -548,8 +548,8 @@ bool testDoubleListParsing() {
     std::cout << "Test: getDoubleList parses comma-separated and bracketed lists\n";
 
     const std::string cfg_text =
-        "gamma_cos = 0.1, -0.2, 0.3\n"
-        "psi_sin = [0.0, 1.0, -1.0]\n"
+        "gamma_amp = 0.1, -0.2, 0.3\n"
+        "psi_phase = [0.0, 1.0, -1.0]\n"
         "\n"
         "[[wing]]\n"
         "name = fore\n"
@@ -564,18 +564,18 @@ bool testDoubleListParsing() {
     bool passed = true;
     try {
         Config cfg = Config::load(path.string());
-        std::vector<double> gamma = cfg.getDoubleList("gamma_cos");
-        std::vector<double> psi = cfg.getDoubleList("psi_sin");
+        std::vector<double> gamma = cfg.getDoubleList("gamma_amp");
+        std::vector<double> psi = cfg.getDoubleList("psi_phase");
 
         if (gamma.size() != 3 || std::abs(gamma[0] - 0.1) > 1e-12 ||
             std::abs(gamma[1] + 0.2) > 1e-12 || std::abs(gamma[2] - 0.3) > 1e-12) {
             passed = false;
-            std::cout << "  FAILED: gamma_cos parsed incorrectly\n";
+            std::cout << "  FAILED: gamma_amp parsed incorrectly\n";
         }
         if (psi.size() != 3 || std::abs(psi[0] - 0.0) > 1e-12 ||
             std::abs(psi[1] - 1.0) > 1e-12 || std::abs(psi[2] + 1.0) > 1e-12) {
             passed = false;
-            std::cout << "  FAILED: psi_sin parsed incorrectly\n";
+            std::cout << "  FAILED: psi_phase parsed incorrectly\n";
         }
     } catch (const std::exception& e) {
         passed = false;
@@ -591,7 +591,7 @@ bool testDoubleListStrictness() {
     std::cout << "Test: getDoubleList rejects malformed lists\n";
 
     const std::string cfg_text =
-        "gamma_cos = 0.1,,0.3\n"
+        "gamma_amp = 0.1,,0.3\n"
         "\n"
         "[[wing]]\n"
         "name = fore\n"
@@ -607,7 +607,7 @@ bool testDoubleListStrictness() {
     try {
         Config cfg = Config::load(path.string());
         passed = expectThrow([&]() {
-            (void)cfg.getDoubleList("gamma_cos");
+            (void)cfg.getDoubleList("gamma_amp");
         });
         if (!passed) {
             std::cout << "  FAILED: expected malformed list to throw\n";
@@ -627,12 +627,12 @@ bool testWingMotionOverrides() {
 
     const std::string cfg_text =
         "omega = 10.0\n"
-        "phi_cos = 0.2\n"
-        "phi_sin = 0.0\n"
+        "phi_amp = 0.2\n"
+        "phi_phase = 0.0\n"
         "gamma_mean = 1.0\n"
         "psi_mean = 0.5\n"
-        "psi_cos = 0.3\n"
-        "psi_sin = 0.0\n"
+        "psi_amp = 0.3\n"
+        "psi_phase = 0.0\n"
         "\n"
         "[[wing]]\n"
         "name = fore\n"
@@ -642,7 +642,7 @@ bool testWingMotionOverrides() {
         "Cd_min = 0.4\n"
         "Cl0 = 1.2\n"
         "phase = 0.0\n"
-        "phi_cos = 0.3, 0.1\n"
+        "phi_amp = 0.3, 0.1\n"
         "psi_mean = 0.7\n";
 
     fs::path path = writeTempConfig(cfg_text);
@@ -655,11 +655,11 @@ bool testWingMotionOverrides() {
             std::cout << "  FAILED: expected one wing\n";
         } else {
             const auto& overrides = wings[0].motion_overrides;
-            auto it_phi = overrides.find("phi_cos");
+            auto it_phi = overrides.find("phi_amp");
             auto it_psi = overrides.find("psi_mean");
             if (it_phi == overrides.end() || it_phi->second != "0.3, 0.1") {
                 passed = false;
-                std::cout << "  FAILED: missing or incorrect phi_cos override\n";
+                std::cout << "  FAILED: missing or incorrect phi_amp override\n";
             }
             if (it_psi == overrides.end() || it_psi->second != "0.7") {
                 passed = false;
@@ -676,13 +676,155 @@ bool testWingMotionOverrides() {
     return passed;
 }
 
+bool testAmpPhaseKinematicsParsing() {
+    std::cout << "Test: kinematics parse from *_amp/*_phase keys\n";
+
+    const std::string cfg_text =
+        "omega = 10.0\n"
+        "n_harmonics = 2\n"
+        "gamma_mean = 1.0\n"
+        "gamma_amp = 0.3, 0.0\n"
+        "gamma_phase = 0.1, 0.0\n"
+        "phi_mean = 0.0\n"
+        "phi_amp = 0.4, 0.2\n"
+        "phi_phase = 0.0, -0.3\n"
+        "psi_mean = 0.5\n"
+        "psi_amp = 0.7, 0.0\n"
+        "psi_phase = 0.2, 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd_min = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n"
+        "phi_amp = 0.45, 0.2\n";
+
+    fs::path path = writeTempConfig(cfg_text);
+    bool passed = true;
+    try {
+        Config cfg = Config::load(path.string());
+        SimKinematicParams kin = readKinematicParams(cfg);
+        auto wings = buildWingConfigs(cfg, kin);
+
+        if (kin.phi.amplitude_coeff.size() != 2 || kin.phi.phase_coeff.size() != 2) {
+            passed = false;
+            std::cout << "  FAILED: global phi harmonic sizes are incorrect\n";
+        } else {
+            if (std::abs(kin.phi.amplitude_coeff[0] - 0.4) > 1e-12 ||
+                std::abs(kin.phi.amplitude_coeff[1] - 0.2) > 1e-12 ||
+                std::abs(kin.phi.phase_coeff[0] - 0.0) > 1e-12 ||
+                std::abs(kin.phi.phase_coeff[1] + 0.3) > 1e-12) {
+                passed = false;
+                std::cout << "  FAILED: global phi amp/phase values are incorrect\n";
+            }
+        }
+
+        if (wings.size() != 1) {
+            passed = false;
+            std::cout << "  FAILED: expected one wing\n";
+        } else if (std::abs(wings[0].phi.amplitude_coeff[0] - 0.45) > 1e-12) {
+            passed = false;
+            std::cout << "  FAILED: per-wing phi_amp override was not applied\n";
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception: " << e.what() << "\n";
+    }
+
+    fs::remove(path);
+    std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
+    return passed;
+}
+
+bool testPartialAmpPhaseInputs() {
+    std::cout << "Test: partial *_amp/*_phase inputs default missing counterparts to zero\n";
+
+    const std::string global_partial_cfg =
+        "omega = 10.0\n"
+        "n_harmonics = 2\n"
+        "phi_mean = 0.0\n"
+        "phi_amp = 0.2, 0.1\n"
+        "psi_mean = 0.0\n"
+        "gamma_mean = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd_min = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n";
+
+    const std::string wing_partial_cfg =
+        "omega = 10.0\n"
+        "n_harmonics = 2\n"
+        "phi_mean = 0.0\n"
+        "phi_amp = 0.2, 0.1\n"
+        "phi_phase = 0.0, 0.0\n"
+        "psi_mean = 0.0\n"
+        "gamma_mean = 0.0\n"
+        "\n"
+        "[[wing]]\n"
+        "name = fore\n"
+        "side = left\n"
+        "mu0 = 0.075\n"
+        "lb0 = 0.75\n"
+        "Cd_min = 0.4\n"
+        "Cl0 = 1.2\n"
+        "phase = 0.0\n"
+        "phi_phase = 0.3, 0.1\n";
+
+    fs::path p_global = writeTempConfig(global_partial_cfg);
+    fs::path p_wing = writeTempConfig(wing_partial_cfg);
+
+    bool passed = true;
+    try {
+        Config cfg = Config::load(p_global.string());
+        SimKinematicParams kin = readKinematicParams(cfg);
+        if (kin.phi.phase_coeff.size() != 2 ||
+            std::abs(kin.phi.phase_coeff[0]) > 1e-12 ||
+            std::abs(kin.phi.phase_coeff[1]) > 1e-12) {
+            passed = false;
+            std::cout << "  FAILED: missing global phi_phase should default to zeros\n";
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception in global partial test: " << e.what() << "\n";
+    }
+
+    try {
+        Config cfg = Config::load(p_wing.string());
+        SimKinematicParams kin = readKinematicParams(cfg);
+        auto wings = buildWingConfigs(cfg, kin);
+        if (wings.size() != 1 ||
+            wings[0].phi.phase_coeff.size() != 2 ||
+            std::abs(wings[0].phi.phase_coeff[0] - 0.3) > 1e-12 ||
+            std::abs(wings[0].phi.phase_coeff[1] - 0.1) > 1e-12) {
+            passed = false;
+            std::cout << "  FAILED: per-wing phi_phase override was not applied\n";
+        }
+    } catch (const std::exception& e) {
+        passed = false;
+        std::cout << "  FAILED: unexpected exception in wing partial test: " << e.what() << "\n";
+    }
+
+    fs::remove(p_global);
+    fs::remove(p_wing);
+    std::cout << "  " << (passed ? "PASSED" : "FAILED") << "\n\n";
+    return passed;
+}
+
 bool testUnknownWingMotionKeysRejected() {
     std::cout << "Test: [[wing]] rejects unknown motion keys\n";
 
     const std::string cfg_text =
         "omega = 10.0\n"
-        "phi_cos = 0.2\n"
-        "phi_sin = 0.0\n"
+        "phi_amp = 0.2\n"
+        "phi_phase = 0.0\n"
         "\n"
         "[[wing]]\n"
         "name = fore\n"
@@ -887,8 +1029,8 @@ bool testPitchTwistParsing() {
         "gamma_mean = 1.0\n"
         "phi_mean = 0.0\n"
         "psi_mean = 0.0\n"
-        "psi_cos = 0.5\n"
-        "psi_sin = 0.0\n"
+        "psi_amp = 0.5\n"
+        "psi_phase = 0.0\n"
         "\n"
         "[[wing]]\n"
         "name = fore\n"
@@ -942,8 +1084,8 @@ bool testPitchTwistValidation() {
         "gamma_mean = 1.0\n"
         "phi_mean = 0.0\n"
         "psi_mean = 0.0\n"
-        "psi_cos = 0.5\n"
-        "psi_sin = 0.0\n"
+        "psi_amp = 0.5\n"
+        "psi_phase = 0.0\n"
         "\n"
         "[[wing]]\n"
         "name = fore\n"
@@ -982,7 +1124,7 @@ int main() {
     std::cout << "===================\n\n";
 
     int passed = 0;
-    const int total = 15;
+    const int total = 17;
 
     if (testInlineComments()) passed++;
     if (testStrictGlobalNumeric()) passed++;
@@ -993,6 +1135,8 @@ int main() {
     if (testDoubleListParsing()) passed++;
     if (testDoubleListStrictness()) passed++;
     if (testWingMotionOverrides()) passed++;
+    if (testAmpPhaseKinematicsParsing()) passed++;
+    if (testPartialAmpPhaseInputs()) passed++;
     if (testUnknownWingMotionKeysRejected()) passed++;
     if (testWingMotionOverrideFlagSemantics()) passed++;
     if (testBladeElementCountParsing()) passed++;

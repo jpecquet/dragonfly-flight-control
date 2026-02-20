@@ -77,14 +77,14 @@ class WingSeriesPaper:
 @dataclass(frozen=True)
 class SimWingMotion:
     gamma_mean: float
-    gamma_cos: tuple[float, ...]
-    gamma_sin: tuple[float, ...]
+    gamma_amp: tuple[float, ...]
+    gamma_phase: tuple[float, ...]
     phi_mean: float
-    phi_cos: tuple[float, ...]
-    phi_sin: tuple[float, ...]
+    phi_amp: tuple[float, ...]
+    phi_phase: tuple[float, ...]
     psi_mean: float
-    psi_cos: tuple[float, ...]
-    psi_sin: tuple[float, ...]
+    psi_amp: tuple[float, ...]
+    psi_phase: tuple[float, ...]
 
 
 @dataclass(frozen=True)
@@ -233,24 +233,31 @@ def _cos(x: Any) -> Any:
     return math.cos(float(x))
 
 
-def harmonic_coeffs_from_series_deg(
+def harmonic_amp_phase_from_series_deg(
     series_deg: HarmonicSeriesDeg,
     n_harmonics: int,
 ) -> tuple[float, list[float], list[float]]:
     if n_harmonics <= 0:
         raise ValueError("n_harmonics must be >= 1")
 
-    cos_coeff = [0.0] * n_harmonics
-    sin_coeff = [0.0] * n_harmonics
+    in_phase = [0.0] * n_harmonics
+    quadrature = [0.0] * n_harmonics
     for term in series_deg.terms:
         if term.harmonic < 1 or term.harmonic > n_harmonics:
             raise ValueError(f"harmonic index out of range: {term.harmonic}")
         idx = term.harmonic - 1
         phase_rad = math.radians(term.phase_deg)
         amp_rad = math.radians(term.amplitude_deg)
-        cos_coeff[idx] += amp_rad * math.cos(phase_rad)
-        sin_coeff[idx] += -amp_rad * math.sin(phase_rad)
-    return math.radians(series_deg.mean_deg), cos_coeff, sin_coeff
+        in_phase[idx] += amp_rad * math.cos(phase_rad)
+        quadrature[idx] += -amp_rad * math.sin(phase_rad)
+
+    amp_coeff = [0.0] * n_harmonics
+    phase_coeff = [0.0] * n_harmonics
+    for i, (x, y) in enumerate(zip(in_phase, quadrature)):
+        amp = math.hypot(x, y)
+        amp_coeff[i] = amp
+        phase_coeff[i] = math.atan2(-y, x) if amp > 1e-15 else 0.0
+    return math.radians(series_deg.mean_deg), amp_coeff, phase_coeff
 
 
 def build_sim_wing_motion(
@@ -259,19 +266,25 @@ def build_sim_wing_motion(
 ) -> dict[str, SimWingMotion]:
     out: dict[str, SimWingMotion] = {}
     for wing, series in adapter.sim_series().items():
-        gamma_mean, gamma_cos, gamma_sin = harmonic_coeffs_from_series_deg(series.gamma, n_harmonics=n_harmonics)
-        phi_mean, phi_cos, phi_sin = harmonic_coeffs_from_series_deg(series.phi, n_harmonics=n_harmonics)
-        psi_mean, psi_cos, psi_sin = harmonic_coeffs_from_series_deg(series.psi, n_harmonics=n_harmonics)
+        gamma_mean, gamma_amp, gamma_phase = harmonic_amp_phase_from_series_deg(
+            series.gamma, n_harmonics=n_harmonics
+        )
+        phi_mean, phi_amp, phi_phase = harmonic_amp_phase_from_series_deg(
+            series.phi, n_harmonics=n_harmonics
+        )
+        psi_mean, psi_amp, psi_phase = harmonic_amp_phase_from_series_deg(
+            series.psi, n_harmonics=n_harmonics
+        )
         out[wing] = SimWingMotion(
             gamma_mean=gamma_mean,
-            gamma_cos=tuple(gamma_cos),
-            gamma_sin=tuple(gamma_sin),
+            gamma_amp=tuple(gamma_amp),
+            gamma_phase=tuple(gamma_phase),
             phi_mean=phi_mean,
-            phi_cos=tuple(phi_cos),
-            phi_sin=tuple(phi_sin),
+            phi_amp=tuple(phi_amp),
+            phi_phase=tuple(phi_phase),
             psi_mean=psi_mean,
-            psi_cos=tuple(psi_cos),
-            psi_sin=tuple(psi_sin),
+            psi_amp=tuple(psi_amp),
+            psi_phase=tuple(psi_phase),
         )
     return out
 

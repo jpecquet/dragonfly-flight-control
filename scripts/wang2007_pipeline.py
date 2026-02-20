@@ -158,9 +158,17 @@ def fit_harmonic_series(
     coeff = np.linalg.lstsq(mat, y, rcond=None)[0]
 
     mean = float(coeff[0])
-    cos_coeff = [float(coeff[1 + 2 * (k - 1)]) for k in range(1, n_harmonics + 1)]
-    sin_coeff = [float(coeff[2 + 2 * (k - 1)]) for k in range(1, n_harmonics + 1)]
-    return mean, cos_coeff, sin_coeff
+    amp_coeff: list[float] = []
+    phase_coeff: list[float] = []
+    for k in range(1, n_harmonics + 1):
+        in_phase = float(coeff[1 + 2 * (k - 1)])
+        quadrature = float(coeff[2 + 2 * (k - 1)])
+        c = in_phase
+        s = quadrature
+        amp = math.hypot(float(c), float(s))
+        amp_coeff.append(amp)
+        phase_coeff.append(math.atan2(-float(s), float(c)) if amp > 1e-15 else 0.0)
+    return mean, amp_coeff, phase_coeff
 
 
 def compute_smoothed_motion_mapping(
@@ -201,16 +209,16 @@ def compute_smoothed_motion_mapping(
     psi_fore = np.pi / 2.0 - np.radians(bf)
     psi_hind = np.pi / 2.0 - np.radians(bh)
 
-    phi_fore_mean, phi_fore_cos, phi_fore_sin = fit_harmonic_series(
+    phi_fore_mean, phi_fore_amp, phi_fore_phase = fit_harmonic_series(
         common, t_sf, phi_fore, n_harmonics, harmonic_period_wingbeats
     )
-    phi_hind_mean, phi_hind_cos, phi_hind_sin = fit_harmonic_series(
+    phi_hind_mean, phi_hind_amp, phi_hind_phase = fit_harmonic_series(
         common, t_sh, phi_hind, n_harmonics, harmonic_period_wingbeats
     )
-    psi_fore_mean, psi_fore_cos, psi_fore_sin = fit_harmonic_series(
+    psi_fore_mean, psi_fore_amp, psi_fore_phase = fit_harmonic_series(
         common, t_bf, psi_fore, n_harmonics, harmonic_period_wingbeats
     )
-    psi_hind_mean, psi_hind_cos, psi_hind_sin = fit_harmonic_series(
+    psi_hind_mean, psi_hind_amp, psi_hind_phase = fit_harmonic_series(
         common, t_bh, psi_hind, n_harmonics, harmonic_period_wingbeats
     )
 
@@ -225,7 +233,8 @@ def compute_smoothed_motion_mapping(
         "source": "smoothed_experimental_data",
         "method": {
             "smoothing": "fourier_truncation",
-            "series_basis": "least_squares in cos(k*2*pi*t) + sin(k*2*pi*t)",
+            "series_basis": "least_squares harmonic basis",
+            "output_parameterization": "A*cos(k*2*pi*t + B)",
             "n_harmonics": n_harmonics,
             "harmonics_per_wingbeat_for_smoothing": smooth_harmonics_per_wingbeat,
         },
@@ -245,25 +254,25 @@ def compute_smoothed_motion_mapping(
         "wing_motion_overrides": {
             "fore": {
                 "gamma_mean": gamma_fore,
-                "gamma_cos": zero.copy(),
-                "gamma_sin": zero.copy(),
+                "gamma_amp": zero.copy(),
+                "gamma_phase": zero.copy(),
                 "phi_mean": phi_fore_mean,
-                "phi_cos": phi_fore_cos,
-                "phi_sin": phi_fore_sin,
+                "phi_amp": phi_fore_amp,
+                "phi_phase": phi_fore_phase,
                 "psi_mean": psi_fore_mean,
-                "psi_cos": psi_fore_cos,
-                "psi_sin": psi_fore_sin,
+                "psi_amp": psi_fore_amp,
+                "psi_phase": psi_fore_phase,
             },
             "hind": {
                 "gamma_mean": gamma_hind,
-                "gamma_cos": zero.copy(),
-                "gamma_sin": zero.copy(),
+                "gamma_amp": zero.copy(),
+                "gamma_phase": zero.copy(),
                 "phi_mean": phi_hind_mean,
-                "phi_cos": phi_hind_cos,
-                "phi_sin": phi_hind_sin,
+                "phi_amp": phi_hind_amp,
+                "phi_phase": phi_hind_phase,
                 "psi_mean": psi_hind_mean,
-                "psi_cos": psi_hind_cos,
-                "psi_sin": psi_hind_sin,
+                "psi_amp": psi_hind_amp,
+                "psi_phase": psi_hind_phase,
             },
         },
         "notes": [

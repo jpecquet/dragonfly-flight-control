@@ -60,16 +60,16 @@ def read_simulation(filename):
         if "/parameters/wings/omega" in f:
             wing_omega = f["/parameters/wings/omega"][:]
             params["wing_omega"] = dict(zip(wing_names_param, wing_omega))
-        if "/parameters/wings/psi_cos" in f:
-            psi_cos = f["/parameters/wings/psi_cos"][:]
-            params["wing_psi_cos"] = {
-                name: np.asarray(psi_cos[i], dtype=float)
+        if "/parameters/wings/psi_amp" in f:
+            psi_amp = f["/parameters/wings/psi_amp"][:]
+            params["wing_psi_amp"] = {
+                name: np.asarray(psi_amp[i], dtype=float)
                 for i, name in enumerate(wing_names_param)
             }
-        if "/parameters/wings/psi_sin" in f:
-            psi_sin = f["/parameters/wings/psi_sin"][:]
-            params["wing_psi_sin"] = {
-                name: np.asarray(psi_sin[i], dtype=float)
+        if "/parameters/wings/psi_phase" in f:
+            psi_phase = f["/parameters/wings/psi_phase"][:]
+            params["wing_psi_phase"] = {
+                name: np.asarray(psi_phase[i], dtype=float)
                 for i, name in enumerate(wing_names_param)
             }
 

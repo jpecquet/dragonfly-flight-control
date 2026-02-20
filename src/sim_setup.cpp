@@ -67,13 +67,14 @@ void loadAngleSeries(const Config& cfg, const std::string& prefix,
                      int n_harmonics, double default_mean,
                      HarmonicSeries& out) {
     const std::string mean_key = prefix + "_mean";
-    const std::string cos_key = prefix + "_cos";
-    const std::string sin_key = prefix + "_sin";
+    const std::string amp_key = prefix + "_amp";
+    const std::string phase_key = prefix + "_phase";
+
     out.mean = cfg.getDouble(mean_key, default_mean);
-    out.cos_coeff = cfg.getDoubleList(cos_key, zeroHarmonics(n_harmonics));
-    out.sin_coeff = cfg.getDoubleList(sin_key, zeroHarmonics(n_harmonics));
-    requireHarmonicLength(out.cos_coeff, n_harmonics, cos_key);
-    requireHarmonicLength(out.sin_coeff, n_harmonics, sin_key);
+    out.amplitude_coeff = cfg.getDoubleList(amp_key, zeroHarmonics(n_harmonics));
+    out.phase_coeff = cfg.getDoubleList(phase_key, zeroHarmonics(n_harmonics));
+    requireHarmonicLength(out.amplitude_coeff, n_harmonics, amp_key);
+    requireHarmonicLength(out.phase_coeff, n_harmonics, phase_key);
 }
 
 void applyWingAngleOverrides(
@@ -84,33 +85,37 @@ void applyWingAngleOverrides(
     HarmonicSeries& series
 ) {
     const std::string mean_key = prefix + "_mean";
-    const std::string cos_key = prefix + "_cos";
-    const std::string sin_key = prefix + "_sin";
+    const std::string amp_key = prefix + "_amp";
+    const std::string phase_key = prefix + "_phase";
 
     const std::string* mean_val = findOverride(entry, mean_key);
-    const std::string* cos_val = findOverride(entry, cos_key);
-    const std::string* sin_val = findOverride(entry, sin_key);
+    const std::string* amp_val = findOverride(entry, amp_key);
+    const std::string* phase_val = findOverride(entry, phase_key);
 
     if (mean_val != nullptr) {
         series.mean = parseutil::parseDoubleStrict(*mean_val, "wing '" + wing_label + "' key '" + mean_key + "'");
     }
 
-    if (cos_val != nullptr) {
-        series.cos_coeff = parseutil::parseDoubleListStrict(*cos_val,
-                                                     "wing '" + wing_label + "' key '" + cos_key + "'");
-        requireHarmonicLength(series.cos_coeff, n_harmonics, "wing '" + wing_label + "' key '" + cos_key + "'");
+    if (amp_val != nullptr) {
+        series.amplitude_coeff = parseutil::parseDoubleListStrict(
+            *amp_val,
+            "wing '" + wing_label + "' key '" + amp_key + "'"
+        );
+        requireHarmonicLength(series.amplitude_coeff, n_harmonics, "wing '" + wing_label + "' key '" + amp_key + "'");
     }
-    if (sin_val != nullptr) {
-        series.sin_coeff = parseutil::parseDoubleListStrict(*sin_val,
-                                                     "wing '" + wing_label + "' key '" + sin_key + "'");
-        requireHarmonicLength(series.sin_coeff, n_harmonics, "wing '" + wing_label + "' key '" + sin_key + "'");
+    if (phase_val != nullptr) {
+        series.phase_coeff = parseutil::parseDoubleListStrict(
+            *phase_val,
+            "wing '" + wing_label + "' key '" + phase_key + "'"
+        );
+        requireHarmonicLength(series.phase_coeff, n_harmonics, "wing '" + wing_label + "' key '" + phase_key + "'");
     }
 }
 
 void ensureHarmonicSize(HarmonicSeries& series, int n_harmonics) {
     const auto n = static_cast<size_t>(n_harmonics);
-    if (series.cos_coeff.size() != n) series.cos_coeff.resize(n, 0.0);
-    if (series.sin_coeff.size() != n) series.sin_coeff.resize(n, 0.0);
+    if (series.amplitude_coeff.size() != n) series.amplitude_coeff.resize(n, 0.0);
+    if (series.phase_coeff.size() != n) series.phase_coeff.resize(n, 0.0);
 }
 
 void populateWingMotion(
@@ -408,7 +413,7 @@ std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinema
         );
         PitchTwistH1Model twist;
         if (w.has_psi_twist_h1) {
-            if (motion.psi.cos_coeff.empty() || motion.psi.sin_coeff.empty()) {
+            if (motion.psi.amplitude_coeff.empty() || motion.psi.phase_coeff.empty()) {
                 throw std::runtime_error(
                     "wing '" + w.name + "' pitch twist requires at least 1 psi harmonic coefficient"
                 );
@@ -416,8 +421,10 @@ std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinema
             twist.enabled = true;
             twist.root_coeff = w.psi_twist_h1_root;
             twist.ref_eta = w.psi_twist_ref_eta;
-            twist.c1 = motion.psi.cos_coeff[0];
-            twist.s1 = motion.psi.sin_coeff[0];
+            const double amp1 = motion.psi.amplitude_coeff[0];
+            const double phase1 = motion.psi.phase_coeff[0];
+            twist.c1 = amp1 * std::cos(phase1);
+            twist.s1 = -amp1 * std::sin(phase1);
             twist.basis_omega = motion.omega / motion.harmonic_period_wingbeats;
             twist.phase_offset = w.phase_offset;
         }

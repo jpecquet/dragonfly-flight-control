@@ -11,9 +11,7 @@ namespace {
 
 // Compute the first-harmonic amplitude of a HarmonicSeries
 double firstHarmonicAmplitude(const HarmonicSeries& s) {
-    const double c1 = s.cos_coeff.empty() ? 0.0 : s.cos_coeff[0];
-    const double s1 = s.sin_coeff.empty() ? 0.0 : s.sin_coeff[0];
-    return std::hypot(c1, s1);
+    return s.amplitude_coeff.empty() ? 0.0 : s.amplitude_coeff[0];
 }
 
 void applyControlOutput(const ControlOutput& ctrl,

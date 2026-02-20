@@ -40,7 +40,7 @@ class TestMotionMapping(unittest.TestCase):
         self.assertEqual(m["parameters"]["n_harmonics"], 7)
         for wing in ("fore", "hind"):
             ov = m["wing_motion_overrides"][wing]
-            for key in ("phi_cos", "phi_sin", "psi_cos", "psi_sin", "gamma_cos", "gamma_sin"):
+            for key in ("phi_amp", "phi_phase", "psi_amp", "psi_phase", "gamma_amp", "gamma_phase"):
                 self.assertEqual(len(ov[key]), 7, f"{wing}/{key} should have 7 harmonics")
 
     def test_1_harmonic_structure(self):
@@ -48,7 +48,7 @@ class TestMotionMapping(unittest.TestCase):
         self.assertEqual(m["method"]["n_harmonics"], 1)
         for wing in ("fore", "hind"):
             ov = m["wing_motion_overrides"][wing]
-            for key in ("phi_cos", "phi_sin", "psi_cos", "psi_sin"):
+            for key in ("phi_amp", "phi_phase", "psi_amp", "psi_phase"):
                 self.assertEqual(len(ov[key]), 1, f"{wing}/{key} should have 1 harmonic")
 
     def test_gamma_values(self):
@@ -84,7 +84,7 @@ class TestMotionMapping(unittest.TestCase):
         self.assertAlmostEqual(m["parameters"]["harmonic_period_wingbeats"], 5.0, places=12)
         for wing in ("fore", "hind"):
             ov = m["wing_motion_overrides"][wing]
-            for key in ("phi_cos", "phi_sin", "psi_cos", "psi_sin", "gamma_cos", "gamma_sin"):
+            for key in ("phi_amp", "phi_phase", "psi_amp", "psi_phase", "gamma_amp", "gamma_phase"):
                 self.assertEqual(len(ov[key]), 35, f"{wing}/{key} should have 35 coefficients")
 
     def test_default_wing_length_matches_explicit_default(self):
@@ -132,6 +132,7 @@ class TestReadAeroForceZ(unittest.TestCase):
 
             with h5py.File(str(h5_path), "w") as f:
                 f.create_dataset("/time", data=time)
+                f.create_dataset("/parameters/omega", data=np.float64(2.0 * np.pi))
                 # Wing A: lift_z=1, drag_z=2 at each step
                 lift_a = np.zeros((n_steps, 3))
                 lift_a[:, 2] = 1.0
@@ -147,9 +148,10 @@ class TestReadAeroForceZ(unittest.TestCase):
                 f.create_dataset("/wings/wing_b/lift", data=lift_b)
                 f.create_dataset("/wings/wing_b/drag", data=drag_b)
 
-            t, fz = read_aero_force_z(h5_path)
+            t, fz, omega = read_aero_force_z(h5_path)
             np.testing.assert_array_equal(t, time)
             np.testing.assert_allclose(fz, 10.0)  # 1+2+3+4 = 10
+            self.assertAlmostEqual(omega, 2.0 * math.pi, places=12)
 
 
 class TestBuildSimCfg(unittest.TestCase):
@@ -168,14 +170,14 @@ class TestBuildSimCfg(unittest.TestCase):
             "wing_phase_offsets": {"fore": 0.0, "hind": 0.0},
             "wing_motion_overrides": {
                 "fore": {
-                    "gamma_mean": 0.9, "gamma_cos": [0.0, 0.0, 0.0], "gamma_sin": [0.0, 0.0, 0.0],
-                    "phi_mean": 0.1, "phi_cos": [0.2, 0.0, 0.0], "phi_sin": [0.3, 0.0, 0.0],
-                    "psi_mean": 0.5, "psi_cos": [0.4, 0.0, 0.0], "psi_sin": [0.5, 0.0, 0.0],
+                    "gamma_mean": 0.9, "gamma_amp": [0.0, 0.0, 0.0], "gamma_phase": [0.0, 0.0, 0.0],
+                    "phi_mean": 0.1, "phi_amp": [0.2, 0.0, 0.0], "phi_phase": [0.3, 0.0, 0.0],
+                    "psi_mean": 0.5, "psi_amp": [0.4, 0.0, 0.0], "psi_phase": [0.5, 0.0, 0.0],
                 },
                 "hind": {
-                    "gamma_mean": 0.7, "gamma_cos": [0.0, 0.0, 0.0], "gamma_sin": [0.0, 0.0, 0.0],
-                    "phi_mean": 0.15, "phi_cos": [0.25, 0.0, 0.0], "phi_sin": [0.35, 0.0, 0.0],
-                    "psi_mean": 0.55, "psi_cos": [0.45, 0.0, 0.0], "psi_sin": [0.55, 0.0, 0.0],
+                    "gamma_mean": 0.7, "gamma_amp": [0.0, 0.0, 0.0], "gamma_phase": [0.0, 0.0, 0.0],
+                    "phi_mean": 0.15, "phi_amp": [0.25, 0.0, 0.0], "phi_phase": [0.35, 0.0, 0.0],
+                    "psi_mean": 0.55, "psi_amp": [0.45, 0.0, 0.0], "psi_phase": [0.55, 0.0, 0.0],
                 },
             },
         }

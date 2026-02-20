@@ -264,8 +264,8 @@ def _extract_wing_twist_h1(time_values, wing_names, params) -> Dict[str, Dict]:
     wing_phase = params.get("wing_phase_offset", {})
     wing_omega = params.get("wing_omega", {})
     wing_period = params.get("wing_harmonic_period_wingbeats", {})
-    psi_cos = params.get("wing_psi_cos", {})
-    psi_sin = params.get("wing_psi_sin", {})
+    psi_amp = params.get("wing_psi_amp", {})
+    psi_phase = params.get("wing_psi_phase", {})
 
     twist_payload = {}
     for wname in wing_names:
@@ -280,16 +280,14 @@ def _extract_wing_twist_h1(time_values, wing_names, params) -> Dict[str, Dict]:
         if ref_eta <= 0.0 or abs(period) <= 1e-12:
             continue
 
-        c1 = _first_harmonic_coeff(psi_cos.get(wname))
-        s1 = _first_harmonic_coeff(psi_sin.get(wname))
-        ref_coeff = math.hypot(c1, s1)
+        amp1 = _first_harmonic_coeff(psi_amp.get(wname))
+        phase1 = _first_harmonic_coeff(psi_phase.get(wname))
+        ref_coeff = abs(amp1)
         if ref_coeff <= 1e-12:
             continue
 
         basis_omega = omega / period
-        psi_h1 = c1 * np.cos(basis_omega * time_values + phase_offset) + s1 * np.sin(
-            basis_omega * time_values + phase_offset
-        )
+        psi_h1 = amp1 * np.cos(basis_omega * time_values + phase_offset + phase1)
         twist_payload[wname] = {
             "ref_eta": ref_eta,
             "root_coeff": root_coeff,

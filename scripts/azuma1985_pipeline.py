@@ -200,14 +200,14 @@ def azuma_wing_motion(
     for wing_name, motion in sim_motion.items():
         wing_motion[wing_name] = {
             "gamma_mean": motion.gamma_mean,
-            "gamma_cos": list(motion.gamma_cos),
-            "gamma_sin": list(motion.gamma_sin),
+            "gamma_amp": list(motion.gamma_amp),
+            "gamma_phase": list(motion.gamma_phase),
             "phi_mean": motion.phi_mean,
-            "phi_cos": list(motion.phi_cos),
-            "phi_sin": list(motion.phi_sin),
+            "phi_amp": list(motion.phi_amp),
+            "phi_phase": list(motion.phi_phase),
             "psi_mean": motion.psi_mean,
-            "psi_cos": list(motion.psi_cos),
-            "psi_sin": list(motion.psi_sin),
+            "psi_amp": list(motion.psi_amp),
+            "psi_phase": list(motion.psi_phase),
         }
 
     mapping_summary = resolved_adapter.summary()

@@ -4,10 +4,10 @@ Wing angles are represented as harmonic series (`include/kinematics.hpp`).
 
 ## Harmonic form
 
-For angle series with mean $m$, cosine coefficients $a_k$, and sine coefficients $b_k$:
+For angle series with mean $m$, harmonic amplitudes $A_k$, and per-harmonic phase offsets $B_k$:
 
 $$
-\theta(t) = m + \sum_{k=1}^{N}\left[a_k\cos\left(k\,\phi(t)\right) + b_k\sin\left(k\,\phi(t)\right)\right]
+\theta(t) = m + \sum_{k=1}^{N} A_k\cos\left(k\,\phi(t) + B_k\right)
 $$
 
 with phase argument:
@@ -23,7 +23,7 @@ where $\phi_0$ is per-wing phase offset.
 The implementation computes:
 
 $$
-\dot{\theta}(t) = \sum_{k=1}^{N} k\omega\left[-a_k\sin\left(k\,\phi(t)\right) + b_k\cos\left(k\,\phi(t)\right)\right]
+\dot{\theta}(t) = \sum_{k=1}^{N} -A_k\,k\omega\,\sin\left(k\,\phi(t) + B_k\right)
 $$
 
 ## Config mapping
@@ -31,10 +31,8 @@ $$
 Global keys in `.cfg`:
 
 - `n_harmonics`
-- `gamma_mean`, `gamma_cos`, `gamma_sin`
-- `phi_mean`, `phi_cos`, `phi_sin`
-- `psi_mean`, `psi_cos`, `psi_sin`
+- `gamma_mean`, `gamma_amp`, `gamma_phase`
+- `phi_mean`, `phi_amp`, `phi_phase`
+- `psi_mean`, `psi_amp`, `psi_phase`
 
 Per-wing `[[wing]]` blocks can override these values (`src/sim_setup.cpp`).
-
-Simulation configs support harmonic keys only (`*_cos`, `*_sin`, optional `*_mean`).

@@ -56,19 +56,19 @@ void writeAngleHarmonics(HighFive::File& file, const std::string& prefix,
     const size_t n = wingConfigs.size();
     std::vector<double> mean_vals;
     mean_vals.reserve(n);
-    Eigen::MatrixXd cos_mat(n, n_harmonics);
-    Eigen::MatrixXd sin_mat(n, n_harmonics);
+    Eigen::MatrixXd amp_mat(n, n_harmonics);
+    Eigen::MatrixXd phase_mat(n, n_harmonics);
 
     for (size_t i = 0; i < n; ++i) {
         const auto& series = wingConfigs[i].*angle;
         mean_vals.push_back(series.mean);
-        writeMatrixRow(cos_mat, static_cast<Eigen::Index>(i), series.cos_coeff);
-        writeMatrixRow(sin_mat, static_cast<Eigen::Index>(i), series.sin_coeff);
+        writeMatrixRow(amp_mat, static_cast<Eigen::Index>(i), series.amplitude_coeff);
+        writeMatrixRow(phase_mat, static_cast<Eigen::Index>(i), series.phase_coeff);
     }
 
     H5Easy::dump(file, "/parameters/wings/" + prefix + "_mean", mean_vals);
-    file.createDataSet("/parameters/wings/" + prefix + "_cos", cos_mat);
-    file.createDataSet("/parameters/wings/" + prefix + "_sin", sin_mat);
+    file.createDataSet("/parameters/wings/" + prefix + "_amp", amp_mat);
+    file.createDataSet("/parameters/wings/" + prefix + "_phase", phase_mat);
 }
 
 } // namespace
@@ -91,12 +91,12 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     for (auto& [name, val] : scalar_params) {
         H5Easy::dump(file, std::string("/parameters/") + name, val);
     }
-    H5Easy::dump(file, "/parameters/gamma_cos", k.gamma.cos_coeff);
-    H5Easy::dump(file, "/parameters/gamma_sin", k.gamma.sin_coeff);
-    H5Easy::dump(file, "/parameters/phi_cos", k.phi.cos_coeff);
-    H5Easy::dump(file, "/parameters/phi_sin", k.phi.sin_coeff);
-    H5Easy::dump(file, "/parameters/psi_cos", k.psi.cos_coeff);
-    H5Easy::dump(file, "/parameters/psi_sin", k.psi.sin_coeff);
+    H5Easy::dump(file, "/parameters/gamma_amp", k.gamma.amplitude_coeff);
+    H5Easy::dump(file, "/parameters/gamma_phase", k.gamma.phase_coeff);
+    H5Easy::dump(file, "/parameters/phi_amp", k.phi.amplitude_coeff);
+    H5Easy::dump(file, "/parameters/phi_phase", k.phi.phase_coeff);
+    H5Easy::dump(file, "/parameters/psi_amp", k.psi.amplitude_coeff);
+    H5Easy::dump(file, "/parameters/psi_phase", k.psi.phase_coeff);
 
     // Write wing configurations
     size_t num_configs = output.wingConfigs.size();
@@ -165,7 +165,7 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     if (have_wing_motion) {
         for (const auto& wc : output.wingConfigs) {
             for (const auto* s : {&wc.gamma, &wc.phi, &wc.psi}) {
-                if (s->cos_coeff.size() != n_harmonics || s->sin_coeff.size() != n_harmonics) {
+                if (s->amplitude_coeff.size() != n_harmonics || s->phase_coeff.size() != n_harmonics) {
                     have_wing_motion = false;
                     break;
                 }

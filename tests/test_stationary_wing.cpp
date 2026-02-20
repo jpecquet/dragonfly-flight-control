@@ -262,8 +262,8 @@ int main() {
         twist_model.enabled = true;
         twist_model.root_coeff = 9.0 * M_PI / 180.0;
         twist_model.ref_eta = 0.75;
-        twist_model.c1 = psi_series.cos_coeff[0];
-        twist_model.s1 = psi_series.sin_coeff[0];
+        twist_model.c1 = psi_series.amplitude_coeff[0] * std::cos(psi_series.phase_coeff[0]);
+        twist_model.s1 = -psi_series.amplitude_coeff[0] * std::sin(psi_series.phase_coeff[0]);
         twist_model.basis_omega = 1.0;
         twist_model.phase_offset = 0.0;
         Wing wing_with_twist(

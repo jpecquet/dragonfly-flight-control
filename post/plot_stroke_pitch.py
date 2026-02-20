@@ -32,25 +32,23 @@ from post.style import apply_matplotlib_style, figure_size, resolve_style
 
 
 # ---------------------------------------------------------------------------
-# Fourier series helpers (match evaluateHarmonicValue / evaluateHarmonicRate
+# Harmonic series helpers (match evaluateHarmonicValue / evaluateHarmonicRate
 # in include/kinematics.hpp)
 # ---------------------------------------------------------------------------
 
-def _eval_series(cos_c, sin_c, phase):
-    """Evaluate sum_k [ c_k*cos(k*phase) + s_k*sin(k*phase) ] over a phase array."""
+def _eval_series(amp_c, phase_c, phase):
+    """Evaluate sum_k [ A_k*cos(k*phase + B_k) ] over a phase array."""
     val = np.zeros_like(phase)
-    for k, (c, s) in enumerate(zip(cos_c, sin_c), 1):
-        arg = k * phase
-        val += c * np.cos(arg) + s * np.sin(arg)
+    for k, (amp, phase_off) in enumerate(zip(amp_c, phase_c), 1):
+        val += amp * np.cos((k * phase) + phase_off)
     return val
 
 
-def _eval_series_dot(cos_c, sin_c, basis_omega, phase):
+def _eval_series_dot(amp_c, phase_c, basis_omega, phase):
     """Time derivative of _eval_series (via chain rule with d_phase/dt = basis_omega)."""
     val = np.zeros_like(phase)
-    for k, (c, s) in enumerate(zip(cos_c, sin_c), 1):
-        arg = k * phase
-        val += k * basis_omega * (-c * np.sin(arg) + s * np.cos(arg))
+    for k, (amp, phase_off) in enumerate(zip(amp_c, phase_c), 1):
+        val += -k * basis_omega * amp * np.sin((k * phase) + phase_off)
     return val
 
 
@@ -59,20 +57,20 @@ def _eval_series_dot(cos_c, sin_c, basis_omega, phase):
 # ---------------------------------------------------------------------------
 
 def _read_angle_params(filename, wing_names_param):
-    """Read per-wing phi/psi Fourier parameters from the HDF5 file."""
+    """Read per-wing phi/psi harmonic parameters from the HDF5 file."""
     angles = {}
     with h5py.File(filename, 'r') as f:
         for angle in ('phi', 'psi'):
             mean_arr = f[f'/parameters/wings/{angle}_mean'][:]
-            cos_arr  = f[f'/parameters/wings/{angle}_cos'][:]
-            sin_arr  = f[f'/parameters/wings/{angle}_sin'][:]
+            amp_arr  = f[f'/parameters/wings/{angle}_amp'][:]
+            phase_arr  = f[f'/parameters/wings/{angle}_phase'][:]
             angles[f'{angle}_mean'] = dict(zip(wing_names_param, mean_arr))
-            angles[f'{angle}_cos']  = {
-                name: np.asarray(cos_arr[i], dtype=float)
+            angles[f'{angle}_amp']  = {
+                name: np.asarray(amp_arr[i], dtype=float)
                 for i, name in enumerate(wing_names_param)
             }
-            angles[f'{angle}_sin']  = {
-                name: np.asarray(sin_arr[i], dtype=float)
+            angles[f'{angle}_phase']  = {
+                name: np.asarray(phase_arr[i], dtype=float)
                 for i, name in enumerate(wing_names_param)
             }
     return angles
@@ -93,12 +91,12 @@ def _compute_angles(time, wing_name, params, angle_params):
     phase = basis_omega * time + phase_off
 
     phi = float(angle_params['phi_mean'][wing_name]) + _eval_series(
-        angle_params['phi_cos'][wing_name], angle_params['phi_sin'][wing_name], phase)
+        angle_params['phi_amp'][wing_name], angle_params['phi_phase'][wing_name], phase)
     phi_dot = _eval_series_dot(
-        angle_params['phi_cos'][wing_name], angle_params['phi_sin'][wing_name], basis_omega, phase)
+        angle_params['phi_amp'][wing_name], angle_params['phi_phase'][wing_name], basis_omega, phase)
 
     psi = float(angle_params['psi_mean'][wing_name]) + _eval_series(
-        angle_params['psi_cos'][wing_name], angle_params['psi_sin'][wing_name], phase)
+        angle_params['psi_amp'][wing_name], angle_params['psi_phase'][wing_name], phase)
 
     return phi, phi_dot, psi, phase
 
@@ -107,7 +105,7 @@ def _compute_angles(time, wing_name, params, angle_params):
 # Pitch computation
 # ---------------------------------------------------------------------------
 
-def _pitch_grid(psi, phase, psi_cos, psi_sin, has_twist, twist_root, twist_ref_eta, eta):
+def _pitch_grid(psi, phase, psi_amp, psi_phase, has_twist, twist_root, twist_ref_eta, eta):
     """
     Compute pitch angle (degrees) over (time, span), including optional twist.
 
@@ -121,19 +119,19 @@ def _pitch_grid(psi, phase, psi_cos, psi_sin, has_twist, twist_root, twist_ref_e
     pitch = np.repeat(np.degrees(psi)[:, None], len(eta), axis=1)
     if not has_twist:
         return pitch
-    if len(psi_cos) == 0 or len(psi_sin) == 0:
+    if len(psi_amp) == 0 or len(psi_phase) == 0:
         return pitch
     if not np.isfinite(twist_ref_eta) or twist_ref_eta <= 0.0:
         return pitch
 
-    c1 = float(psi_cos[0])
-    s1 = float(psi_sin[0])
-    ref_coeff = np.hypot(c1, s1)
+    amp1 = float(psi_amp[0])
+    phase1 = float(psi_phase[0])
+    ref_coeff = abs(amp1)
     if ref_coeff <= 1e-12:
         return pitch
 
     # First-harmonic pitch component at reference station.
-    psi_h1 = c1 * np.cos(phase) + s1 * np.sin(phase)
+    psi_h1 = amp1 * np.cos(phase + phase1)
     # Spanwise scale from wing.cpp buildTwistH1Scales.
     coeff_eta = ((ref_coeff - twist_root) * (eta / twist_ref_eta)) + twist_root
     scale_eta = coeff_eta / ref_coeff
@@ -238,8 +236,8 @@ def plot_stroke_pitch(
     has_twist = bool(params.get('wing_has_psi_twist_h1', {}).get(wing_name, 0))
     twist_root = float(params.get('wing_psi_twist_h1_root', {}).get(wing_name, 0.0))
     twist_ref_eta = float(params.get('wing_psi_twist_ref_eta', {}).get(wing_name, 0.75))
-    psi_cos = np.asarray(angle_params['psi_cos'][wing_name], dtype=float)
-    psi_sin = np.asarray(angle_params['psi_sin'][wing_name], dtype=float)
+    psi_amp = np.asarray(angle_params['psi_amp'][wing_name], dtype=float)
+    psi_phase = np.asarray(angle_params['psi_phase'][wing_name], dtype=float)
 
     # Span stations including the exact root so both fans meet at a center tip.
     eta = np.linspace(0.0, 1.0, n_eta + 1)
@@ -249,12 +247,12 @@ def plot_stroke_pitch(
 
     if stroke == 'both':
         _plot_combined(
-            output_path, phi, phi_dot, psi, phase, psi_cos, psi_sin,
+            output_path, phi, phi_dot, psi, phase, psi_amp, psi_phase,
             phi_mean, lb0, eta, style, has_twist, twist_root, twist_ref_eta,
         )
     else:
         _plot_single(
-            output_path, phi, phi_dot, psi, phase, psi_cos, psi_sin,
+            output_path, phi, phi_dot, psi, phase, psi_amp, psi_phase,
             stroke, lb0, eta, style, has_twist, twist_root, twist_ref_eta,
         )
 
@@ -276,7 +274,7 @@ def _select_half(phi, phi_dot, side):
 
 
 def _plot_combined(
-    output_path, phi, phi_dot, psi, phase, psi_cos, psi_sin,
+    output_path, phi, phi_dot, psi, phase, psi_amp, psi_phase,
     phi_mean, lb0, eta, style, has_twist, twist_root, twist_ref_eta,
 ):
     """Split-fan plot: downstroke right, upstroke left, no frame or axes."""
@@ -289,11 +287,11 @@ def _plot_combined(
     phi_d = phi[idx_down]
     phi_u = phi[idx_up]
     pitch_down_raw = _pitch_grid(
-        psi[idx_down], phase[idx_down], psi_cos, psi_sin,
+        psi[idx_down], phase[idx_down], psi_amp, psi_phase,
         has_twist, twist_root, twist_ref_eta, eta,
     )
     pitch_up_raw = _pitch_grid(
-        psi[idx_up], phase[idx_up], psi_cos, psi_sin,
+        psi[idx_up], phase[idx_up], psi_amp, psi_phase,
         has_twist, twist_root, twist_ref_eta, eta,
     )
     phi_d, pitch_down = _resample_field(phi_d, pitch_down_raw)
@@ -397,7 +395,7 @@ def _plot_combined(
 
 
 def _plot_single(
-    output_path, phi, phi_dot, psi, phase, psi_cos, psi_sin,
+    output_path, phi, phi_dot, psi, phase, psi_amp, psi_phase,
     stroke, lb0, eta, style, has_twist, twist_root, twist_ref_eta,
 ):
     """Single half-stroke fan plot (downstroke or upstroke)."""
@@ -414,7 +412,7 @@ def _plot_single(
     phi_sel = phi_sel[sort_order]
 
     pitch_raw = _pitch_grid(
-        psi[idx], phase[idx], psi_cos, psi_sin,
+        psi[idx], phase[idx], psi_amp, psi_phase,
         has_twist, twist_root, twist_ref_eta, eta,
     )
     phi_sel, pitch = _resample_field(phi_sel, pitch_raw)

@@ -41,12 +41,17 @@ CHORD_FW_MM = 6.60
 CHORD_HW_MM = 8.40
 
 
-def eval_sim_harmonics(t_nondim: np.ndarray, mean_rad: float, cos_coeff: tuple[float, ...], sin_coeff: tuple[float, ...]) -> np.ndarray:
-    """Evaluate simulator harmonic series mean + sum(a_k cos + b_k sin)."""
+def eval_sim_harmonics(
+    t_nondim: np.ndarray,
+    mean_rad: float,
+    amp_coeff: tuple[float, ...],
+    phase_coeff: tuple[float, ...],
+) -> np.ndarray:
+    """Evaluate simulator harmonic series mean + sum(A_k cos(k*w*t + B_k))."""
     w_t = 2.0 * np.pi * t_nondim
     out = np.full_like(t_nondim, float(mean_rad), dtype=float)
-    for k, (a_k, b_k) in enumerate(zip(cos_coeff, sin_coeff), start=1):
-        out += float(a_k) * np.cos(k * w_t) + float(b_k) * np.sin(k * w_t)
+    for k, (a_k, b_k) in enumerate(zip(amp_coeff, phase_coeff), start=1):
+        out += float(a_k) * np.cos(k * w_t + float(b_k))
     return out
 
 
@@ -73,10 +78,10 @@ def model_kinematics(t_nondim: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.n
     """Model traces generated from the same paper->sim mapping used by the pipeline."""
     fore = AZUMA_SIM_MOTION["fore"]
     hind = AZUMA_SIM_MOTION["hind"]
-    phi_fw_sim = eval_sim_harmonics(t_nondim, fore.phi_mean, fore.phi_cos, fore.phi_sin)
-    phi_hw_sim = eval_sim_harmonics(t_nondim, hind.phi_mean, hind.phi_cos, hind.phi_sin)
-    psi_fw_sim = eval_sim_harmonics(t_nondim, fore.psi_mean, fore.psi_cos, fore.psi_sin)
-    psi_hw_sim = eval_sim_harmonics(t_nondim, hind.psi_mean, hind.psi_cos, hind.psi_sin)
+    phi_fw_sim = eval_sim_harmonics(t_nondim, fore.phi_mean, fore.phi_amp, fore.phi_phase)
+    phi_hw_sim = eval_sim_harmonics(t_nondim, hind.phi_mean, hind.phi_amp, hind.phi_phase)
+    psi_fw_sim = eval_sim_harmonics(t_nondim, fore.psi_mean, fore.psi_amp, fore.psi_phase)
+    psi_hw_sim = eval_sim_harmonics(t_nondim, hind.psi_mean, hind.psi_amp, hind.psi_phase)
 
     # Convert back to paper notation so the overlay remains in the experimental plotting convention.
     phi_transform = AZUMA_ADAPTER.sim_transforms["phi"]

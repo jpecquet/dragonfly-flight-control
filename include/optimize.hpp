@@ -20,14 +20,14 @@ struct KinematicParam {
 struct KinematicParams {
     KinematicParam omega;       // Wing beat frequency
     KinematicParam gamma_mean;  // Mean stroke plane angle
-    KinematicParam gamma_cos;   // First harmonic cosine coefficient for gamma
-    KinematicParam gamma_sin;   // First harmonic sine coefficient for gamma
+    KinematicParam gamma_amp;   // First harmonic amplitude for gamma
+    KinematicParam gamma_phase; // First harmonic phase for gamma
     KinematicParam phi_mean;    // Mean stroke angle
-    KinematicParam phi_cos;     // First harmonic cosine coefficient for phi
-    KinematicParam phi_sin;     // First harmonic sine coefficient for phi
+    KinematicParam phi_amp;     // First harmonic amplitude for phi
+    KinematicParam phi_phase;   // First harmonic phase for phi
     KinematicParam psi_mean;    // Mean pitch angle
-    KinematicParam psi_cos;     // First harmonic cosine coefficient for psi
-    KinematicParam psi_sin;     // First harmonic sine coefficient for psi
+    KinematicParam psi_amp;     // First harmonic amplitude for psi
+    KinematicParam psi_phase;   // First harmonic phase for psi
 
     // Get list of variable parameter names
     std::vector<std::string> variableNames() const;
@@ -60,10 +60,10 @@ private:
     template<typename Self, typename Func>
     static void forEachParamImpl(Self& self, Func&& f) {
         f("omega", self.omega); f("gamma_mean", self.gamma_mean);
-        f("gamma_cos", self.gamma_cos); f("gamma_sin", self.gamma_sin);
-        f("phi_mean", self.phi_mean); f("phi_cos", self.phi_cos);
-        f("phi_sin", self.phi_sin); f("psi_mean", self.psi_mean);
-        f("psi_cos", self.psi_cos); f("psi_sin", self.psi_sin);
+        f("gamma_amp", self.gamma_amp); f("gamma_phase", self.gamma_phase);
+        f("phi_mean", self.phi_mean); f("phi_amp", self.phi_amp);
+        f("phi_phase", self.phi_phase); f("psi_mean", self.psi_mean);
+        f("psi_amp", self.psi_amp); f("psi_phase", self.psi_phase);
     }
 
     template<typename Func>

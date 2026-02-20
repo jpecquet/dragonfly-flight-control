@@ -113,7 +113,7 @@ class TestAzuma1988Experiments(unittest.TestCase):
         self.assertAlmostEqual(float(twist["root_coeff_deg"]["fore"]), 9.0, places=12)
         self.assertAlmostEqual(float(twist["root_coeff_deg"]["hind"]), 9.0, places=12)
         self.assertIn("n_blade_elements = 5", cfg_text)
-        self.assertEqual(cfg_text.count("psi_twist_h1_root_deg = -9.000000000000"), 4)
+        self.assertEqual(cfg_text.count("psi_twist_h1_root_deg = 9.000000000000"), 4)
         self.assertEqual(cfg_text.count("psi_twist_ref_eta = 0.750000000000"), 4)
 
     def test_non_experiment1_disables_linear_pitch_twist_model(self):
@@ -145,7 +145,7 @@ class TestAzuma1988Experiments(unittest.TestCase):
         self.assertAlmostEqual(float(twist["root_coeff_deg"]["hind"]), 12.0, places=12)
         self.assertIn("n_blade_elements = 5", cfg_text)
         self.assertEqual(cfg_text.count("psi_twist_h1_root_deg = 0.000000000000"), 2)
-        self.assertEqual(cfg_text.count("psi_twist_h1_root_deg = -12.000000000000"), 2)
+        self.assertEqual(cfg_text.count("psi_twist_h1_root_deg = 12.000000000000"), 2)
         self.assertEqual(cfg_text.count("psi_twist_ref_eta = 0.750000000000"), 4)
 
 

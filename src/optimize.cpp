@@ -122,14 +122,14 @@ KinematicParams KinematicParams::fromConfig(const Config& cfg) {
     KinematicParams params;
     params.omega = parseParam(cfg, "omega");
     params.gamma_mean = parseParam(cfg, "gamma_mean");
-    params.gamma_cos = parseParam(cfg, "gamma_cos", 0.0);
-    params.gamma_sin = parseParam(cfg, "gamma_sin", 0.0);
+    params.gamma_amp = parseParam(cfg, "gamma_amp", 0.0);
+    params.gamma_phase = parseParam(cfg, "gamma_phase", 0.0);
     params.phi_mean = parseParam(cfg, "phi_mean", 0.0);
-    params.phi_cos = parseParam(cfg, "phi_cos");
-    params.phi_sin = parseParam(cfg, "phi_sin", 0.0);
+    params.phi_amp = parseParam(cfg, "phi_amp");
+    params.phi_phase = parseParam(cfg, "phi_phase", 0.0);
     params.psi_mean = parseParam(cfg, "psi_mean");
-    params.psi_cos = parseParam(cfg, "psi_cos");
-    params.psi_sin = parseParam(cfg, "psi_sin", 0.0);
+    params.psi_amp = parseParam(cfg, "psi_amp");
+    params.psi_phase = parseParam(cfg, "psi_phase", 0.0);
     return params;
 }
 
@@ -155,9 +155,9 @@ static SimKinematicParams toSimParams(const KinematicParams& kin) {
     out.omega = kin.omega.value;
     out.harmonic_period_wingbeats = 1.0;
     out.n_harmonics = 1;
-    out.gamma = {kin.gamma_mean.value, {kin.gamma_cos.value}, {kin.gamma_sin.value}};
-    out.phi = {kin.phi_mean.value, {kin.phi_cos.value}, {kin.phi_sin.value}};
-    out.psi = {kin.psi_mean.value, {kin.psi_cos.value}, {kin.psi_sin.value}};
+    out.gamma = {kin.gamma_mean.value, {kin.gamma_amp.value}, {kin.gamma_phase.value}};
+    out.phi = {kin.phi_mean.value, {kin.phi_amp.value}, {kin.phi_phase.value}};
+    out.psi = {kin.psi_mean.value, {kin.psi_amp.value}, {kin.psi_phase.value}};
     return out;
 }
 

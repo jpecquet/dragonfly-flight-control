@@ -20,8 +20,8 @@ using AngleFunc = std::function<WingAngles(double t)>;
 
 struct HarmonicSeries {
     double mean = 0.0;
-    std::vector<double> cos_coeff;
-    std::vector<double> sin_coeff;
+    std::vector<double> amplitude_coeff;
+    std::vector<double> phase_coeff;
 };
 
 struct MotionParams {
@@ -33,18 +33,18 @@ struct MotionParams {
 };
 
 inline void validateHarmonicSeries(const HarmonicSeries& series, const char* name) {
-    if (series.cos_coeff.size() != series.sin_coeff.size()) {
+    if (series.amplitude_coeff.size() != series.phase_coeff.size()) {
         throw std::runtime_error(std::string("Harmonic series '") + name +
-                                 "' has mismatched cos/sin coefficient lengths");
+                                 "' has mismatched amplitude/phase coefficient lengths");
     }
 }
 
 inline double evaluateHarmonicValue(const HarmonicSeries& series, double phase, double harmonic_scale = 1.0) {
     double value = series.mean;
-    for (size_t i = 0; i < series.cos_coeff.size(); ++i) {
+    for (size_t i = 0; i < series.amplitude_coeff.size(); ++i) {
         const double n_phase = static_cast<double>(i + 1) * phase;
-        value += harmonic_scale * (series.cos_coeff[i] * std::cos(n_phase) +
-                                   series.sin_coeff[i] * std::sin(n_phase));
+        value += harmonic_scale * series.amplitude_coeff[i] *
+                 std::cos(n_phase + series.phase_coeff[i]);
     }
     return value;
 }
@@ -52,12 +52,11 @@ inline double evaluateHarmonicValue(const HarmonicSeries& series, double phase, 
 inline double evaluateHarmonicRate(const HarmonicSeries& series, double phase,
                                    double omega, double harmonic_scale = 1.0) {
     double rate = 0.0;
-    for (size_t i = 0; i < series.cos_coeff.size(); ++i) {
+    for (size_t i = 0; i < series.amplitude_coeff.size(); ++i) {
         const double n = static_cast<double>(i + 1);
         const double n_phase = n * phase;
-        rate += harmonic_scale * n * omega *
-                (-series.cos_coeff[i] * std::sin(n_phase) +
-                 series.sin_coeff[i] * std::cos(n_phase));
+        rate += -harmonic_scale * n * omega * series.amplitude_coeff[i] *
+                std::sin(n_phase + series.phase_coeff[i]);
     }
     return rate;
 }

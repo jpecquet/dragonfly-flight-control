@@ -14,12 +14,12 @@ simulation_output.h5
 │   ├── gamma_mean           (scalar) - Mean stroke plane angle
 │   ├── phi_mean             (scalar) - Mean stroke angle
 │   ├── psi_mean             (scalar) - Mean pitch angle
-│   ├── gamma_cos            (array)  - gamma cosine coefficients [N]
-│   ├── gamma_sin            (array)  - gamma sine coefficients [N]
-│   ├── phi_cos              (array)  - phi cosine coefficients [N]
-│   ├── phi_sin              (array)  - phi sine coefficients [N]
-│   ├── psi_cos              (array)  - psi cosine coefficients [N]
-│   ├── psi_sin              (array)  - psi sine coefficients [N]
+│   ├── gamma_amp            (array)  - gamma harmonic amplitudes [N]
+│   ├── gamma_phase          (array)  - gamma harmonic phase offsets [N]
+│   ├── phi_amp              (array)  - phi harmonic amplitudes [N]
+│   ├── phi_phase            (array)  - phi harmonic phase offsets [N]
+│   ├── psi_amp              (array)  - psi harmonic amplitudes [N]
+│   ├── psi_phase            (array)  - psi harmonic phase offsets [N]
 │   └── /wings               (group)
 │       ├── count            (scalar) - Number of wings
 │       ├── names            (array)  - Wing names with side (e.g., "fore_left", "hind_right")
@@ -34,12 +34,12 @@ simulation_output.h5
 │       ├── gamma_mean       (array)  - Per-wing gamma means
 │       ├── phi_mean         (array)  - Per-wing phi means
 │       ├── psi_mean         (array)  - Per-wing psi means
-│       ├── gamma_cos        (matrix) [num_wings x N] - Per-wing gamma cosine coeffs
-│       ├── gamma_sin        (matrix) [num_wings x N] - Per-wing gamma sine coeffs
-│       ├── phi_cos          (matrix) [num_wings x N] - Per-wing phi cosine coeffs
-│       ├── phi_sin          (matrix) [num_wings x N] - Per-wing phi sine coeffs
-│       ├── psi_cos          (matrix) [num_wings x N] - Per-wing psi cosine coeffs
-│       └── psi_sin          (matrix) [num_wings x N] - Per-wing psi sine coeffs
+│       ├── gamma_amp        (matrix) [num_wings x N] - Per-wing gamma amplitudes
+│       ├── gamma_phase      (matrix) [num_wings x N] - Per-wing gamma phase offsets
+│       ├── phi_amp          (matrix) [num_wings x N] - Per-wing phi amplitudes
+│       ├── phi_phase        (matrix) [num_wings x N] - Per-wing phi phase offsets
+│       ├── psi_amp          (matrix) [num_wings x N] - Per-wing psi amplitudes
+│       └── psi_phase        (matrix) [num_wings x N] - Per-wing psi phase offsets
 │
 ├── /time                    (dataset) [N] - Time values
 │
@@ -84,7 +84,7 @@ Wing group names are constructed from the config-defined name combined with the 
 |-------|-----------|-------------|
 | omega, means | `H5T_NATIVE_DOUBLE` | Scalar 64-bit floats |
 | n_harmonics | `H5T_NATIVE_INT` | Number of harmonics in coefficient arrays |
-| *_cos, *_sin | `H5T_NATIVE_DOUBLE` | 1D arrays of length N |
+| *_amp, *_phase | `H5T_NATIVE_DOUBLE` | 1D arrays of length N |
 | names | Variable-length string | Wing name strings |
 | Wing config arrays | `H5T_NATIVE_DOUBLE` | 1D arrays, length = num_wings |
 | wing has_custom_motion | `H5T_NATIVE_INT` | 1D array, length = num_wings |

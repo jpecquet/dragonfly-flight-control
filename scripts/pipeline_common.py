@@ -79,6 +79,26 @@ def fmt_list(values: list[float]) -> str:
     return ", ".join(fmt(float(x)) for x in values)
 
 
+def _series_amp_phase_from_motion(motion: dict[str, Any], prefix: str) -> tuple[list[float], list[float]]:
+    amp_key = f"{prefix}_amp"
+    phase_key = f"{prefix}_phase"
+
+    amp_values = [float(x) for x in motion.get(amp_key, [])]
+    phase_values = [float(x) for x in motion.get(phase_key, [])]
+    if not amp_values and phase_values:
+        amp_values = [0.0] * len(phase_values)
+    if not phase_values and amp_values:
+        phase_values = [0.0] * len(amp_values)
+    if len(amp_values) != len(phase_values):
+        raise ValueError(f"{amp_key} and {phase_key} must have matching lengths")
+    if amp_values or phase_values:
+        return amp_values, phase_values
+
+    raise ValueError(
+        f"motion is missing harmonic keys for '{prefix}' (expected {amp_key}/{phase_key})"
+    )
+
+
 def build_wing_block(
     name: str,
     side: str,
@@ -131,17 +151,20 @@ def build_wing_block(
         lines.append(f"psi_twist_ref_eta = {fmt(float(psi_twist_ref_eta))}")
 
     if motion is not None:
+        gamma_amp, gamma_phase = _series_amp_phase_from_motion(motion, "gamma")
+        phi_amp, phi_phase = _series_amp_phase_from_motion(motion, "phi")
+        psi_amp, psi_phase = _series_amp_phase_from_motion(motion, "psi")
         lines.extend(
             [
                 f"gamma_mean = {fmt(float(motion['gamma_mean']))}",
-                f"gamma_cos = {fmt_list([float(x) for x in motion['gamma_cos']])}",
-                f"gamma_sin = {fmt_list([float(x) for x in motion['gamma_sin']])}",
+                f"gamma_amp = {fmt_list(gamma_amp)}",
+                f"gamma_phase = {fmt_list(gamma_phase)}",
                 f"phi_mean = {fmt(float(motion['phi_mean']))}",
-                f"phi_cos = {fmt_list([float(x) for x in motion['phi_cos']])}",
-                f"phi_sin = {fmt_list([float(x) for x in motion['phi_sin']])}",
+                f"phi_amp = {fmt_list(phi_amp)}",
+                f"phi_phase = {fmt_list(phi_phase)}",
                 f"psi_mean = {fmt(float(motion['psi_mean']))}",
-                f"psi_cos = {fmt_list([float(x) for x in motion['psi_cos']])}",
-                f"psi_sin = {fmt_list([float(x) for x in motion['psi_sin']])}",
+                f"psi_amp = {fmt_list(psi_amp)}",
+                f"psi_phase = {fmt_list(psi_phase)}",
             ]
         )
 
