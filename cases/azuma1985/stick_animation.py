@@ -8,19 +8,15 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from post.style import figure_size
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPTS_DIR = REPO_ROOT / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
-from experimental_conventions import azuma1985_adapter, build_sim_wing_motion
+from scripts.experimental_conventions import azuma1985_adapter, build_sim_wing_motion
 
 plt.rcParams.update({
     "font.family": "serif",

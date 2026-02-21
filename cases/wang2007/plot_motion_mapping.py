@@ -3,7 +3,7 @@
 Plot Wang 2007 simulator-angle mapping from smoothed experimental inputs.
 
 Usage:
-    python -m post.plot_wang2007_motion_mapping <out.png> [--theme light|dark]
+    python -m cases.wang2007.plot_motion_mapping <out.png> [--theme light|dark]
 """
 
 from __future__ import annotations
@@ -11,22 +11,18 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 
-from post.plot_wang2007_kinematics import (
+from cases.wang2007.plot_kinematics import (
     DEFAULT_N_COMPONENTS,
     DEFAULT_N_POINTS,
     DEFAULT_N_WINGBEATS,
     compute_smoothed_kinematics,
     load_common_module,
 )
-from post.style import apply_matplotlib_style, figure_size, resolve_style
+from post.time_series import plot_fore_hind_series
 
-try:
-    from case_data import load_case_data
-except ModuleNotFoundError:
-    from scripts.case_data import load_case_data
+from scripts.case_data import load_case_data
 
 
 WANG2007_CASE = load_case_data("wang2007")
@@ -89,42 +85,14 @@ def plot_motion_mapping(
         n_points=n_points,
         wing_length_mm=wing_length_mm,
     )
-
-    style = resolve_style(theme=theme)
-    apply_matplotlib_style(style)
-
-    fig, axes = plt.subplots(
-        nrows=2,
-        ncols=1,
-        sharex=True,
-        figsize=figure_size(height_over_width=PLOT_HEIGHT_OVER_WIDTH),
+    plot_fore_hind_series(
+        output_path, series,
+        rows=[
+            ("phi_fore_deg", "phi_hind_deg", r"$\phi$ (deg)"),
+            ("psi_fore_deg", "psi_hind_deg", r"$\psi$ (deg)"),
+        ],
+        height_over_width=PLOT_HEIGHT_OVER_WIDTH, theme=theme,
     )
-    t = series["t"]
-
-    rows = [
-        ("phi_fore_deg", "phi_hind_deg", r"$\phi$ (deg)"),
-        ("psi_fore_deg", "psi_hind_deg", r"$\psi$ (deg)"),
-    ]
-
-    for ax, (fore_key, hind_key, ylabel) in zip(axes, rows):
-        ax.plot(t, series[fore_key], linewidth=1.5, label="Forewing", color="C0")
-        ax.plot(t, series[hind_key], linewidth=1.5, label="Hindwing", color="C1")
-        ax.set_ylabel(ylabel)
-        ax.grid(True, alpha=0.25)
-
-    axes[0].legend(
-        loc="lower center",
-        bbox_to_anchor=(0.5, 1.03),
-        ncol=2,
-        fontsize=10.0,
-    )
-    axes[-1].set_xlabel(r"$t/T_{wb}$")
-    axes[-1].set_xlim(float(t[0]), float(t[-1]))
-    fig.tight_layout()
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(str(output_path), dpi=300, bbox_inches="tight")
-    plt.close(fig)
 
 
 def main() -> int:

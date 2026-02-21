@@ -1,3 +1,4 @@
+#include "cmd_args.hpp"
 #include "cmd_optim.hpp"
 #include "cmd_plot.hpp"
 #include "cmd_sim.hpp"
@@ -11,10 +12,6 @@
 
 namespace {
 
-bool isHelpFlag(const std::string& arg) {
-    return arg == "-h" || arg == "--help";
-}
-
 enum class ConfigArgStatus { Ok, Help, Error };
 
 ConfigArgStatus parseConfigPath(int argc, char* argv[],
@@ -24,7 +21,7 @@ ConfigArgStatus parseConfigPath(int argc, char* argv[],
 
     for (int i = 2; i < argc; ++i) {
         const std::string arg = argv[i];
-        if (isHelpFlag(arg)) {
+        if (cliarg::isHelpFlag(arg)) {
             return ConfigArgStatus::Help;
         }
         if (arg == "-c" || arg == "--config") {
@@ -93,7 +90,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::string command = argv[1];
-    if (isHelpFlag(command)) {
+    if (cliarg::isHelpFlag(command)) {
         printUsage(argv[0]);
         return 0;
     }

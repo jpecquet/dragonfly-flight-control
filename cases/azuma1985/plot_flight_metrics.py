@@ -3,7 +3,7 @@
 Plot Azuma 1985 body-flight metrics against experimental references.
 
 Usage:
-    python -m post.plot_azuma1985_flight_metrics <input.h5> <out.png> [--theme light|dark]
+    python -m cases.azuma1985.plot_flight_metrics <input.h5> <out.png> [--theme light|dark]
 """
 
 from __future__ import annotations
@@ -19,10 +19,7 @@ import numpy as np
 
 from post.style import apply_matplotlib_style, figure_size, resolve_style
 
-try:
-    from case_data import find_output_reference, load_case_data
-except ModuleNotFoundError:
-    from scripts.case_data import find_output_reference, load_case_data
+from scripts.case_data import find_output_reference, load_case_data
 
 
 AZUMA1985_CASE = load_case_data("azuma1985")

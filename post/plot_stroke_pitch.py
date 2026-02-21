@@ -28,52 +28,9 @@ import numpy as np
 from matplotlib.patches import FancyArrowPatch
 
 from post.io import decode_string_array, read_simulation
+from post.kinematics import eval_series, eval_series_dot, read_angle_params
+from post.stroke_common import fan_grid_from_phi, resample_field, select_half
 from post.style import apply_matplotlib_style, figure_size, resolve_style
-
-
-# ---------------------------------------------------------------------------
-# Harmonic series helpers (match evaluateHarmonicValue / evaluateHarmonicRate
-# in include/kinematics.hpp)
-# ---------------------------------------------------------------------------
-
-def _eval_series(amp_c, phase_c, phase):
-    """Evaluate sum_k [ A_k*cos(k*phase + B_k) ] over a phase array."""
-    val = np.zeros_like(phase)
-    for k, (amp, phase_off) in enumerate(zip(amp_c, phase_c), 1):
-        val += amp * np.cos((k * phase) + phase_off)
-    return val
-
-
-def _eval_series_dot(amp_c, phase_c, basis_omega, phase):
-    """Time derivative of _eval_series (via chain rule with d_phase/dt = basis_omega)."""
-    val = np.zeros_like(phase)
-    for k, (amp, phase_off) in enumerate(zip(amp_c, phase_c), 1):
-        val += -k * basis_omega * amp * np.sin((k * phase) + phase_off)
-    return val
-
-
-# ---------------------------------------------------------------------------
-# HDF5 reading
-# ---------------------------------------------------------------------------
-
-def _read_angle_params(filename, wing_names_param):
-    """Read per-wing phi/psi harmonic parameters from the HDF5 file."""
-    angles = {}
-    with h5py.File(filename, 'r') as f:
-        for angle in ('phi', 'psi'):
-            mean_arr = f[f'/parameters/wings/{angle}_mean'][:]
-            amp_arr  = f[f'/parameters/wings/{angle}_amp'][:]
-            phase_arr  = f[f'/parameters/wings/{angle}_phase'][:]
-            angles[f'{angle}_mean'] = dict(zip(wing_names_param, mean_arr))
-            angles[f'{angle}_amp']  = {
-                name: np.asarray(amp_arr[i], dtype=float)
-                for i, name in enumerate(wing_names_param)
-            }
-            angles[f'{angle}_phase']  = {
-                name: np.asarray(phase_arr[i], dtype=float)
-                for i, name in enumerate(wing_names_param)
-            }
-    return angles
 
 
 # ---------------------------------------------------------------------------
@@ -90,12 +47,12 @@ def _compute_angles(time, wing_name, params, angle_params):
     basis_omega = omega / period
     phase = basis_omega * time + phase_off
 
-    phi = float(angle_params['phi_mean'][wing_name]) + _eval_series(
+    phi = float(angle_params['phi_mean'][wing_name]) + eval_series(
         angle_params['phi_amp'][wing_name], angle_params['phi_phase'][wing_name], phase)
-    phi_dot = _eval_series_dot(
+    phi_dot = eval_series_dot(
         angle_params['phi_amp'][wing_name], angle_params['phi_phase'][wing_name], basis_omega, phase)
 
-    psi = float(angle_params['psi_mean'][wing_name]) + _eval_series(
+    psi = float(angle_params['psi_mean'][wing_name]) + eval_series(
         angle_params['psi_amp'][wing_name], angle_params['psi_phase'][wing_name], phase)
 
     return phi, phi_dot, psi, phase
@@ -139,73 +96,6 @@ def _pitch_grid(psi, phase, psi_amp, psi_phase, has_twist, twist_root, twist_ref
     return np.degrees(psi_eta)
 
 
-def _fan_grid_from_phi(phi_sel, phi_mean, eta, lb0, side):
-    """
-    Build fan coordinates from stroke angle for a side-oriented split fan.
-
-    side='right' maps contours to the right fan (downstroke).
-    side='left'  mirrors contours to the left fan (upstroke).
-    """
-    theta = np.asarray(phi_sel, dtype=float) - float(phi_mean)
-    r = eta * lb0
-    x = np.cos(theta)
-    y = np.sin(theta)
-    if side == 'left':
-        x = -x
-    X = np.outer(x, r)
-    Y = np.outer(y, r)
-    return X, Y
-
-
-def _smooth_along_axis(arr, window, axis):
-    """Edge-preserving moving average along one axis."""
-    if window <= 1:
-        return arr
-    pad = window // 2
-    pads = [(0, 0)] * arr.ndim
-    pads[axis] = (pad, pad)
-    padded = np.pad(arr, pads, mode='edge')
-    kernel = np.ones(window, dtype=float) / float(window)
-    return np.apply_along_axis(lambda x: np.convolve(x, kernel, mode='valid'), axis, padded)
-
-
-def _resample_field(phi_sel, field, n_phi=72, smooth_phi=13, smooth_eta=9):
-    """Interpolate a contour field onto a uniform stroke-angle grid and smooth it."""
-    phi_sel = np.asarray(phi_sel, dtype=float)
-    field = np.asarray(field, dtype=float)
-
-    order = np.argsort(phi_sel)
-    phi_sorted = phi_sel[order]
-    field_sorted = field[order]
-
-    phi_unique, unique_idx = np.unique(phi_sorted, return_index=True)
-    field_unique = field_sorted[unique_idx]
-    if len(phi_unique) < 2:
-        return phi_unique, field_unique
-
-    n_phi = max(16, int(n_phi))
-    phi_target = np.linspace(phi_unique[0], phi_unique[-1], n_phi)
-    field_target = np.empty((n_phi, field_unique.shape[1]), dtype=float)
-
-    for j in range(field_unique.shape[1]):
-        col = field_unique[:, j]
-        valid = np.isfinite(col)
-        if np.count_nonzero(valid) >= 2:
-            field_target[:, j] = np.interp(phi_target, phi_unique[valid], col[valid])
-        elif np.count_nonzero(valid) == 1:
-            field_target[:, j] = col[valid][0]
-        else:
-            field_target[:, j] = 0.0
-
-    field_target = _smooth_along_axis(field_target, window=smooth_phi, axis=0)
-    field_target = _smooth_along_axis(field_target, window=smooth_eta, axis=1)
-    return phi_target, field_target
-
-
-# ---------------------------------------------------------------------------
-# Main plotting function
-# ---------------------------------------------------------------------------
-
 def plot_stroke_pitch(
     output_path: Path,
     filename: str,
@@ -229,7 +119,7 @@ def plot_stroke_pitch(
     if wing_name not in wings:
         raise ValueError(f"Wing '{wing_name}' not found. Available: {sorted(wings.keys())}")
 
-    angle_params = _read_angle_params(filename, wing_names_param)
+    angle_params = read_angle_params(filename, wing_names_param, ('phi', 'psi'))
     lb0 = float(params['wing_lb0'][wing_name])
     phi, phi_dot, psi, phase = _compute_angles(time, wing_name, params, angle_params)
     phi_mean = float(angle_params['phi_mean'][wing_name])
@@ -257,30 +147,14 @@ def plot_stroke_pitch(
         )
 
 
-def _select_half(phi, phi_dot, side):
-    """
-    Select and sort timestep indices for one half of the stroke.
-
-    side='right': downstroke (phi_dot < 0)
-    side='left' : upstroke  (phi_dot >= 0)
-    """
-    if side == 'right':
-        mask = (phi_dot < 0)
-    else:
-        mask = (phi_dot >= 0)
-    idx = np.where(mask)[0]
-    idx = idx[np.argsort(phi[idx])]
-    return idx
-
-
 def _plot_combined(
     output_path, phi, phi_dot, psi, phase, psi_amp, psi_phase,
     phi_mean, lb0, eta, style, has_twist, twist_root, twist_ref_eta,
 ):
     """Split-fan plot: downstroke right, upstroke left, no frame or axes."""
     # --- select half-strokes ---
-    idx_down = _select_half(phi, phi_dot, 'right')
-    idx_up   = _select_half(phi, phi_dot, 'left')
+    idx_down = select_half(phi, phi_dot, 'right')
+    idx_up   = select_half(phi, phi_dot, 'left')
     if len(idx_down) == 0 or len(idx_up) == 0:
         raise ValueError("Both downstroke and upstroke timesteps are required for stroke='both'.")
 
@@ -294,12 +168,12 @@ def _plot_combined(
         psi[idx_up], phase[idx_up], psi_amp, psi_phase,
         has_twist, twist_root, twist_ref_eta, eta,
     )
-    phi_d, pitch_down = _resample_field(phi_d, pitch_down_raw)
-    phi_u, pitch_up = _resample_field(phi_u, pitch_up_raw)
+    phi_d, pitch_down = resample_field(phi_d, pitch_down_raw)
+    phi_u, pitch_up = resample_field(phi_u, pitch_up_raw)
 
     # Down fan on the right, up fan mirrored to the left.
-    X_down, Y_down = _fan_grid_from_phi(phi_d, phi_mean, eta, lb0, side='right')
-    X_up,   Y_up   = _fan_grid_from_phi(phi_u, phi_mean, eta, lb0, side='left')
+    X_down, Y_down = fan_grid_from_phi(phi_d, phi_mean, eta, lb0, side='right')
+    X_up,   Y_up   = fan_grid_from_phi(phi_u, phi_mean, eta, lb0, side='left')
 
     # Shared contour levels across both fans
     all_pitch = np.concatenate([pitch_down.ravel(), pitch_up.ravel()])
@@ -415,9 +289,9 @@ def _plot_single(
         psi[idx], phase[idx], psi_amp, psi_phase,
         has_twist, twist_root, twist_ref_eta, eta,
     )
-    phi_sel, pitch = _resample_field(phi_sel, pitch_raw)
+    phi_sel, pitch = resample_field(phi_sel, pitch_raw)
     side = 'right' if stroke == 'downstroke' else 'left'
-    X, Y = _fan_grid_from_phi(phi_sel, np.mean(phi_sel), eta, lb0, side=side)
+    X, Y = fan_grid_from_phi(phi_sel, np.mean(phi_sel), eta, lb0, side=side)
 
     finite = pitch[np.isfinite(pitch)]
     if finite.size == 0:

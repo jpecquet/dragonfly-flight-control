@@ -39,39 +39,21 @@ def read_simulation(filename):
         wing_names_param = decode_string_array(wing_names_raw)
         wing_lb0 = f["/parameters/wings/lb0"][:]
         params["wing_lb0"] = dict(zip(wing_names_param, wing_lb0))
-        if "/parameters/wings/n_blade_elements" in f:
-            wing_n_blades = f["/parameters/wings/n_blade_elements"][:]
-            params["wing_n_blade_elements"] = dict(zip(wing_names_param, wing_n_blades))
-        if "/parameters/wings/has_psi_twist_h1" in f:
-            has_twist = f["/parameters/wings/has_psi_twist_h1"][:]
-            params["wing_has_psi_twist_h1"] = dict(zip(wing_names_param, has_twist))
-        if "/parameters/wings/psi_twist_h1_root" in f:
-            twist_root = f["/parameters/wings/psi_twist_h1_root"][:]
-            params["wing_psi_twist_h1_root"] = dict(zip(wing_names_param, twist_root))
-        if "/parameters/wings/psi_twist_ref_eta" in f:
-            twist_ref_eta = f["/parameters/wings/psi_twist_ref_eta"][:]
-            params["wing_psi_twist_ref_eta"] = dict(zip(wing_names_param, twist_ref_eta))
-        if "/parameters/wings/phase_offset" in f:
-            wing_phase = f["/parameters/wings/phase_offset"][:]
-            params["wing_phase_offset"] = dict(zip(wing_names_param, wing_phase))
-        if "/parameters/wings/harmonic_period_wingbeats" in f:
-            wing_period = f["/parameters/wings/harmonic_period_wingbeats"][:]
-            params["wing_harmonic_period_wingbeats"] = dict(zip(wing_names_param, wing_period))
-        if "/parameters/wings/omega" in f:
-            wing_omega = f["/parameters/wings/omega"][:]
-            params["wing_omega"] = dict(zip(wing_names_param, wing_omega))
-        if "/parameters/wings/psi_amp" in f:
-            psi_amp = f["/parameters/wings/psi_amp"][:]
-            params["wing_psi_amp"] = {
-                name: np.asarray(psi_amp[i], dtype=float)
-                for i, name in enumerate(wing_names_param)
-            }
-        if "/parameters/wings/psi_phase" in f:
-            psi_phase = f["/parameters/wings/psi_phase"][:]
-            params["wing_psi_phase"] = {
-                name: np.asarray(psi_phase[i], dtype=float)
-                for i, name in enumerate(wing_names_param)
-            }
+        for key in ("n_blade_elements", "has_psi_twist_h1", "psi_twist_h1_root",
+                    "psi_twist_ref_eta", "phase_offset", "harmonic_period_wingbeats",
+                    "omega"):
+            path = f"/parameters/wings/{key}"
+            if path in f:
+                params[f"wing_{key}"] = dict(zip(wing_names_param, f[path][:]))
+
+        for key in ("psi_amp", "psi_phase"):
+            path = f"/parameters/wings/{key}"
+            if path in f:
+                data = f[path][:]
+                params[f"wing_{key}"] = {
+                    name: np.asarray(data[i], dtype=float)
+                    for i, name in enumerate(wing_names_param)
+                }
 
         # Read time and state
         time = f["/time"][:]

@@ -2,8 +2,8 @@ import unittest
 
 import numpy as np
 
-from post.plot_wang2007_kinematics import compute_smoothed_kinematics, load_common_module
-from post.plot_wang2007_motion_mapping import DEFAULT_WING_LENGTH_MM, compute_motion_mapping_series
+from cases.wang2007.plot_kinematics import compute_smoothed_kinematics, load_common_module
+from cases.wang2007.plot_motion_mapping import DEFAULT_WING_LENGTH_MM, compute_motion_mapping_series
 
 
 class TestComputeMotionMappingSeries(unittest.TestCase):

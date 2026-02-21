@@ -60,7 +60,7 @@ class TestUpdateDocsMediaRegistryValidation(unittest.TestCase):
             commands = by_id[entry_id]["commands"]
             self.assertEqual(
                 commands,
-                [["python", "scripts/modeling_wing_kinematics_media.py", "--theme", theme]],
+                [["python", "cases/azuma1988/modeling_wing_kinematics_media.py", "--theme", theme]],
             )
 
 

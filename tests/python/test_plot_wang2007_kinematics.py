@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from post.plot_wang2007_kinematics import compute_smoothed_kinematics, harmonics_per_wingbeat
+from cases.wang2007.plot_kinematics import compute_smoothed_kinematics, harmonics_per_wingbeat
 
 
 class TestHarmonicsPerWingbeat(unittest.TestCase):

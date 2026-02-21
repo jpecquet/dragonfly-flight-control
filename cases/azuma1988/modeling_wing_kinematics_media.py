@@ -7,8 +7,8 @@ Produces one themed MP4 output per run (light or dark) using:
 - a section-specific side-view config (+Y normal to view)
 
 Usage:
-  python scripts/modeling_wing_kinematics_media.py --theme light
-  python scripts/modeling_wing_kinematics_media.py --theme dark
+  python cases/azuma1988/modeling_wing_kinematics_media.py --theme light
+  python cases/azuma1988/modeling_wing_kinematics_media.py --theme dark
 
 Preferred (centralized docs media workflow):
   python scripts/update_docs_media.py --only modeling_wing_kinematics
@@ -24,7 +24,7 @@ from pathlib import Path
 
 import numpy as np
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -61,7 +61,7 @@ def ensure_sim_output(run_dir: Path, dragonfly_binary: str | None, force_sim: bo
 
     cmd = [
         sys.executable,
-        "scripts/azuma1988_pipeline.py",
+        "cases/azuma1988/pipeline.py",
         "sim",
         "--experiment",
         "1",

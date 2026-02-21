@@ -3,14 +3,12 @@
 Plot Fourier-smoothed Wang 2007 kinematic inputs (s, d, beta).
 
 Usage:
-    python -m post.plot_wang2007_kinematics <out.png> [--theme light|dark]
+    python -m cases.wang2007.plot_kinematics <out.png> [--theme light|dark]
 """
 
 from __future__ import annotations
 
 import argparse
-import importlib
-import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -18,14 +16,10 @@ import numpy as np
 
 from post.style import apply_matplotlib_style, figure_size, resolve_style
 
-try:
-    from case_data import load_case_data
-except ModuleNotFoundError:
-    from scripts.case_data import load_case_data
+from scripts.case_data import load_case_data
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-WANG_DIR = REPO_ROOT / "data" / "kinematics" / "wang2007"
+REPO_ROOT = Path(__file__).resolve().parents[2]
 WANG2007_CASE = load_case_data("wang2007")
 WANG2007_SIM_DEFAULTS = WANG2007_CASE["simulation_defaults"]
 DEFAULT_N_WINGBEATS = int(WANG2007_SIM_DEFAULTS["n_wingbeats"])
@@ -35,9 +29,8 @@ PLOT_HEIGHT_OVER_WIDTH = 0.6
 
 
 def load_common_module():
-    if str(WANG_DIR) not in sys.path:
-        sys.path.insert(0, str(WANG_DIR))
-    return importlib.import_module("common")
+    from cases.wang2007 import common
+    return common
 
 
 def harmonics_per_wingbeat(n_components: int, n_wingbeats: int) -> int:

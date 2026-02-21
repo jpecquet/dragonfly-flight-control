@@ -144,3 +144,49 @@ def plot_time_series(
         plt.close(fig)
 
     return fig, ax
+
+
+def plot_fore_hind_series(
+    output_path: Path | str,
+    series: dict[str, np.ndarray],
+    rows: Sequence[tuple[str, str, str]],
+    *,
+    height_over_width: float = 0.45,
+    theme: str | None = None,
+) -> None:
+    """Plot vertically stacked fore/hind wing time-series panels and save.
+
+    Parameters
+    ----------
+    output_path : path to the saved figure
+    series : flat dict with a ``"t"`` key and data arrays
+    rows : list of ``(fore_key, hind_key, ylabel)`` tuples, one per subplot
+    """
+    style = resolve_style(theme=theme)
+    apply_matplotlib_style(style)
+
+    fig, axes = plt.subplots(
+        nrows=len(rows), ncols=1, sharex=True,
+        figsize=figure_size(height_over_width=height_over_width),
+    )
+    if len(rows) == 1:
+        axes = [axes]
+
+    t = series["t"]
+    for ax, (fore_key, hind_key, ylabel) in zip(axes, rows):
+        ax.plot(t, series[fore_key], linewidth=1.5, label="Forewing", color="C0")
+        ax.plot(t, series[hind_key], linewidth=1.5, label="Hindwing", color="C1")
+        ax.set_ylabel(ylabel)
+        ax.grid(True, alpha=0.25)
+
+    axes[0].legend(
+        loc="lower center", bbox_to_anchor=(0.5, 1.03), ncol=2, fontsize=10.0,
+    )
+    axes[-1].set_xlabel(r"$t/T_{wb}$")
+    axes[-1].set_xlim(float(t[0]), float(t[-1]))
+    fig.tight_layout()
+
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(str(output), dpi=300, bbox_inches="tight")
+    plt.close(fig)

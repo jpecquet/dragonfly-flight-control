@@ -7,7 +7,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from post.plot_azuma1985_flight_metrics import compute_flight_metrics
+from cases.azuma1985.plot_flight_metrics import compute_flight_metrics
 
 
 def _write_fixture(path: Path, *, time: np.ndarray, state: np.ndarray, omega: float) -> None:

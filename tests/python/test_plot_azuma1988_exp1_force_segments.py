@@ -1,6 +1,6 @@
 import unittest
 
-from post.plot_azuma1988_exp1_force_segments import (
+from cases.azuma1988.plot_exp1_force_segments import (
     VelocitySpec,
     parse_segments,
     prepare_sim_config,

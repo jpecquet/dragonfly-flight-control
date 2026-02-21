@@ -11,14 +11,14 @@
       "commands": [
         [
           "python",
-          "scripts/azuma1985_pipeline.py",
+          "cases/azuma1985/pipeline.py",
           "translate",
           "--run-dir",
           "docs/case_studies/azuma1985/artifacts"
         ],
         [
           "python",
-          "scripts/azuma1985_pipeline.py",
+          "cases/azuma1985/pipeline.py",
           "sim",
           "--run-dir",
           "docs/case_studies/azuma1985/artifacts"
@@ -143,7 +143,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1985_kinematics",
+          "cases.azuma1985.plot_kinematics",
           "docs/_static/media/azuma1985/kinematics_inputs.light.png",
           "--theme",
           "light"
@@ -165,7 +165,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1985_kinematics",
+          "cases.azuma1985.plot_kinematics",
           "docs/_static/media/azuma1985/kinematics_inputs.dark.png",
           "--theme",
           "dark"
@@ -187,7 +187,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1985_motion_mapping",
+          "cases.azuma1985.plot_motion_mapping",
           "docs/_static/media/azuma1985/motion_mapping.light.png",
           "--theme",
           "light"
@@ -209,7 +209,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1985_motion_mapping",
+          "cases.azuma1985.plot_motion_mapping",
           "docs/_static/media/azuma1985/motion_mapping.dark.png",
           "--theme",
           "dark"
@@ -231,7 +231,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1985_flight_metrics",
+          "cases.azuma1985.plot_flight_metrics",
           "docs/case_studies/azuma1985/artifacts/sim/output.h5",
           "docs/_static/media/azuma1985/flight_metrics.light.png",
           "--theme",
@@ -254,7 +254,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1985_flight_metrics",
+          "cases.azuma1985.plot_flight_metrics",
           "docs/case_studies/azuma1985/artifacts/sim/output.h5",
           "docs/_static/media/azuma1985/flight_metrics.dark.png",
           "--theme",
@@ -276,7 +276,7 @@
       "commands": [
         [
           "python",
-          "scripts/azuma1988_pipeline.py",
+          "cases/azuma1988/pipeline.py",
           "translate",
           "--run-dir",
           "docs/case_studies/azuma1988/artifacts/exp1",
@@ -285,7 +285,7 @@
         ],
         [
           "python",
-          "scripts/azuma1988_pipeline.py",
+          "cases/azuma1988/pipeline.py",
           "sim",
           "--run-dir",
           "docs/case_studies/azuma1988/artifacts/exp1",
@@ -343,7 +343,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_kinematics",
+          "cases.azuma1988.plot_kinematics",
           "docs/_static/media/azuma1988/exp1/kinematics_inputs.light.png",
           "--experiment",
           "1",
@@ -353,7 +353,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_kinematics",
+          "cases.azuma1988.plot_kinematics",
           "docs/_static/media/azuma1988/exp1/kinematics_inputs.dark.png",
           "--experiment",
           "1",
@@ -363,7 +363,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_motion_mapping",
+          "cases.azuma1988.plot_motion_mapping",
           "docs/_static/media/azuma1988/exp1/motion_mapping.light.png",
           "--experiment",
           "1",
@@ -373,7 +373,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_motion_mapping",
+          "cases.azuma1988.plot_motion_mapping",
           "docs/_static/media/azuma1988/exp1/motion_mapping.dark.png",
           "--experiment",
           "1",
@@ -383,7 +383,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_flight_metrics",
+          "cases.azuma1988.plot_flight_metrics",
           "docs/case_studies/azuma1988/artifacts/exp1/sim/output.h5",
           "docs/_static/media/azuma1988/exp1/flight_metrics.light.png",
           "--experiment",
@@ -394,7 +394,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_flight_metrics",
+          "cases.azuma1988.plot_flight_metrics",
           "docs/case_studies/azuma1988/artifacts/exp1/sim/output.h5",
           "docs/_static/media/azuma1988/exp1/flight_metrics.dark.png",
           "--experiment",
@@ -405,7 +405,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_exp1_force_segments",
+          "cases.azuma1988.plot_exp1_force_segments",
           "docs/_static/media/azuma1988/exp1/force_segments_twist.light.png",
           "--base-config",
           "docs/case_studies/azuma1988/artifacts/exp1/sim/sim_azuma1988.cfg",
@@ -419,7 +419,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_exp1_force_segments",
+          "cases.azuma1988.plot_exp1_force_segments",
           "docs/_static/media/azuma1988/exp1/force_segments_twist.dark.png",
           "--base-config",
           "docs/case_studies/azuma1988/artifacts/exp1/sim/sim_azuma1988.cfg",
@@ -461,7 +461,7 @@
       "commands": [
         [
           "python",
-          "scripts/azuma1988_pipeline.py",
+          "cases/azuma1988/pipeline.py",
           "translate",
           "--run-dir",
           "docs/case_studies/azuma1988/artifacts/exp2",
@@ -470,7 +470,7 @@
         ],
         [
           "python",
-          "scripts/azuma1988_pipeline.py",
+          "cases/azuma1988/pipeline.py",
           "sim",
           "--run-dir",
           "docs/case_studies/azuma1988/artifacts/exp2",
@@ -528,7 +528,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_kinematics",
+          "cases.azuma1988.plot_kinematics",
           "docs/_static/media/azuma1988/exp2/kinematics_inputs.light.png",
           "--experiment",
           "2",
@@ -538,7 +538,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_kinematics",
+          "cases.azuma1988.plot_kinematics",
           "docs/_static/media/azuma1988/exp2/kinematics_inputs.dark.png",
           "--experiment",
           "2",
@@ -548,7 +548,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_motion_mapping",
+          "cases.azuma1988.plot_motion_mapping",
           "docs/_static/media/azuma1988/exp2/motion_mapping.light.png",
           "--experiment",
           "2",
@@ -558,7 +558,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_motion_mapping",
+          "cases.azuma1988.plot_motion_mapping",
           "docs/_static/media/azuma1988/exp2/motion_mapping.dark.png",
           "--experiment",
           "2",
@@ -568,7 +568,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_flight_metrics",
+          "cases.azuma1988.plot_flight_metrics",
           "docs/case_studies/azuma1988/artifacts/exp2/sim/output.h5",
           "docs/_static/media/azuma1988/exp2/flight_metrics.light.png",
           "--experiment",
@@ -579,7 +579,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_flight_metrics",
+          "cases.azuma1988.plot_flight_metrics",
           "docs/case_studies/azuma1988/artifacts/exp2/sim/output.h5",
           "docs/_static/media/azuma1988/exp2/flight_metrics.dark.png",
           "--experiment",
@@ -616,7 +616,7 @@
       "commands": [
         [
           "python",
-          "scripts/azuma1988_pipeline.py",
+          "cases/azuma1988/pipeline.py",
           "translate",
           "--run-dir",
           "docs/case_studies/azuma1988/artifacts/exp3",
@@ -625,7 +625,7 @@
         ],
         [
           "python",
-          "scripts/azuma1988_pipeline.py",
+          "cases/azuma1988/pipeline.py",
           "sim",
           "--run-dir",
           "docs/case_studies/azuma1988/artifacts/exp3",
@@ -683,7 +683,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_kinematics",
+          "cases.azuma1988.plot_kinematics",
           "docs/_static/media/azuma1988/exp3/kinematics_inputs.light.png",
           "--experiment",
           "3",
@@ -693,7 +693,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_kinematics",
+          "cases.azuma1988.plot_kinematics",
           "docs/_static/media/azuma1988/exp3/kinematics_inputs.dark.png",
           "--experiment",
           "3",
@@ -703,7 +703,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_motion_mapping",
+          "cases.azuma1988.plot_motion_mapping",
           "docs/_static/media/azuma1988/exp3/motion_mapping.light.png",
           "--experiment",
           "3",
@@ -713,7 +713,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_motion_mapping",
+          "cases.azuma1988.plot_motion_mapping",
           "docs/_static/media/azuma1988/exp3/motion_mapping.dark.png",
           "--experiment",
           "3",
@@ -723,7 +723,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_flight_metrics",
+          "cases.azuma1988.plot_flight_metrics",
           "docs/case_studies/azuma1988/artifacts/exp3/sim/output.h5",
           "docs/_static/media/azuma1988/exp3/flight_metrics.light.png",
           "--experiment",
@@ -734,7 +734,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_flight_metrics",
+          "cases.azuma1988.plot_flight_metrics",
           "docs/case_studies/azuma1988/artifacts/exp3/sim/output.h5",
           "docs/_static/media/azuma1988/exp3/flight_metrics.dark.png",
           "--experiment",
@@ -771,7 +771,7 @@
       "commands": [
         [
           "python",
-          "scripts/azuma1988_pipeline.py",
+          "cases/azuma1988/pipeline.py",
           "translate",
           "--run-dir",
           "docs/case_studies/azuma1988/artifacts/exp4",
@@ -780,7 +780,7 @@
         ],
         [
           "python",
-          "scripts/azuma1988_pipeline.py",
+          "cases/azuma1988/pipeline.py",
           "sim",
           "--run-dir",
           "docs/case_studies/azuma1988/artifacts/exp4",
@@ -838,7 +838,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_kinematics",
+          "cases.azuma1988.plot_kinematics",
           "docs/_static/media/azuma1988/exp4/kinematics_inputs.light.png",
           "--experiment",
           "4",
@@ -848,7 +848,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_kinematics",
+          "cases.azuma1988.plot_kinematics",
           "docs/_static/media/azuma1988/exp4/kinematics_inputs.dark.png",
           "--experiment",
           "4",
@@ -858,7 +858,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_motion_mapping",
+          "cases.azuma1988.plot_motion_mapping",
           "docs/_static/media/azuma1988/exp4/motion_mapping.light.png",
           "--experiment",
           "4",
@@ -868,7 +868,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_motion_mapping",
+          "cases.azuma1988.plot_motion_mapping",
           "docs/_static/media/azuma1988/exp4/motion_mapping.dark.png",
           "--experiment",
           "4",
@@ -878,7 +878,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_flight_metrics",
+          "cases.azuma1988.plot_flight_metrics",
           "docs/case_studies/azuma1988/artifacts/exp4/sim/output.h5",
           "docs/_static/media/azuma1988/exp4/flight_metrics.light.png",
           "--experiment",
@@ -889,7 +889,7 @@
         [
           "python",
           "-m",
-          "post.plot_azuma1988_flight_metrics",
+          "cases.azuma1988.plot_flight_metrics",
           "docs/case_studies/azuma1988/artifacts/exp4/sim/output.h5",
           "docs/_static/media/azuma1988/exp4/flight_metrics.dark.png",
           "--experiment",
@@ -926,7 +926,7 @@
       "commands": [
         [
           "python",
-          "scripts/wang2007_pipeline.py",
+          "cases/wang2007/pipeline.py",
           "sim",
           "--run-dir",
           "docs/case_studies/wang2007/artifacts"
@@ -1121,7 +1121,7 @@
         [
           "python",
           "-m",
-          "post.plot_wang2007_kinematics",
+          "cases.wang2007.plot_kinematics",
           "docs/_static/media/wang2007/kinematics_inputs.light.png",
           "--n-components",
           "35",
@@ -1147,7 +1147,7 @@
         [
           "python",
           "-m",
-          "post.plot_wang2007_kinematics",
+          "cases.wang2007.plot_kinematics",
           "docs/_static/media/wang2007/kinematics_inputs.dark.png",
           "--n-components",
           "35",
@@ -1173,7 +1173,7 @@
         [
           "python",
           "-m",
-          "post.plot_wang2007_motion_mapping",
+          "cases.wang2007.plot_motion_mapping",
           "docs/_static/media/wang2007/motion_mapping.light.png",
           "--n-components",
           "35",
@@ -1199,7 +1199,7 @@
         [
           "python",
           "-m",
-          "post.plot_wang2007_motion_mapping",
+          "cases.wang2007.plot_motion_mapping",
           "docs/_static/media/wang2007/motion_mapping.dark.png",
           "--n-components",
           "35",
@@ -1224,7 +1224,7 @@
       "commands": [
         [
           "python",
-          "scripts/modeling_wing_kinematics_media.py",
+          "cases/azuma1988/modeling_wing_kinematics_media.py",
           "--theme",
           "light"
         ]
@@ -1244,7 +1244,7 @@
       "commands": [
         [
           "python",
-          "scripts/modeling_wing_kinematics_media.py",
+          "cases/azuma1988/modeling_wing_kinematics_media.py",
           "--theme",
           "dark"
         ]

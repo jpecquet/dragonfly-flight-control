@@ -7,7 +7,7 @@ first-harmonic pitch twist, at fixed body velocity from the experiment's
 reported speed and direction.
 
 Usage:
-    python -m post.plot_azuma1988_exp1_force_segments <out.png> [--theme light|dark]
+    python -m cases.azuma1988.plot_exp1_force_segments <out.png> [--theme light|dark]
 """
 
 from __future__ import annotations
@@ -26,13 +26,10 @@ import numpy as np
 from post.plot_force_comparison import read_aero_force_z
 from post.style import apply_matplotlib_style, figure_size, resolve_style
 
-try:
-    from case_data import find_output_reference, load_case_data, select_experiment
-except ModuleNotFoundError:
-    from scripts.case_data import find_output_reference, load_case_data, select_experiment
+from scripts.case_data import find_output_reference, load_case_data, select_experiment
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_BINARY = REPO_ROOT / "build" / "bin" / "dragonfly"
 DEFAULT_BASE_CONFIG = REPO_ROOT / "docs" / "case_studies" / "azuma1988" / "artifacts" / "exp1" / "sim" / "sim_azuma1988.cfg"
 DEFAULT_SEGMENTS = (1, 5, 10, 20, 50)

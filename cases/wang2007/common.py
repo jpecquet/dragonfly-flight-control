@@ -5,8 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
-data_dir = Path(__file__).resolve().parent
-case_path = data_dir.parents[1] / "case_studies" / "wang2007" / "case.json"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+case_path = REPO_ROOT / "data" / "case_studies" / "wang2007" / "case.json"
 case_data = json.loads(case_path.read_text(encoding="utf-8"))
 sim_defaults = case_data["simulation_defaults"]
 stroke_plane_angles = sim_defaults["stroke_plane_angles_deg"]

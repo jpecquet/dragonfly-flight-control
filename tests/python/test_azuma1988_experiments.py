@@ -24,7 +24,7 @@ def load_module(relpath: str, module_name: str):
 
 
 conventions = load_module("scripts/experimental_conventions.py", "experimental_conventions_azuma1988_test")
-pipeline = load_module("scripts/azuma1988_pipeline.py", "azuma1988_pipeline_test")
+pipeline = load_module("cases/azuma1988/pipeline.py", "azuma1988_pipeline_test")
 
 
 class TestAzuma1988Experiments(unittest.TestCase):

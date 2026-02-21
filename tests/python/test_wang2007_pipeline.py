@@ -24,7 +24,7 @@ def load_module(relpath: str, module_name: str):
     return module
 
 
-pipeline = load_module("scripts/wang2007_pipeline.py", "wang2007_pipeline_test")
+pipeline = load_module("cases/wang2007/pipeline.py", "wang2007_pipeline_test")
 
 
 class TestMotionMapping(unittest.TestCase):

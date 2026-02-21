@@ -14,7 +14,7 @@ AoA is computed by `angle_of_attack_azuma1988(...)` using raw paper angles:
 stroke plane angle `gamma`, flapping angle `psi`, and pitching angle `theta`.
 
 Usage:
-    python -m post.plot_azuma1988_stroke_aoa_inputs <output.png>
+    python -m cases.azuma1988.plot_stroke_aoa_inputs <output.png>
         [--experiment 4] [--wing fore_right]
         [--n-time 200] [--n-eta 50]
         [--theme light|dark]
@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import FancyArrowPatch
 
-from post.plot_azuma1988_kinematics import SCRIPTS_DIR, load_adapter
+from cases.azuma1988.plot_kinematics import SCRIPTS_DIR, load_adapter
 from post.style import apply_matplotlib_style, figure_size, resolve_style
 
 
