@@ -13,7 +13,7 @@
           "runs/wang2007/demo/sim/output.h5",
           "docs/_static/media/wang2007/simulation.dark.mp4",
           "--config",
-          "docs/case_studies/wang2007/render_config.dark.json",
+          "docs/validation/wang2007/render_config.dark.json",
           "--theme",
           "dark",
           "--frame-step",
@@ -26,7 +26,7 @@
       "sync": [
         {
           "from": "docs/_static/media/wang2007/simulation.dark.mp4",
-          "to": "docs/case_studies/wang2007/artifacts/post/simulation.mp4"
+          "to": "docs/validation/wang2007/artifacts/post/simulation.mp4"
         }
       ]
     }

@@ -26,7 +26,7 @@ plt.rcParams.update({
 })
 
 
-# Azuma (1985) parameters from docs/case_studies/azuma1985.md
+# Azuma (1985) parameters from docs/validation/azuma1985.md
 AZUMA_ADAPTER = azuma1985_adapter()
 AZUMA_SIM_MOTION = build_sim_wing_motion(AZUMA_ADAPTER, n_harmonics=3)
 GAMMA_FW_DEG = AZUMA_ADAPTER.source_series["fore"].gamma.mean_deg

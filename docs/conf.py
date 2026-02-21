@@ -12,7 +12,7 @@ REPO_ROOT = DOCS_DIR.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 project = "Dragonfly Flight Control"
-author = "Dragonfly Flight Control Contributors"
+author = "Jean Pecquet"
 copyright = f"{date.today().year}, {author}"
 
 extensions = [
@@ -39,7 +39,7 @@ exclude_patterns = [
     "_build",
     "Thumbs.db",
     ".DS_Store",
-    "case_studies/generated/*.md",
+    "validation/generated/*.md",
 ]
 
 html_theme = "furo"
@@ -47,6 +47,7 @@ html_title = "Dragonfly Flight Control Docs"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 html_js_files = ["theme_media.js"]
+html_show_sphinx = False
 
 bibtex_bibfiles = ["references.bib"]
 

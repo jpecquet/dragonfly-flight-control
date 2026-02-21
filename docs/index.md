@@ -1,36 +1,22 @@
 # Dragonfly Flight Control Documentation
 
-This site documents the project as code and theory together: physics model, nondimensionalization, configuration semantics, and API references.
-
 ```{toctree}
-:maxdepth: 2
-:caption: Guides
+:maxdepth: 1
+:caption: model
+:hidden:
 
-guides/getting_started
-guides/contributing_docs
+model/wing_kinematics
+model/blade_elements
+model/equation_of_motion
+model/nondimensionalization
 ```
 
 ```{toctree}
-:maxdepth: 2
-:caption: Modeling
+:maxdepth: 1
+:caption: validation
+:hidden:
 
-modeling/wing_kinematics
-modeling/overview
-modeling/nondimensionalization
-modeling/physics_model
-```
-
-```{toctree}
-:maxdepth: 2
-:caption: Case Studies
-
-case_studies/index
-```
-
-```{toctree}
-:maxdepth: 2
-:caption: Reference
-
-output_format
-api/index
+validation/azuma1985
+validation/azuma1988
+validation/wang2007
 ```

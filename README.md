@@ -26,22 +26,6 @@ cd build
 ctest
 ```
 
-## Plot Command Config
-
-The `dragonfly plot` command reads a config file (for example `configs/plot.cfg`).
-You can optionally choose which Python interpreter it uses:
-
-```ini
-input = output.h5
-output = output.mp4
-python_executable = /Users/jean/.pyenv/shims/python
-```
-
-Interpreter resolution order is:
-1. `python_executable` in the config
-2. `PYTHON` environment variable
-3. fallback `python3`
-
 ## Build Documentation
 
 ```bash
