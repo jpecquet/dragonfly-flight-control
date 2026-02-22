@@ -1,0 +1,20 @@
+version: 1
+
+# Declarative postprocessing config for docs/model/wing_kinematics side-view animation.
+# Consumed by `python -m scripts.docs_media_runner`.
+
+simulation:
+  driver: yaml_case
+  case_file: cases/modeling_wing_kinematics/case.yaml
+  run_dir: runs/modeling/wing_kinematics/section1_anim1/sim
+  binary: build/bin/dragonfly
+
+docs_media:
+  media_dir: docs/_static/media/modeling/wing_kinematics
+  render_config: cases/modeling_wing_kinematics/render_config.side_y.json
+  themes: [light, dark]
+
+artifacts:
+  - kind: simulation_video
+    input_h5: "{run_dir}/output.h5"
+    output: wing_kinematics_section1_anim1_side_y.{theme}.mp4

@@ -1,0 +1,64 @@
+{
+  "camera": {
+    "elevation": 0.0,
+    "azimuth": 90.0,
+    "ortho_scale": 3.0,
+    "figsize_width": 6.5,
+    "figsize_height": 4.333333333333333,
+    "dpi": 300
+  },
+  "style": {
+    "theme": "light",
+    "font_family": "serif",
+    "font_serif": "Times New Roman",
+    "mathtext_fontset": "stix",
+    "font_size": 12,
+    "figure_facecolor": "#ffffff",
+    "axes_facecolor": "#ffffff",
+    "axes_edge_color": "#303030",
+    "text_color": "#101010",
+    "muted_text_color": "#666666",
+    "grid_color": "#b0b0b0",
+    "trajectory_color": "#1f77b4",
+    "target_color": "#2ca02c",
+    "error_color": "#d62728",
+    "lift_color": "#1f77b4",
+    "drag_color": "#d62728",
+    "body_color": "#111111",
+    "wing_color": "#d3d3d3",
+    "wing_edge_color": "#2e2e2e",
+    "legend_facecolor": "#ffffff",
+    "legend_edge_color": "#cccccc",
+    "landscape_colormap": "viridis",
+    "landscape_contour_color": "#ffffff",
+    "landscape_min_marker_color": "#d62728",
+    "trajectory_linewidth": 1.5,
+    "force_linewidth": 2.0,
+    "marker_size": 50
+  },
+  "viewport": {
+    "center": [
+      -0.2,
+      0.0,
+      0.0
+    ],
+    "extent": 2.2,
+    "extent_xyz": [
+      1.6,
+      2.2,
+      1.6
+    ]
+  },
+  "blender": {
+    "scale_factor": 0.82,
+    "center_offset_x": 0.0,
+    "center_offset_y": 0.0
+  },
+  "framerate": 30,
+  "trail_length": -1,
+  "show_axes": false,
+  "show_velocity_text": false,
+  "show_forces": false,
+  "force_scale": 0.05,
+  "n_workers": 0
+}

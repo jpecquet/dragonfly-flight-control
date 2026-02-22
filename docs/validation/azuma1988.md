@@ -6,8 +6,29 @@ This page renders media for experiments `1`-`4` (Dragonfly A/B).
 
 ## Description
 
-```{include} generated/azuma1988_description.md
-```
+### Dragonfly Specimen
+
+| Parameter | Value |
+|---|---|
+| Body length $L$ | `0.075 m` |
+| Body mass $m$ | `7.900e-04 kg` |
+| Forewing span $R_{fw}$ | `0.05 m` |
+| Forewing area $S_{fw}$ | `5.000e-04 m^2` |
+| Hindwing span $R_{hw}$ | `0.0485 m` |
+| Hindwing area $S_{hw}$ | `6.000e-04 m^2` |
+
+Coning angles (shared across experiments):
+- Fore: `8 deg`
+- Hind: `-2 deg`
+
+### Experiments Summary
+
+| Experiment | Dragonfly | Frequency (Hz) | Fore gamma (deg) | Hind gamma (deg) | Reference flight condition |
+|---|---|---:|---:|---:|---|
+| 1 | A | 26.5 | 40 | 38 | speed `0.7 m/s`, direction `-12 deg` |
+| 2 | A | 28.1 | 55 | 48 | speed `1.5 m/s`, direction `-1.1 deg` |
+| 3 | A | 29 | 58 | 52 | speed `2.3 m/s`, direction `4.8 deg` |
+| 4 | B | 27 | 63 | 68 | speed `3.2 m/s`, direction `0 deg` |
 
 ## Pre-processing
 
@@ -18,27 +39,15 @@ The simulator motion inputs are constructed from the paper angles using:
 
 ## Experiment 1 (Dragonfly A)
 
-### Kinematics Data
+### Kinematics
 
 ```{raw} html
 <img
   class="case-study-image"
-  src="../_static/media/azuma1988/exp1/kinematics_inputs.dark.png"
-  alt="Azuma 1988 experiment 1 paper-convention kinematics for psi and theta"
-  data-light-src="../_static/media/azuma1988/exp1/kinematics_inputs.light.png"
-  data-dark-src="../_static/media/azuma1988/exp1/kinematics_inputs.dark.png"
-/>
-```
-
-### Mapped Simulator Angles (`phi`, `psi`)
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp1/motion_mapping.dark.png"
-  alt="Azuma 1988 experiment 1 mapped simulator angles phi and psi"
-  data-light-src="../_static/media/azuma1988/exp1/motion_mapping.light.png"
-  data-dark-src="../_static/media/azuma1988/exp1/motion_mapping.dark.png"
+  src="../_static/media/azuma1988/exp1/kinematics.dark.png"
+  alt="Azuma 1988 experiment 1 fore/hind kinematics (phi, psi)"
+  data-light-src="../_static/media/azuma1988/exp1/kinematics.light.png"
+  data-dark-src="../_static/media/azuma1988/exp1/kinematics.dark.png"
 />
 ```
 
@@ -90,41 +99,17 @@ The simulator motion inputs are constructed from the paper angles using:
 />
 ```
 
-### Vertical Force vs Blade Segments (One Wingbeat, Fixed Body Velocity)
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp1/force_segments_twist.dark.png"
-  alt="Azuma 1988 experiment 1 vertical aerodynamic force over one wingbeat versus blade-element count, with and without wing twist"
-  data-light-src="../_static/media/azuma1988/exp1/force_segments_twist.light.png"
-  data-dark-src="../_static/media/azuma1988/exp1/force_segments_twist.dark.png"
-/>
-```
-
 ## Experiment 2 (Dragonfly A)
 
-### Kinematics Data
+### Kinematics
 
 ```{raw} html
 <img
   class="case-study-image"
-  src="../_static/media/azuma1988/exp2/kinematics_inputs.dark.png"
-  alt="Azuma 1988 experiment 2 paper-convention kinematics for psi and theta"
-  data-light-src="../_static/media/azuma1988/exp2/kinematics_inputs.light.png"
-  data-dark-src="../_static/media/azuma1988/exp2/kinematics_inputs.dark.png"
-/>
-```
-
-### Mapped Simulator Angles (`phi`, `psi`)
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp2/motion_mapping.dark.png"
-  alt="Azuma 1988 experiment 2 mapped simulator angles phi and psi"
-  data-light-src="../_static/media/azuma1988/exp2/motion_mapping.light.png"
-  data-dark-src="../_static/media/azuma1988/exp2/motion_mapping.dark.png"
+  src="../_static/media/azuma1988/exp2/kinematics.dark.png"
+  alt="Azuma 1988 experiment 2 fore/hind kinematics (phi, psi)"
+  data-light-src="../_static/media/azuma1988/exp2/kinematics.light.png"
+  data-dark-src="../_static/media/azuma1988/exp2/kinematics.dark.png"
 />
 ```
 
@@ -178,27 +163,15 @@ The simulator motion inputs are constructed from the paper angles using:
 
 ## Experiment 3 (Dragonfly A)
 
-### Kinematics Data
+### Kinematics
 
 ```{raw} html
 <img
   class="case-study-image"
-  src="../_static/media/azuma1988/exp3/kinematics_inputs.dark.png"
-  alt="Azuma 1988 experiment 3 paper-convention kinematics for psi and theta"
-  data-light-src="../_static/media/azuma1988/exp3/kinematics_inputs.light.png"
-  data-dark-src="../_static/media/azuma1988/exp3/kinematics_inputs.dark.png"
-/>
-```
-
-### Mapped Simulator Angles (`phi`, `psi`)
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp3/motion_mapping.dark.png"
-  alt="Azuma 1988 experiment 3 mapped simulator angles phi and psi"
-  data-light-src="../_static/media/azuma1988/exp3/motion_mapping.light.png"
-  data-dark-src="../_static/media/azuma1988/exp3/motion_mapping.dark.png"
+  src="../_static/media/azuma1988/exp3/kinematics.dark.png"
+  alt="Azuma 1988 experiment 3 fore/hind kinematics (phi, psi)"
+  data-light-src="../_static/media/azuma1988/exp3/kinematics.light.png"
+  data-dark-src="../_static/media/azuma1988/exp3/kinematics.dark.png"
 />
 ```
 
@@ -252,27 +225,15 @@ The simulator motion inputs are constructed from the paper angles using:
 
 ## Experiment 4 (Dragonfly B)
 
-### Kinematics Data
+### Kinematics
 
 ```{raw} html
 <img
   class="case-study-image"
-  src="../_static/media/azuma1988/exp4/kinematics_inputs.dark.png"
-  alt="Azuma 1988 experiment 4 paper-convention kinematics for psi and theta"
-  data-light-src="../_static/media/azuma1988/exp4/kinematics_inputs.light.png"
-  data-dark-src="../_static/media/azuma1988/exp4/kinematics_inputs.dark.png"
-/>
-```
-
-### Mapped Simulator Angles (`phi`, `psi`)
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp4/motion_mapping.dark.png"
-  alt="Azuma 1988 experiment 4 mapped simulator angles phi and psi"
-  data-light-src="../_static/media/azuma1988/exp4/motion_mapping.light.png"
-  data-dark-src="../_static/media/azuma1988/exp4/motion_mapping.dark.png"
+  src="../_static/media/azuma1988/exp4/kinematics.dark.png"
+  alt="Azuma 1988 experiment 4 fore/hind kinematics (phi, psi)"
+  data-light-src="../_static/media/azuma1988/exp4/kinematics.light.png"
+  data-dark-src="../_static/media/azuma1988/exp4/kinematics.dark.png"
 />
 ```
 
@@ -324,31 +285,6 @@ The simulator motion inputs are constructed from the paper angles using:
 />
 ```
 
-### Angle of Attack Along Span and Wingbeat
-
-Angle of attack over one wingbeat of constant-velocity flight, viewed normal to
-the stroke plane, for the forewing (above) and hindwing (below)
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp4/stroke_aoa_fore_right_down.dark.png"
-  alt="Azuma 1988 experiment 4 forewing right downstroke angle of attack in stroke plane"
-  data-light-src="../_static/media/azuma1988/exp4/stroke_aoa_fore_right_down.light.png"
-  data-dark-src="../_static/media/azuma1988/exp4/stroke_aoa_fore_right_down.dark.png"
-/>
-```
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp4/stroke_aoa_hind_right_down.dark.png"
-  alt="Azuma 1988 experiment 4 hindwing right downstroke angle of attack in stroke plane"
-  data-light-src="../_static/media/azuma1988/exp4/stroke_aoa_hind_right_down.light.png"
-  data-dark-src="../_static/media/azuma1988/exp4/stroke_aoa_hind_right_down.dark.png"
-/>
-```
-
 ### Pitch Angle Along Span and Wingbeat
 
 Pitch angle over one wingbeat of constant-velocity flight, viewed normal to the
@@ -377,14 +313,14 @@ stroke plane, for the forewing (above) and hindwing (below)
 ## Reproduction Commands
 
 ```bash
-# Regenerate and sync all media
-python scripts/update_docs_media.py --only azuma1988
+# Regenerate docs media for all Azuma 1988 experiments
+python -m scripts.docs_media_runner --run-all --only azuma1988
 
 # Or one experiment at a time
-python scripts/update_docs_media.py --only azuma1988_exp1
-python scripts/update_docs_media.py --only azuma1988_exp2
-python scripts/update_docs_media.py --only azuma1988_exp3
-python scripts/update_docs_media.py --only azuma1988_exp4
+python -m scripts.docs_media_runner --run-all --only azuma1988_exp1
+python -m scripts.docs_media_runner --run-all --only azuma1988_exp2
+python -m scripts.docs_media_runner --run-all --only azuma1988_exp3
+python -m scripts.docs_media_runner --run-all --only azuma1988_exp4
 ```
 
 ## References

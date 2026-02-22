@@ -1,0 +1,63 @@
+case_id: azuma1985
+description: Azuma (1985) dragonfly forward flight
+
+specimen:
+  body_length: 0.04
+  body_mass: 0.00026
+  frequency: 41.5
+
+environment:
+  rho_air: 1.225
+  gravity: 9.81
+
+simulation:
+  n_wingbeats: 5
+  steps_per_wingbeat: 200
+  n_blade_elements: 5
+
+wings:
+  fore:
+    span: 0.0335
+    area: 0.000221
+    cone: 8.0
+    drag_coeff_set: azuma1988
+    lift_model: linear
+    lift_coeff_set: azuma1988
+    kinematics:
+      gamma:
+        mean: 37.0
+      phi:
+        mean: 3.0
+        harmonics:
+          - [43.0, 0.0]
+      psi:
+        mean: 8.0
+        harmonics:
+          - [-77.0, -49.0]
+          - [-3.0, 67.0]
+          - [-8.0, 29.0]
+  hind:
+    span: 0.0325
+    area: 0.000272
+    cone: -2.0
+    drag_coeff_set: azuma1988
+    lift_model: linear
+    lift_coeff_set: azuma1988
+    kinematics:
+      gamma:
+        mean: 40.0
+      phi:
+        mean: -2.0
+        harmonics:
+          - [47.0, 77.0]
+      psi:
+        mean: 3.0
+        harmonics:
+          - [-65.0, 18.0]
+          - [8.0, 74.0]
+          - [8.0, 28.0]
+
+references:
+  - kind: flight_condition
+    speed: 0.54
+    direction: 60.0

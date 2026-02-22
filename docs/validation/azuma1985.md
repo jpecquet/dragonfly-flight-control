@@ -4,40 +4,52 @@ Flight simulation from experimental wing kinematics from {cite}`azuma1985`.
 
 ## Description
 
-```{include} generated/azuma1985_description.md
-```
+### Dragonfly Specimen
+
+| Parameter | Value |
+|---|---|
+| Body length $L$ | `0.04 m` |
+| Body mass $m$ | `2.600e-04 kg` |
+| Forewing span $R_{fw}$ | `0.0335 m` |
+| Forewing area $S_{fw}$ | `2.210e-04 m^2` |
+| Hindwing span $R_{hw}$ | `0.0325 m` |
+| Hindwing area $S_{hw}$ | `2.720e-04 m^2` |
+
+### Wing Kinematics
+
+Flapping frequency: `41.5 Hz`
+
+Coning angles:
+- Fore: `8 deg`
+- Hind: `-2 deg`
+
+Paper-convention Fourier data (degrees):
+
+| Wing | Series | mean (deg) | Fourier terms |
+|---|---|---:|---|
+| fore | stroke plane angle | 37 | `-` |
+| fore | flapping angle theta (paper figure typo labels this phi) | -3 | k=1: A=-43, phase=0 deg |
+| fore | pitch angle | 98 | k=1: A=-77, phase=-49 deg<br>k=2: A=-3, phase=67 deg<br>k=3: A=-8, phase=29 deg |
+| hind | stroke plane angle | 40 | `-` |
+| hind | flapping angle theta (paper figure typo labels this phi) | 2 | k=1: A=-47, phase=77 deg |
+| hind | pitch angle | 93 | k=1: A=-65, phase=18 deg<br>k=2: A=8, phase=74 deg<br>k=3: A=8, phase=28 deg |
+
+### Experimental Output References
+
+- `body_speed_and_direction`: speed `0.54 m/s`, direction `60 deg`
+  - Definition: `atan2(z, x) in XZ plane`
 
 ## Pre-processing
 
-### Kinematics Data
-
-The flapping angle $\psi$ and pitch angle $\theta$ below are the Fourier cosine
-series from the paper, evaluated over one wingbeat.
+### Kinematics
 
 ```{raw} html
 <img
   class="case-study-image"
-  src="../_static/media/azuma1985/kinematics_inputs.dark.png"
-  alt="Azuma 1985 paper-convention kinematics for psi and theta"
-  data-light-src="../_static/media/azuma1985/kinematics_inputs.light.png"
-  data-dark-src="../_static/media/azuma1985/kinematics_inputs.dark.png"
-/>
-```
-
-### Mapped Simulator Angles (`phi`, `psi`)
-
-The simulator motion inputs are constructed from the paper angles using:
-
-- `phi_sim = -psi_paper` (sign flip)
-- `psi_sim = theta_paper - 90 deg`
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1985/motion_mapping.dark.png"
-  alt="Azuma 1985 mapped simulator angles phi and psi"
-  data-light-src="../_static/media/azuma1985/motion_mapping.light.png"
-  data-dark-src="../_static/media/azuma1985/motion_mapping.dark.png"
+  src="../_static/media/azuma1985/kinematics.dark.png"
+  alt="Azuma 1985 fore/hind kinematics (phi, psi)"
+  data-light-src="../_static/media/azuma1985/kinematics.light.png"
+  data-dark-src="../_static/media/azuma1985/kinematics.dark.png"
 />
 ```
 
@@ -98,8 +110,8 @@ angle in the `XZ` plane, `atan2(z, x)` in degrees, compared to experiment.
 ## Reproduction Commands
 
 ```bash
-# Regenerate and sync all media
-python scripts/update_docs_media.py --only azuma1985
+# Regenerate docs media for this case
+python -m scripts.docs_media_runner --run-all --only azuma1985
 ```
 
 ## References

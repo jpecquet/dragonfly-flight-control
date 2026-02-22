@@ -1,0 +1,39 @@
+version: 1
+
+# Declarative postprocessing config for azuma1985.
+# Consumed by `python -m scripts.docs_media_runner`.
+
+simulation:
+  driver: yaml_case
+  case_file: cases/azuma1985/case.yaml
+  run_dir: docs/validation/azuma1985/artifacts
+  binary: build/bin/dragonfly
+
+docs_media:
+  media_dir: docs/_static/media/azuma1985
+  render_config: docs/validation/azuma1985/render_config.dark.json
+  themes: [light, dark]
+  frame_step: 3
+
+artifacts:
+  - kind: case_fore_hind_kinematics
+    source_case_file: cases/azuma1985/case.yaml
+    output: kinematics.{theme}.png
+    angle_keys: [phi, psi]
+
+  - kind: body_flight_metrics_vs_reference
+    input_h5: "{run_dir}/output.h5"
+    source_case_file: cases/azuma1985/case.yaml
+    output: flight_metrics.{theme}.png
+    reference_kind: flight_condition
+
+  - kind: simulation_video
+    input_h5: "{run_dir}/output.h5"
+    output: simulation.{theme}.mp4
+    render_config: docs/validation/azuma1985/render_config.dark.json
+    frame_step: 3
+
+  - kind: stick_video
+    input_h5: "{run_dir}/output.h5"
+    output: stick.{theme}.mp4
+    stations: [0.6666667]

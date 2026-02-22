@@ -39,7 +39,6 @@ exclude_patterns = [
     "_build",
     "Thumbs.db",
     ".DS_Store",
-    "validation/generated/*.md",
 ]
 
 html_theme = "furo"
