@@ -30,8 +30,6 @@ artifacts:
   - kind: simulation_video
     input_h5: "{run_dir}/output.h5"
     output: simulation.{theme}.mp4
-    render_config: docs/validation/azuma1985/render_config.dark.json
-    frame_step: 3
 
   - kind: stick_video
     input_h5: "{run_dir}/output.h5"

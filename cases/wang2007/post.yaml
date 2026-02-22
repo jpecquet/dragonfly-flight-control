@@ -30,8 +30,6 @@ artifacts:
   - kind: simulation_video
     input_h5: "{run_dir}/output.h5"
     output: simulation.{theme}.mp4
-    render_config: docs/validation/wang2007/render_config.dark.json
-    frame_step: 3
 
   - kind: stick_video
     input_h5: "{run_dir}/output.h5"
@@ -44,7 +42,6 @@ artifacts:
       - input_h5: "docs/validation/wang2007/artifacts_1harm/output.h5"
         label: "1-comp"
     secondary_simulation:
-      driver: yaml_case
       case_file: cases/wang2007_1harm/case.yaml
       run_dir: docs/validation/wang2007/artifacts_1harm
       binary: build/bin/dragonfly

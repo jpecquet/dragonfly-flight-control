@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "docs/**"
+      - "cases/**"
       - "data/**"
       - "include/**"
       - "src/**"
@@ -14,6 +15,7 @@ on:
     branches: [ main ]
     paths:
       - "docs/**"
+      - "cases/**"
       - "data/**"
       - "include/**"
       - "src/**"
@@ -44,9 +46,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r docs/requirements.txt
 
-      - name: Verify generated case-study docs snippets
+      - name: Validate docs media configs
         run: |
-          python scripts/generate_case_study_docs.py --check
+          python -m scripts.docs_media_runner --check-all
 
       - name: Build HTML docs
         run: |

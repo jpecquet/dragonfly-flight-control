@@ -3,29 +3,16 @@
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
-
-
-def now_utc_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 def ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
-
-
-def write_json(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-
-def read_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def run_cmd(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
@@ -54,19 +41,6 @@ def build_plot_env(run_dir: Path) -> dict[str, str]:
         "MPLCONFIGDIR": str(mpl_cache.resolve()),
         "XDG_CACHE_HOME": str(cache_root.resolve()),
     }
-
-
-def get_git_commit(repo_root: Path) -> str:
-    try:
-        out = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            cwd=str(repo_root),
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-        return out.strip()
-    except Exception:
-        return "unknown"
 
 
 def fmt(x: float) -> str:
@@ -169,69 +143,3 @@ def build_wing_block(
         )
 
     return "\n".join(lines)
-
-
-def update_manifest(
-    run_dir: Path,
-    stage: str,
-    artifacts: list[Path],
-    metadata: dict[str, Any],
-    *,
-    repo_root: Path,
-    deterministic: bool = False,
-) -> None:
-    repo_root = repo_root.resolve()
-
-    def normalize_path(path: Path) -> str:
-        resolved = path.resolve()
-        if not deterministic:
-            return str(resolved)
-        try:
-            return str(resolved.relative_to(repo_root))
-        except ValueError:
-            return str(resolved)
-
-    def normalize_value(value: Any) -> Any:
-        if isinstance(value, str):
-            path = Path(value)
-            if path.is_absolute():
-                return normalize_path(path)
-            return value
-        if isinstance(value, list):
-            return [normalize_value(v) for v in value]
-        if isinstance(value, dict):
-            return {k: normalize_value(v) for k, v in value.items()}
-        return value
-
-    manifest_path = run_dir / "manifest.json"
-    if manifest_path.exists():
-        manifest = read_json(manifest_path)
-    else:
-        manifest = {
-            "git_commit": get_git_commit(repo_root),
-            "stages": {},
-        }
-    manifest["repo_root"] = "." if deterministic else str(repo_root)
-
-    stage_payload = {
-        "artifacts": [normalize_path(p) for p in artifacts],
-        "metadata": normalize_value(metadata),
-    }
-    if not deterministic:
-        now = now_utc_iso()
-        manifest["created_at_utc"] = manifest.get("created_at_utc", now)
-        manifest["updated_at_utc"] = now
-        stage_payload["completed_at_utc"] = now
-    else:
-        manifest.pop("created_at_utc", None)
-        manifest.pop("updated_at_utc", None)
-        # Normalize legacy nondeterministic stage payloads when switching modes.
-        for existing_stage, payload in list(manifest.get("stages", {}).items()):
-            if not isinstance(payload, dict):
-                continue
-            payload = normalize_value(payload)
-            payload.pop("completed_at_utc", None)
-            manifest["stages"][existing_stage] = payload
-
-    manifest["stages"][stage] = stage_payload
-    write_json(manifest_path, manifest)
