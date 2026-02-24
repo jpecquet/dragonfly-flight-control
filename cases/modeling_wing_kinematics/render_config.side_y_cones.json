@@ -53,7 +53,14 @@
   "blender": {
     "scale_factor": 0.82,
     "center_offset_x": 0.0,
-    "center_offset_y": 0.0
+    "center_offset_y": 0.0,
+    "stroke_cones": {
+      "enabled": true,
+      "side": "left",
+      "color": "#ffa500",
+      "alpha": 0.3,
+      "n_theta": 48
+    }
   },
   "framerate": 30,
   "trail_length": -1,

@@ -248,6 +248,7 @@ def _run_artifact(
             theme=theme,
             no_blender=no_blender,
             frame_step=frame_step_val,
+            annotation_overlay=resolved.get("annotation_overlay"),
         )
         return
 
@@ -266,6 +267,10 @@ def _run_artifact(
             output_path,
             theme=theme,
             stations=stations,
+            show_axes=bool(resolved.get("show_axes", True)),
+            show_grid=bool(resolved.get("show_grid", True)),
+            show_timestamp=bool(resolved.get("show_timestamp", True)),
+            show_pitch_angle=bool(resolved.get("show_pitch_angle", False)),
         )
         return
 

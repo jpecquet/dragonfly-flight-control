@@ -158,6 +158,7 @@ def render_simulation_video_from_h5(
     theme: str | None = None,
     no_blender: bool = False,
     frame_step: int = 1,
+    annotation_overlay: dict | None = None,
 ) -> None:
     """Render a simulation video from an HDF5 file (Blender hybrid or mpl fallback)."""
     from post.composite import check_blender_available, render_hybrid, render_mpl_only
@@ -171,6 +172,8 @@ def render_simulation_video_from_h5(
 
     if no_blender:
         print("Blender disabled via --no-blender; using matplotlib-only fallback")
+        if annotation_overlay:
+            print("Note: annotation_overlay is currently only applied in hybrid (Blender) rendering mode.")
         render_mpl_only(states, wings, params, str(output_video), config=config, frame_step=int(frame_step))
         return
 
@@ -184,10 +187,13 @@ def render_simulation_video_from_h5(
             time=time,
             config=config,
             frame_step=int(frame_step),
+            annotation_overlay=annotation_overlay,
         )
         return
 
     print("Warning: Blender not available, using matplotlib-only fallback")
+    if annotation_overlay:
+        print("Note: annotation_overlay is currently only applied in hybrid (Blender) rendering mode.")
     render_mpl_only(states, wings, params, str(output_video), config=config, frame_step=int(frame_step))
 
 
@@ -197,6 +203,10 @@ def render_stick_video_from_h5(
     *,
     theme: str | None = None,
     stations: list[float] | tuple[float, ...] | None = None,
+    show_axes: bool = True,
+    show_grid: bool = True,
+    show_timestamp: bool = True,
+    show_pitch_angle: bool = False,
 ) -> None:
     """Render a fore/hind stick video from an HDF5 file."""
     from post.io import read_simulation
@@ -232,4 +242,9 @@ def render_stick_video_from_h5(
         stations=station_values,
         fore_lambda0=fore_lambda0,
         hind_lambda0=hind_lambda0,
+        show_axes=show_axes,
+        show_grid=show_grid,
+        show_timestamp=show_timestamp,
+        show_pitch_angle=show_pitch_angle,
+        params=params,
     )

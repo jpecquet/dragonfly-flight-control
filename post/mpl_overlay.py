@@ -16,13 +16,6 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# Optional tqdm support for progress bars
-try:
-    from tqdm import tqdm
-    TQDM_AVAILABLE = True
-except ImportError:
-    TQDM_AVAILABLE = False
-
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
@@ -40,6 +33,7 @@ from .constants import (
     get_wing_offsets,
 )
 from .hybrid_config import CameraConfig, StyleConfig, ViewportConfig, HybridConfig
+from .progress import ProgressBar, pip_progress
 from .style import apply_matplotlib_style
 from .wing_geometry import DEFAULT_ROOT_CHORD_RATIO, composite_ellipse_polygon_world
 
@@ -50,6 +44,8 @@ _CHUNK_CONTROLLER = None
 _CHUNK_CONFIG_DICT = None
 _CHUNK_OUTPUT_PATH = None
 _CHUNK_DRAW_MODELS = False
+_CHUNK_BOTTOM_OVERLAY = None
+MAX_PARALLEL_WORKERS = 4
 
 
 def _major_tick_step(extent: float) -> float:
@@ -184,7 +180,13 @@ def setup_axes(
     ax.set_zlim(viewport.center[2] - half[2], viewport.center[2] + half[2])
 
     # Keep equal data-unit scaling while allowing non-cubic extents.
-    ax.set_box_aspect(viewport.extent_xyz.tolist())
+    # `zoom` tightens/loosens framing without changing axis limits.
+    box_zoom = float(getattr(camera, "box_zoom", 1.0))
+    try:
+        ax.set_box_aspect(viewport.extent_xyz.tolist(), zoom=box_zoom)
+    except TypeError:
+        # Backward compatibility with older matplotlib versions lacking `zoom`.
+        ax.set_box_aspect(viewport.extent_xyz.tolist())
 
     if not show_axes:
         # Expand to full canvas and disable axis artists to avoid border artifacts.
@@ -321,6 +323,25 @@ def _draw_body_and_wings(ax, xb, wing_vectors, wing_lb0, style: StyleConfig):
         )
 
 
+def _draw_bottom_wingtip_paths(ax, xb: np.ndarray, payload: Dict) -> None:
+    """Draw wingtip paths that belong on the bottom (mpl) layer."""
+    wing_tip_offsets = payload.get("wing_tip_offsets", {})
+    line_width = float(payload.get("line_width", 1.0))
+    line_alpha = float(payload.get("line_alpha", 0.9))
+    mono_color = str(payload.get("mono_color", "#ffffff"))
+    for wname, tip_offsets in wing_tip_offsets.items():
+        path = xb[None, :] + np.asarray(tip_offsets, dtype=float)
+        ax.plot(
+            path[:, 0],
+            path[:, 1],
+            path[:, 2],
+            linestyle="--",
+            linewidth=line_width,
+            color=mono_color,
+            alpha=line_alpha,
+        )
+
+
 def render_simulation_frame(
     frame_idx: int,
     states: np.ndarray,
@@ -330,6 +351,7 @@ def render_simulation_frame(
     output_path: Path,
     draw_models: bool = False,
     render_context: Optional[Tuple[plt.Figure, Axes3D]] = None,
+    bottom_overlay_payload: Optional[Dict] = None,
 ) -> str:
     """
     Render matplotlib overlay for a simulation frame.
@@ -380,6 +402,10 @@ def render_simulation_frame(
         ax.text2D(0.02, 0.98, f"$u_x$ = {ux:.2f}, $u_z$ = {uz:.2f}",
                   transform=ax.transAxes, fontsize=10, verticalalignment='top',
                   color=style.text_color)
+
+    # Bottom-layer wingtip paths (drawn behind Blender mesh)
+    if bottom_overlay_payload is not None:
+        _draw_bottom_wingtip_paths(ax, xb, bottom_overlay_payload)
 
     # Save to file
     output_file = output_path / f"mpl_{frame_idx:06d}.png"
@@ -534,23 +560,36 @@ def render_all_frames(
     n_frames = len(states)
     output_files = []
 
-    for i in range(n_frames):
-        if controller is not None:
-            filepath = render_tracking_frame(
-                i, states, wing_vectors, params, controller, config, output_path,
-                draw_models=draw_models,
-            )
-        else:
-            filepath = render_simulation_frame(
-                i, states, wing_vectors, params, config, output_path,
-                draw_models=draw_models,
-            )
-        output_files.append(filepath)
-
-        if progress_callback:
+    if progress_callback:
+        for i in range(n_frames):
+            if controller is not None:
+                filepath = render_tracking_frame(
+                    i, states, wing_vectors, params, controller, config, output_path,
+                    draw_models=draw_models,
+                )
+            else:
+                filepath = render_simulation_frame(
+                    i, states, wing_vectors, params, config, output_path,
+                    draw_models=draw_models,
+                )
+            output_files.append(filepath)
             progress_callback(i, n_frames)
-        elif i % 100 == 0:
-            print(f"  Matplotlib: frame {i}/{n_frames}")
+        return output_files
+
+    with pip_progress(n_frames, "Matplotlib", unit="frame") as progress:
+        for i in range(n_frames):
+            if controller is not None:
+                filepath = render_tracking_frame(
+                    i, states, wing_vectors, params, controller, config, output_path,
+                    draw_models=draw_models,
+                )
+            else:
+                filepath = render_simulation_frame(
+                    i, states, wing_vectors, params, config, output_path,
+                    draw_models=draw_models,
+                )
+            output_files.append(filepath)
+            progress.update(1)
 
     return output_files
 
@@ -644,6 +683,8 @@ def _render_frame_range(
     output_path: Path,
     controller: Optional[Dict] = None,
     draw_models: bool = False,
+    progress: Optional[ProgressBar] = None,
+    bottom_overlay_payload: Optional[Dict] = None,
 ) -> List[str]:
     """Render a contiguous frame range, reusing one figure/axes context."""
     apply_matplotlib_style(config.style)
@@ -665,8 +706,11 @@ def _render_frame_range(
                     render_simulation_frame(
                         frame_idx, states, wing_vectors, params, config, output_path,
                         draw_models=draw_models, render_context=render_context,
+                        bottom_overlay_payload=bottom_overlay_payload,
                     )
                 )
+            if progress is not None:
+                progress.update(1)
     finally:
         plt.close(fig)
     return files
@@ -678,15 +722,18 @@ def _chunk_worker_init(
     config_dict: Dict,
     output_path_str: str,
     draw_models: bool,
+    bottom_overlay_payload: Optional[Dict] = None,
 ):
     """Initialize worker process globals once to avoid per-frame pickling."""
     global _CHUNK_STATES, _CHUNK_WING_VECTORS, _CHUNK_PARAMS
     global _CHUNK_CONTROLLER, _CHUNK_CONFIG_DICT, _CHUNK_OUTPUT_PATH, _CHUNK_DRAW_MODELS
+    global _CHUNK_BOTTOM_OVERLAY
     _CHUNK_STATES, _CHUNK_WING_VECTORS, _CHUNK_CONTROLLER = _load_shared_payload(shared_payload)
     _CHUNK_PARAMS = params
     _CHUNK_CONFIG_DICT = config_dict
     _CHUNK_OUTPUT_PATH = output_path_str
     _CHUNK_DRAW_MODELS = draw_models
+    _CHUNK_BOTTOM_OVERLAY = bottom_overlay_payload
 
 
 def _chunk_worker(frame_range: Tuple[int, int]) -> Tuple[Tuple[int, int], List[str]]:
@@ -698,6 +745,7 @@ def _chunk_worker(frame_range: Tuple[int, int]) -> Tuple[Tuple[int, int], List[s
         start, end,
         _CHUNK_STATES, _CHUNK_WING_VECTORS, _CHUNK_PARAMS, config, output_path,
         controller=_CHUNK_CONTROLLER, draw_models=_CHUNK_DRAW_MODELS,
+        bottom_overlay_payload=_CHUNK_BOTTOM_OVERLAY,
     )
     return frame_range, files
 
@@ -710,7 +758,8 @@ def render_all_frames_parallel(
     output_path: Path,
     controller: Optional[Dict] = None,
     draw_models: bool = False,
-    n_workers: Optional[int] = None
+    n_workers: Optional[int] = None,
+    bottom_overlay_payload: Optional[Dict] = None,
 ) -> List[str]:
     """
     Render all matplotlib overlay frames in parallel.
@@ -723,12 +772,14 @@ def render_all_frames_parallel(
         output_path: Output directory
         controller: Controller data dict (None for simulation mode)
         n_workers: Number of parallel workers (None = auto)
+        bottom_overlay_payload: Optional wingtip-path payload for bottom layer
 
     Returns:
         List of paths to rendered PNG files
     """
     if n_workers is None or n_workers <= 0:
-        n_workers = os.cpu_count() or 4
+        n_workers = os.cpu_count() or MAX_PARALLEL_WORKERS
+    n_workers = max(1, min(int(n_workers), MAX_PARALLEL_WORKERS))
 
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -739,12 +790,12 @@ def render_all_frames_parallel(
 
     # Fast path for serial rendering: still use chunk renderer to reuse figure context.
     if n_workers == 1:
-        return _render_frame_range(
-            0, n_frames, states, wing_vectors, params, config, output_path,
-            controller=controller, draw_models=draw_models,
-        )
-
-    print(f"  Matplotlib: rendering {n_frames} frames with {n_workers} workers...")
+        with pip_progress(n_frames, "Matplotlib", unit="frame") as progress:
+            return _render_frame_range(
+                0, n_frames, states, wing_vectors, params, config, output_path,
+                controller=controller, draw_models=draw_models, progress=progress,
+                bottom_overlay_payload=bottom_overlay_payload,
+            )
 
     try:
         with tempfile.TemporaryDirectory(prefix="mpl_shared_") as shared_tmp:
@@ -757,40 +808,29 @@ def render_all_frames_parallel(
                 initargs=(
                     shared_payload, params,
                     config_dict, str(output_path), draw_models,
+                    bottom_overlay_payload,
                 ),
             ) as executor:
                 futures = {executor.submit(_chunk_worker, frame_range): frame_range for frame_range in frame_ranges}
 
                 chunk_results: Dict[Tuple[int, int], List[str]] = {}
-                if TQDM_AVAILABLE:
-                    pbar = tqdm(total=n_frames, desc="Matplotlib   ", ncols=60)
-                else:
-                    pbar = None
-                    completed = 0
-
-                for future in as_completed(futures):
-                    frame_range, files = future.result()
-                    chunk_results[frame_range] = files
-                    chunk_len = frame_range[1] - frame_range[0]
-                    if pbar is not None:
-                        pbar.update(chunk_len)
-                    else:
-                        completed += chunk_len
-                        if completed % 100 == 0 or completed == n_frames:
-                            print(f"  Matplotlib: {completed}/{n_frames} frames")
-
-                if pbar is not None:
-                    pbar.close()
+                with pip_progress(n_frames, "Matplotlib", unit="frame") as progress:
+                    for future in as_completed(futures):
+                        frame_range, files = future.result()
+                        chunk_results[frame_range] = files
+                        chunk_len = frame_range[1] - frame_range[0]
+                        progress.update(chunk_len)
     except (OSError, PermissionError) as exc:
         # Restricted environments (e.g., some CI sandboxes) may block process pools.
         print(f"  Matplotlib: parallel render unavailable ({exc}); falling back to 1 worker")
-        return _render_frame_range(
-            0, n_frames, states, wing_vectors, params, config, output_path,
-            controller=controller, draw_models=draw_models,
-        )
+        with pip_progress(n_frames, "Matplotlib", unit="frame") as progress:
+            return _render_frame_range(
+                0, n_frames, states, wing_vectors, params, config, output_path,
+                controller=controller, draw_models=draw_models, progress=progress,
+                bottom_overlay_payload=bottom_overlay_payload,
+            )
 
     ordered = []
     for frame_range in sorted(chunk_results.keys()):
         ordered.extend(chunk_results[frame_range])
-    print(f"  Matplotlib: done ({n_frames} frames)")
     return ordered

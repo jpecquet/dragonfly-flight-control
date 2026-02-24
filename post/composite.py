@@ -6,6 +6,7 @@ then assembles into final video.
 """
 
 import json
+import hashlib
 import math
 import os
 import platform
@@ -14,16 +15,9 @@ import subprocess
 import tempfile
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-
-# Optional tqdm support for progress bars
-try:
-    from tqdm import tqdm
-    from tqdm.contrib.concurrent import thread_map
-    TQDM_AVAILABLE = True
-except ImportError:
-    TQDM_AVAILABLE = False
 
 import numpy as np
 from PIL import Image
@@ -31,9 +25,10 @@ from PIL import Image
 from .hybrid_config import HybridConfig, BlenderRenderConfig, compute_viewport
 from .mpl_overlay import (
     compute_blender_ortho_scale,
-    render_all_frames,
     render_all_frames_parallel,
 )
+from .annotation_overlay import render_annotation_frames, build_wingtip_paths_bottom_payload
+from .progress import pip_progress
 
 # Common Blender installation paths by platform
 BLENDER_PATHS = {
@@ -51,6 +46,133 @@ BLENDER_PATHS = {
         r'C:\Program Files\Blender Foundation\Blender 3.6\blender.exe',
     ],
 }
+
+# Keep one recent Blender frame set alive long enough to reuse across
+# back-to-back light/dark renders in the same process.
+_LIGHT_BODY_HEX = "#111111"
+_LIGHT_WING_HEX = "#d3d3d3"
+_DARK_BODY_HEX = "#f2f5f7"
+_DARK_WING_HEX = "#8f9aa6"
+MAX_PARALLEL_WORKERS = 4
+
+
+@dataclass
+class _BlenderFrameCacheEntry:
+    key: str
+    n_frames: int
+    frame_dir: Path
+    tmpdir_handle: object
+
+
+_BLENDER_FRAME_CACHE: Optional[_BlenderFrameCacheEntry] = None
+
+
+def _clear_blender_frame_cache() -> None:
+    global _BLENDER_FRAME_CACHE
+    if _BLENDER_FRAME_CACHE is None:
+        return
+    try:
+        cleanup = getattr(_BLENDER_FRAME_CACHE.tmpdir_handle, "cleanup", None)
+        if cleanup is not None:
+            cleanup()
+    finally:
+        _BLENDER_FRAME_CACHE = None
+
+
+def _set_blender_frame_cache(key: str, n_frames: int, frame_dir: Path, tmpdir_handle: object) -> None:
+    global _BLENDER_FRAME_CACHE
+    old = _BLENDER_FRAME_CACHE
+    _BLENDER_FRAME_CACHE = _BlenderFrameCacheEntry(
+        key=key,
+        n_frames=int(n_frames),
+        frame_dir=Path(frame_dir),
+        tmpdir_handle=tmpdir_handle,
+    )
+    if old is not None and old.tmpdir_handle is not tmpdir_handle:
+        cleanup = getattr(old.tmpdir_handle, "cleanup", None)
+        if cleanup is not None:
+            cleanup()
+
+
+def _get_cached_blender_frame_dir(key: str, n_frames: int) -> Optional[Path]:
+    entry = _BLENDER_FRAME_CACHE
+    if entry is None or entry.key != key or entry.n_frames != int(n_frames):
+        return None
+    if n_frames <= 0:
+        return entry.frame_dir
+    first = entry.frame_dir / "frame_000000.png"
+    last = entry.frame_dir / f"frame_{int(n_frames) - 1:06d}.png"
+    if not first.exists() or not last.exists():
+        _clear_blender_frame_cache()
+        return None
+    return entry.frame_dir
+
+
+def _normalized_blender_material_signature(config: HybridConfig) -> Dict[str, Optional[str]]:
+    style_cfg = config.style.to_dict() if getattr(config, "style", None) is not None else {}
+    theme = str(style_cfg.get("theme", "")).strip().lower()
+
+    def _norm(key: str) -> Optional[str]:
+        value = style_cfg.get(key)
+        if value is None:
+            return None
+        normalized = str(value).strip().lower()
+        if theme == "light":
+            if key == "body_color" and normalized == _LIGHT_BODY_HEX:
+                return _DARK_BODY_HEX
+            if key == "wing_color" and normalized == _LIGHT_WING_HEX:
+                return _DARK_WING_HEX
+        return normalized
+
+    return {
+        "body_color": _norm("body_color"),
+        "wing_color": _norm("wing_color"),
+    }
+
+
+def _path_fingerprint(path_like: str) -> Dict[str, object]:
+    path = Path(path_like)
+    try:
+        st = path.stat()
+        return {
+            "path": str(path.resolve()),
+            "size": int(st.st_size),
+            "mtime_ns": int(st.st_mtime_ns),
+        }
+    except OSError:
+        return {"path": str(path)}
+
+
+def _blender_frame_reuse_key(
+    *,
+    input_file: str,
+    n_frames: int,
+    frame_step: int,
+    time_values: np.ndarray,
+    config: HybridConfig,
+) -> str:
+    time_arr = np.asarray(time_values, dtype=float).reshape(-1)
+    if time_arr.size > 0:
+        time_sig = {
+            "n": int(time_arr.size),
+            "start": float(time_arr[0]),
+            "end": float(time_arr[-1]),
+        }
+    else:
+        time_sig = {"n": 0}
+
+    key_payload = {
+        "source": _path_fingerprint(input_file),
+        "n_frames": int(n_frames),
+        "frame_step": int(frame_step),
+        "time": time_sig,
+        "camera": config.camera.to_dict() if config.camera is not None else None,
+        "viewport": config.viewport.to_dict() if config.viewport is not None else None,
+        "blender": config.blender.to_dict() if config.blender is not None else None,
+        "materials": _normalized_blender_material_signature(config),
+    }
+    encoded = json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def find_blender() -> Optional[str]:
@@ -131,13 +253,14 @@ def composite_frames_parallel(
         mpl_dir: Directory containing matplotlib frames (mpl_NNNNNN.png)
         output_dir: Output directory for composited frames
         n_frames: Number of frames to composite
-        n_workers: Number of parallel workers (None = auto, capped at 8)
+        n_workers: Number of parallel workers (None = auto, capped at 4)
 
     Returns:
         List of paths to composited PNG files
     """
     if n_workers is None or n_workers <= 0:
-        n_workers = min(os.cpu_count() or 4, 8)  # Cap at 8 for I/O
+        n_workers = os.cpu_count() or MAX_PARALLEL_WORKERS
+    n_workers = max(1, min(int(n_workers), MAX_PARALLEL_WORKERS))
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -147,19 +270,19 @@ def composite_frames_parallel(
         for i in range(n_frames)
     ]
 
-    if TQDM_AVAILABLE:
-        results = thread_map(
-            _composite_single_frame, work,
-            max_workers=n_workers,
-            desc="Compositing  ", ncols=60
-        )
-    else:
-        print(f"  Compositing: {n_frames} frames with {n_workers} workers...")
-        with ThreadPoolExecutor(max_workers=n_workers) as executor:
-            results = list(executor.map(_composite_single_frame, work))
-        print(f"  Compositing: done ({n_frames} frames)")
+    results: List[Optional[str]] = [None] * len(work)
+    with ThreadPoolExecutor(max_workers=n_workers) as executor:
+        futures = {
+            executor.submit(_composite_single_frame, args): idx
+            for idx, args in enumerate(work)
+        }
+        with pip_progress(n_frames, "Compositing", unit="frame") as progress:
+            for future in as_completed(futures):
+                idx = futures[future]
+                results[idx] = future.result()
+                progress.update(1)
 
-    return results
+    return [r for r in results if r is not None]
 
 
 def assemble_video(
@@ -201,6 +324,8 @@ def assemble_video_from_layers(
     framerate: int = 30,
     mpl_pattern: str = "mpl_%06d.png",
     blender_pattern: str = "frame_%06d.png",
+    annotation_dir: Optional[Path] = None,
+    annotation_pattern: str = "ann_%06d.png",
 ):
     """
     Assemble hybrid video directly from matplotlib and Blender PNG sequences.
@@ -214,6 +339,8 @@ def assemble_video_from_layers(
         framerate: Video framerate
         mpl_pattern: Printf-style matplotlib frame pattern
         blender_pattern: Printf-style Blender frame pattern
+        annotation_dir: Optional directory containing transparent annotation overlays
+        annotation_pattern: Printf-style annotation frame pattern
     """
     mpl_dir = Path(mpl_dir)
     blender_dir = Path(blender_dir)
@@ -224,15 +351,30 @@ def assemble_video_from_layers(
         '-i', str(mpl_dir / mpl_pattern),
         '-framerate', str(framerate),
         '-i', str(blender_dir / blender_pattern),
-        '-filter_complex',
-        # Scale Blender stream to match matplotlib stream, then alpha-overlay.
-        '[1:v][0:v]scale2ref[fg][bg];[bg][fg]overlay=shortest=1:format=auto[v]',
+    ]
+
+    if annotation_dir is not None:
+        annotation_dir = Path(annotation_dir)
+        cmd.extend([
+            '-framerate', str(framerate),
+            '-i', str(annotation_dir / annotation_pattern),
+        ])
+        filter_complex = (
+            '[1:v][0:v]scale2ref[fg][bg];'
+            '[bg][fg]overlay=shortest=1:format=auto[tmp];'
+            '[tmp][2:v]overlay=shortest=1:format=auto[v]'
+        )
+    else:
+        filter_complex = '[1:v][0:v]scale2ref[fg][bg];[bg][fg]overlay=shortest=1:format=auto[v]'
+
+    cmd.extend([
+        '-filter_complex', filter_complex,
         '-map', '[v]',
         '-c:v', 'libx264',
         '-pix_fmt', 'yuv420p',
         '-crf', '18',
         output_file,
-    ]
+    ])
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -341,6 +483,12 @@ def extract_frame_data(states, wing_vectors, params=None, time_values=None):
     if params is not None:
         payload['wing_lb0'] = {
             str(name): float(value) for name, value in params.get('wing_lb0', {}).items()
+        }
+        payload['wing_gamma_mean'] = {
+            str(name): float(value) for name, value in params.get('wing_gamma_mean', {}).items()
+        }
+        payload['wing_cone_angle'] = {
+            str(name): float(value) for name, value in params.get('wing_cone_angle', {}).items()
         }
         payload['wing_twist_h1'] = _extract_wing_twist_h1(time_arr, wing_names, params)
     return payload
@@ -473,14 +621,8 @@ def run_blender_render_parallel(
         raise RuntimeError("Blender not found")
 
     if n_workers is None or n_workers <= 0:
-        n_workers = os.cpu_count() or 4
-
-    if n_workers == 1:
-        run_blender_render(
-            states, wing_vectors, output_dir, config_file, data_file,
-            start_frame=0, end_frame=n_frames, params=params, time_values=time_values
-        )
-        return
+        n_workers = os.cpu_count() or MAX_PARALLEL_WORKERS
+    n_workers = max(1, min(int(n_workers), MAX_PARALLEL_WORKERS))
 
     # Extract and save frame data (shared by all workers)
     frame_data = extract_frame_data(states, wing_vectors, params=params, time_values=time_values)
@@ -497,6 +639,10 @@ def run_blender_render_parallel(
     ]
     # Filter empty ranges
     ranges = [(s, e) for s, e in ranges if s < e]
+    if not ranges:
+        with pip_progress(0, "Blender", unit="frame", min_interval=0.2):
+            pass
+        return
 
     # Prepare work items
     work = [
@@ -510,31 +656,15 @@ def run_blender_render_parallel(
         futures = [executor.submit(_blender_worker, w) for w in work]
 
         # Poll output directory for rendered frames instead of waiting per-batch
-        if TQDM_AVAILABLE:
-            pbar = tqdm(total=n_frames, desc="Blender      ", ncols=60)
+        with pip_progress(n_frames, "Blender", unit="frame", min_interval=0.2) as progress:
             while not all(f.done() for f in futures):
                 rendered = len(list(output_dir.glob("frame_*.png")))
-                pbar.n = rendered
-                pbar.refresh()
+                progress.set(rendered)
                 time.sleep(0.5)
             # Check for worker exceptions before finalizing progress bar
             for future in futures:
                 future.result()
-            pbar.n = n_frames
-            pbar.refresh()
-            pbar.close()
-        else:
-            last_printed = 0
-            while not all(f.done() for f in futures):
-                rendered = len(list(output_dir.glob("frame_*.png")))
-                if rendered >= last_printed + 50:
-                    print(f"  Blender: {rendered}/{n_frames} frames")
-                    last_printed = rendered
-                time.sleep(0.5)
-            # Check for worker exceptions before reporting completion
-            for future in futures:
-                future.result()
-            print(f"  Blender: done ({n_frames} frames)")
+            progress.set(n_frames)
 
 
 def check_blender_available() -> bool:
@@ -580,6 +710,7 @@ def render_hybrid(
     controller: Optional[Dict] = None,
     config: Optional[HybridConfig] = None,
     frame_step: int = 1,
+    annotation_overlay: Optional[Dict] = None,
 ):
     """
     Render using hybrid Blender + matplotlib pipeline.
@@ -641,34 +772,87 @@ def render_hybrid(
     config.blender.center_offset_y = offset_y
 
     n_frames = len(states)
-    n_workers = config.n_workers if config.n_workers > 0 else (os.cpu_count() or 4)
+    n_workers = config.n_workers if config.n_workers > 0 else (os.cpu_count() or MAX_PARALLEL_WORKERS)
+    n_workers = max(1, min(int(n_workers), MAX_PARALLEL_WORKERS))
+    blender_cache_key = _blender_frame_reuse_key(
+        input_file=input_file,
+        n_frames=n_frames,
+        frame_step=frame_step,
+        time_values=time_values,
+        config=config,
+    )
+    cached_blender_dir = _get_cached_blender_frame_dir(blender_cache_key, n_frames)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
-        blender_dir = tmpdir / "blender"
         mpl_dir = tmpdir / "mpl"
+        ann_dir = tmpdir / "ann"
         config_file = tmpdir / "config.json"
         data_file = tmpdir / "frame_data.json"
 
-        blender_dir.mkdir(parents=True, exist_ok=True)
         mpl_dir.mkdir(parents=True, exist_ok=True)
+        if annotation_overlay is not None:
+            ann_dir.mkdir(parents=True, exist_ok=True)
         config.save(str(config_file))
+
+        # Build bottom-layer wingtip path payload if applicable.
+        bottom_overlay_payload = None
+        if (
+            annotation_overlay is not None
+            and isinstance(annotation_overlay, dict)
+            and str(annotation_overlay.get("kind", "")).strip() == "wingtip_paths"
+            and annotation_overlay.get("bottom_layer_wings")
+        ):
+            bottom_overlay_payload = build_wingtip_paths_bottom_payload(
+                wing_vectors, params, config, annotation_overlay,
+                time_values=time_values,
+            )
 
         print(f"Rendering matplotlib frames ({n_workers} workers)...")
         render_all_frames_parallel(
             states, wing_vectors, params, config, mpl_dir,
-            controller=controller, n_workers=n_workers
+            controller=controller, n_workers=n_workers,
+            bottom_overlay_payload=bottom_overlay_payload,
         )
 
-        print(f"Rendering Blender frames ({n_workers} workers)...")
-        run_blender_render_parallel(
-            states, wing_vectors, blender_dir, str(config_file),
-            str(data_file), n_frames, n_workers, params=params, time_values=time_values
-        )
+        annotation_dir_for_assembly = None
+        if annotation_overlay is not None:
+            print(f"Rendering annotation overlay ({n_workers} workers)...")
+            render_annotation_frames(
+                states, wing_vectors, params, config, ann_dir, annotation_overlay,
+                time_values=time_values,
+                n_workers=n_workers,
+            )
+            annotation_dir_for_assembly = ann_dir
+
+        blender_dir_for_assembly = cached_blender_dir
+        if blender_dir_for_assembly is not None:
+            print(f"Reusing cached Blender frames ({n_frames} frames)...")
+        else:
+            cache_tmpdir = tempfile.TemporaryDirectory(prefix="hybrid_blender_frames_")
+            cache_blender_dir = Path(cache_tmpdir.name) / "blender"
+            cache_blender_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                print(f"Rendering Blender frames ({n_workers} workers)...")
+                run_blender_render_parallel(
+                    states, wing_vectors, cache_blender_dir, str(config_file),
+                    str(data_file), n_frames, n_workers, params=params, time_values=time_values
+                )
+            except Exception:
+                cache_tmpdir.cleanup()
+                raise
+            _set_blender_frame_cache(
+                blender_cache_key, n_frames, cache_blender_dir, cache_tmpdir
+            )
+            blender_dir_for_assembly = cache_blender_dir
 
         print("Assembling video from Blender + matplotlib layers...")
         assemble_video_from_layers(
-            mpl_dir, blender_dir, output_file, config.framerate
+            mpl_dir,
+            blender_dir_for_assembly,
+            output_file,
+            config.framerate,
+            annotation_dir=annotation_dir_for_assembly,
         )
 
     print(f"Done: {output_file}")
@@ -715,7 +899,8 @@ def render_mpl_only(
         config.viewport = compute_viewport(states, targets=targets)
 
     n_frames = len(states)
-    n_workers = config.n_workers if config.n_workers > 0 else (os.cpu_count() or 4)
+    n_workers = config.n_workers if config.n_workers > 0 else (os.cpu_count() or MAX_PARALLEL_WORKERS)
+    n_workers = max(1, min(int(n_workers), MAX_PARALLEL_WORKERS))
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)

@@ -18,3 +18,33 @@ artifacts:
   - kind: simulation_video
     input_h5: "{run_dir}/output.h5"
     output: wing_kinematics_section1_anim1_side_y.{theme}.mp4
+    annotation_overlay:
+      kind: stroke_plane_angles
+      stroke_line_color: "C0"
+  - kind: simulation_video
+    input_h5: "{run_dir}/output.h5"
+    render_config: cases/modeling_wing_kinematics/render_config.side_y_cones.json
+    output: wing_kinematics_section1_anim1_side_y_cones.{theme}.mp4
+    annotation_overlay:
+      kind: stroke_plane_cone_angles
+      stroke_line_color: "C0"
+  - kind: simulation_video
+    input_h5: "{run_dir}/output.h5"
+    render_config: cases/modeling_wing_kinematics/render_config.fore_left_cone_normal.json
+    output: wing_kinematics_section1_anim1_fore_left_cone_normal.{theme}.mp4
+    annotation_overlay:
+      kind: fore_left_y_reference
+  - kind: simulation_video
+    input_h5: "{run_dir}/output.h5"
+    render_config: cases/modeling_wing_kinematics/render_config.p111_stroke_planes.json
+    output: wing_kinematics_section1_anim1_p111_stroke_planes.{theme}.mp4
+    annotation_overlay:
+      kind: wingtip_paths
+      bottom_layer_wings: [hind_right]
+  - kind: stick_video
+    input_h5: "{run_dir}/output.h5"
+    output: wing_kinematics_section1_anim1_stick.{theme}.mp4
+    show_axes: false
+    show_grid: false
+    show_timestamp: false
+    show_pitch_angle: true

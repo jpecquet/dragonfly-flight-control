@@ -46,7 +46,12 @@ def read_simulation(filename):
             if path in f:
                 params[f"wing_{key}"] = dict(zip(wing_names_param, f[path][:]))
 
-        for key in ("psi_amp", "psi_phase"):
+        for key in ("gamma_mean", "phi_mean", "psi_mean", "cone_angle"):
+            path = f"/parameters/wings/{key}"
+            if path in f:
+                params[f"wing_{key}"] = dict(zip(wing_names_param, f[path][:]))
+
+        for key in ("gamma_amp", "gamma_phase", "phi_amp", "phi_phase", "psi_amp", "psi_phase"):
             path = f"/parameters/wings/{key}"
             if path in f:
                 data = f[path][:]

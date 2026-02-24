@@ -56,10 +56,10 @@ The simulator motion inputs are constructed from the paper angles using:
 ```{raw} html
 <video
   class="case-study-video"
-  controls
   loop
   autoplay
   muted
+  playsinline
   preload="metadata"
   data-light-src="../_static/media/azuma1988/exp1/simulation.light.mp4"
   data-dark-src="../_static/media/azuma1988/exp1/simulation.dark.mp4"
@@ -74,10 +74,10 @@ The simulator motion inputs are constructed from the paper angles using:
 ```{raw} html
 <video
   class="case-study-video"
-  controls
   loop
   autoplay
   muted
+  playsinline
   preload="metadata"
   data-light-src="../_static/media/azuma1988/exp1/stick.light.mp4"
   data-dark-src="../_static/media/azuma1988/exp1/stick.dark.mp4"
@@ -118,10 +118,10 @@ The simulator motion inputs are constructed from the paper angles using:
 ```{raw} html
 <video
   class="case-study-video"
-  controls
   loop
   autoplay
   muted
+  playsinline
   preload="metadata"
   data-light-src="../_static/media/azuma1988/exp2/simulation.light.mp4"
   data-dark-src="../_static/media/azuma1988/exp2/simulation.dark.mp4"
@@ -136,10 +136,10 @@ The simulator motion inputs are constructed from the paper angles using:
 ```{raw} html
 <video
   class="case-study-video"
-  controls
   loop
   autoplay
   muted
+  playsinline
   preload="metadata"
   data-light-src="../_static/media/azuma1988/exp2/stick.light.mp4"
   data-dark-src="../_static/media/azuma1988/exp2/stick.dark.mp4"
@@ -180,10 +180,10 @@ The simulator motion inputs are constructed from the paper angles using:
 ```{raw} html
 <video
   class="case-study-video"
-  controls
   loop
   autoplay
   muted
+  playsinline
   preload="metadata"
   data-light-src="../_static/media/azuma1988/exp3/simulation.light.mp4"
   data-dark-src="../_static/media/azuma1988/exp3/simulation.dark.mp4"
@@ -198,10 +198,10 @@ The simulator motion inputs are constructed from the paper angles using:
 ```{raw} html
 <video
   class="case-study-video"
-  controls
   loop
   autoplay
   muted
+  playsinline
   preload="metadata"
   data-light-src="../_static/media/azuma1988/exp3/stick.light.mp4"
   data-dark-src="../_static/media/azuma1988/exp3/stick.dark.mp4"
@@ -242,10 +242,10 @@ The simulator motion inputs are constructed from the paper angles using:
 ```{raw} html
 <video
   class="case-study-video"
-  controls
   loop
   autoplay
   muted
+  playsinline
   preload="metadata"
   data-light-src="../_static/media/azuma1988/exp4/simulation.light.mp4"
   data-dark-src="../_static/media/azuma1988/exp4/simulation.dark.mp4"
@@ -260,10 +260,10 @@ The simulator motion inputs are constructed from the paper angles using:
 ```{raw} html
 <video
   class="case-study-video"
-  controls
   loop
   autoplay
   muted
+  playsinline
   preload="metadata"
   data-light-src="../_static/media/azuma1988/exp4/stick.light.mp4"
   data-dark-src="../_static/media/azuma1988/exp4/stick.dark.mp4"

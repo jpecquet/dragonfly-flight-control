@@ -60,10 +60,10 @@ Paper-convention Fourier data (degrees):
 ```{raw} html
 <video
   class="case-study-video"
-  controls
   loop
   autoplay
   muted
+  playsinline
   preload="metadata"
   data-light-src="../_static/media/azuma1985/simulation.light.mp4"
   data-dark-src="../_static/media/azuma1985/simulation.dark.mp4"
@@ -78,10 +78,10 @@ Paper-convention Fourier data (degrees):
 ```{raw} html
 <video
   class="case-study-video"
-  controls
   loop
   autoplay
   muted
+  playsinline
   preload="metadata"
   data-light-src="../_static/media/azuma1985/stick.light.mp4"
   data-dark-src="../_static/media/azuma1985/stick.dark.mp4"

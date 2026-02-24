@@ -26,6 +26,7 @@ class CameraConfig:
     figsize_width: float = 6.5   # inches
     figsize_height: float = 4.333333333333333  # inches
     dpi: int = 300  # dots per inch
+    box_zoom: float = 1.0  # matplotlib 3D axes zoom (visual framing only; limits unchanged)
 
     @property
     def figsize(self) -> Tuple[float, float]:
@@ -158,6 +159,8 @@ class BlenderRenderConfig:
     computed_ortho_scale: Optional[float] = None  # Exact value from matplotlib projection
     center_offset_x: float = 0.0  # Pixel offset in X
     center_offset_y: float = 0.0  # Pixel offset in Y
+    stroke_planes: Optional[dict] = None  # Optional Blender-only stroke-plane plane overlays
+    stroke_cones: Optional[dict] = None  # Optional Blender-only wing-cone overlays
 
     def to_dict(self) -> dict:
         d = {
@@ -167,6 +170,10 @@ class BlenderRenderConfig:
         }
         if self.computed_ortho_scale is not None:
             d['computed_ortho_scale'] = self.computed_ortho_scale
+        if self.stroke_planes is not None:
+            d['stroke_planes'] = self.stroke_planes
+        if self.stroke_cones is not None:
+            d['stroke_cones'] = self.stroke_cones
         return d
 
     @classmethod

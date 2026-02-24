@@ -229,6 +229,23 @@ def create_wing_material(style_cfg=None):
     return mat
 
 
+def create_stroke_plane_material(color=None, alpha=0.22):
+    """Create semi-transparent pastel material for stroke-plane guide planes."""
+    rgba = list(_parse_rgba(color, (0.96, 0.58, 0.58, 1.0)))
+    rgba[3] = float(np.clip(alpha, 0.0, 1.0))
+    mat = bpy.data.materials.new(name="StrokePlane")
+    mat.diffuse_color = tuple(rgba)
+    try:
+        mat.blend_method = 'BLEND'
+    except Exception:
+        pass
+    try:
+        mat.shadow_method = 'NONE'
+    except Exception:
+        pass
+    return mat
+
+
 def load_body_mesh(filepath, style_cfg=None):
     """
     Load dragonfly body mesh from OBJ file.
@@ -293,6 +310,252 @@ def create_composite_ellipse_wing(name, span, root_chord, style_cfg=None, n_span
     obj.data.materials.append(mat)
 
     return obj
+
+
+def create_quad_object(name, corners_xyz, material):
+    """Create a single-quad mesh object from 4 corners (world/body-frame coords)."""
+    mesh = bpy.data.meshes.new(f"{name}_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+
+    bm = bmesh.new()
+    verts = [bm.verts.new((float(p[0]), float(p[1]), float(p[2]))) for p in corners_xyz]
+    bm.verts.ensure_lookup_table()
+    bm.faces.new(verts)
+    bm.to_mesh(mesh)
+    bm.free()
+
+    obj.data.materials.clear()
+    obj.data.materials.append(material)
+    return obj
+
+
+def _normalize_name(name):
+    return str(name).strip().lower().replace('-', '_')
+
+
+def _resolve_stroke_plane_wings(wing_names, requested=None, side='right'):
+    """Resolve default fore/hind wing pair for overlays (right side by default)."""
+    if isinstance(requested, list) and requested:
+        resolved = [str(w) for w in requested if str(w) in wing_names]
+        if resolved:
+            return resolved
+    side = str(side).strip().lower()
+    side = 'left' if side == 'left' else 'right'
+    fore = None
+    hind = None
+    for name in wing_names:
+        n = _normalize_name(name)
+        if fore is None and "fore" in n and side in n:
+            fore = name
+        if hind is None and "hind" in n and side in n:
+            hind = name
+    if fore is None or hind is None:
+        for name in wing_names:
+            n = _normalize_name(name)
+            if fore is None and "fore" in n:
+                fore = name
+            if hind is None and "hind" in n:
+                hind = name
+    return [w for w in (fore, hind) if w is not None]
+
+
+def _stroke_plane_quad_corners(wing_name, lb0, gamma, cone, half_width):
+    """
+    Build a rectangular stroke-plane patch in body coordinates.
+
+    The plane is spanned by:
+      - stroke direction in the XZ plane: d = (-cos(gamma), 0, sin(gamma))
+      - body lateral axis +/-Y
+    and offset by lb0*sin(cone) along the stroke-plane normal in XZ.
+    """
+    xoff, yoff, zoff = get_wing_offsets(wing_name)
+    root = np.array([xoff, yoff, zoff], dtype=float)
+    d = np.array([-math.cos(gamma), 0.0, math.sin(gamma)], dtype=float)
+    d_norm = np.linalg.norm(d)
+    if d_norm <= 1e-12:
+        return None
+    d = d / d_norm
+    n = np.array([math.sin(gamma), 0.0, math.cos(gamma)], dtype=float)
+    center = root + (float(lb0) * math.sin(float(cone))) * n
+    span = float(lb0) * d
+    yv = np.array([0.0, float(half_width), 0.0], dtype=float)
+    p00 = center - span - yv
+    p01 = center - span + yv
+    p11 = center + span + yv
+    p10 = center + span - yv
+    return [p00, p01, p11, p10]
+
+
+def create_stroke_plane_objects(body_obj, wing_names, frame_data, blender_cfg):
+    """Create optional transparent stroke-plane plane meshes and parent them to body."""
+    spec = blender_cfg.get('stroke_planes')
+    if not isinstance(spec, dict) or not bool(spec.get('enabled', False)):
+        return {}
+
+    wing_lb0 = frame_data.get('wing_lb0', {})
+    wing_gamma_mean = frame_data.get('wing_gamma_mean', {})
+    wing_cone_angle = frame_data.get('wing_cone_angle', {})
+    if not isinstance(wing_lb0, dict) or not isinstance(wing_gamma_mean, dict):
+        return {}
+
+    selected_wings = _resolve_stroke_plane_wings(
+        wing_names, requested=spec.get('wings'), side=spec.get('side', 'right')
+    )
+    if not selected_wings:
+        return {}
+
+    color = spec.get('color', '#f2a3a3')
+    alpha = float(spec.get('alpha', 0.22))
+    half_width_default = spec.get('half_width')
+    width_scale = float(spec.get('half_width_scale', 0.28))
+    material = create_stroke_plane_material(color=color, alpha=alpha)
+
+    plane_objects = {}
+    for wname in selected_wings:
+        if wname not in wing_lb0 or wname not in wing_gamma_mean:
+            continue
+        lb0 = float(wing_lb0[wname])
+        gamma = float(wing_gamma_mean[wname])
+        cone = float(wing_cone_angle.get(wname, 0.0))
+        half_width = float(half_width_default) if half_width_default is not None else (width_scale * lb0)
+        corners = _stroke_plane_quad_corners(wname, lb0, gamma, cone, half_width)
+        if corners is None:
+            continue
+        obj = create_quad_object(f"StrokePlane_{wname}", corners, material)
+        # Body origin is the simulation reference point, so body-frame coords can be parented directly.
+        obj.parent = body_obj
+        try:
+            obj.matrix_parent_inverse = body_obj.matrix_world.inverted()
+        except Exception:
+            pass
+        plane_objects[wname] = obj
+
+    return plane_objects
+
+
+def create_cone_surface_object(
+    name, apex, axis_dir, height, radius, material, n_theta=48, half_y=None
+):
+    """Create an open cone surface mesh (no base cap) in body/world coordinates."""
+    h = float(height)
+    r = float(radius)
+    if abs(h) <= 1e-8 or r <= 1e-8:
+        return None
+
+    a = np.asarray(axis_dir, dtype=float)
+    a_norm = float(np.linalg.norm(a))
+    if a_norm <= 1e-12:
+        return None
+    a = a / a_norm
+
+    center = np.asarray(apex, dtype=float) + h * a
+    ref = np.array([0.0, 1.0, 0.0], dtype=float)
+    if abs(float(np.dot(ref, a))) > 0.95:
+        ref = np.array([1.0, 0.0, 0.0], dtype=float)
+    u = np.cross(a, ref)
+    u_norm = float(np.linalg.norm(u))
+    if u_norm <= 1e-12:
+        return None
+    u = u / u_norm
+    v = np.cross(a, u)
+
+    n_theta = max(8, int(n_theta))
+    thetas = np.linspace(0.0, 2.0 * math.pi, n_theta, endpoint=False)
+    ring = [
+        center + r * (math.cos(th) * u + math.sin(th) * v)
+        for th in thetas
+    ]
+
+    mesh = bpy.data.meshes.new(f"{name}_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+
+    bm = bmesh.new()
+    v_apex = bm.verts.new((float(apex[0]), float(apex[1]), float(apex[2])))
+    v_ring = [bm.verts.new((float(p[0]), float(p[1]), float(p[2]))) for p in ring]
+    bm.verts.ensure_lookup_table()
+    half_y_mode = None if half_y is None else str(half_y).strip().lower()
+    y_cut = float(apex[1])
+    for i in range(len(v_ring)):
+        v0 = v_ring[i]
+        v1 = v_ring[(i + 1) % len(v_ring)]
+        if half_y_mode in ("positive", "negative"):
+            y0 = float(ring[i][1])
+            y1 = float(ring[(i + 1) % len(ring)][1])
+            eps = 1e-9
+            if half_y_mode == "positive" and (y0 < y_cut - eps or y1 < y_cut - eps):
+                continue
+            if half_y_mode == "negative" and (y0 > y_cut + eps or y1 > y_cut + eps):
+                continue
+        try:
+            bm.faces.new((v_apex, v0, v1))
+        except ValueError:
+            pass
+    bm.to_mesh(mesh)
+    bm.free()
+
+    obj.data.materials.clear()
+    obj.data.materials.append(material)
+    return obj
+
+
+def create_stroke_cone_objects(body_obj, wing_names, frame_data, blender_cfg):
+    """Create optional transparent wing-cone surfaces and parent them to body."""
+    spec = blender_cfg.get('stroke_cones')
+    if not isinstance(spec, dict) or not bool(spec.get('enabled', False)):
+        return {}
+
+    wing_lb0 = frame_data.get('wing_lb0', {})
+    wing_gamma_mean = frame_data.get('wing_gamma_mean', {})
+    wing_cone_angle = frame_data.get('wing_cone_angle', {})
+    if not isinstance(wing_lb0, dict) or not isinstance(wing_gamma_mean, dict):
+        return {}
+
+    selected_wings = _resolve_stroke_plane_wings(
+        wing_names, requested=spec.get('wings'), side=spec.get('side', 'right')
+    )
+    if not selected_wings:
+        return {}
+
+    color = spec.get('color', '#ff6b6b')
+    alpha = float(spec.get('alpha', 0.28))
+    n_theta = int(spec.get('n_theta', 48))
+    half_y = spec.get('half_y')
+    material = create_stroke_plane_material(color=color, alpha=alpha)
+
+    cone_objects = {}
+    for wname in selected_wings:
+        if wname not in wing_lb0 or wname not in wing_gamma_mean:
+            continue
+        lb0 = float(wing_lb0[wname])
+        gamma = float(wing_gamma_mean[wname])
+        cone = float(wing_cone_angle.get(wname, 0.0))
+        xoff, yoff, zoff = get_wing_offsets(wname)
+        apex = np.array([xoff, yoff, zoff], dtype=float)
+        axis = np.array([math.sin(gamma), 0.0, math.cos(gamma)], dtype=float)
+        height = lb0 * math.sin(cone)
+        radius = abs(lb0 * math.cos(cone))
+        obj = create_cone_surface_object(
+            f"StrokeCone_{wname}",
+            apex=apex,
+            axis_dir=axis,
+            height=height,
+            radius=radius,
+            material=material,
+            n_theta=n_theta,
+            half_y=half_y,
+        )
+        if obj is None:
+            continue
+        obj.parent = body_obj
+        try:
+            obj.matrix_parent_inverse = body_obj.matrix_world.inverted()
+        except Exception:
+            pass
+        cone_objects[wname] = obj
+
+    return cone_objects
 
 
 def transform_wing(wing_obj, origin, e_r, e_c, mirror_y=True):
@@ -497,6 +760,8 @@ def main():
     # Load body mesh
     assets_dir = script_dir / "assets"
     body = load_body_mesh(assets_dir / "dragonfly_body.obj", style_cfg=style_cfg)
+    _stroke_plane_objects = create_stroke_plane_objects(body, wing_names, frame_data, blender_cfg)
+    _stroke_cone_objects = create_stroke_cone_objects(body, wing_names, frame_data, blender_cfg)
 
     # Wing configuration
     wing_info = {}

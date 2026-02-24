@@ -1,7 +1,7 @@
 {
   "camera": {
-    "elevation": 0.0,
-    "azimuth": 90.0,
+    "elevation": 40.0,
+    "azimuth": 0.0,
     "ortho_scale": 3.0,
     "box_zoom": 1.12,
     "figsize_width": 3.2533333333333334,
@@ -39,21 +39,31 @@
   },
   "viewport": {
     "center": [
-      -0.1,
       0.0,
-      0.1
+      0.1,
+      0.0
     ],
     "extent": 2.2,
     "extent_xyz": [
-      1.1,
-      1.1,
-      1.1
+      1.2,
+      1.2,
+      1.2
     ]
   },
   "blender": {
     "scale_factor": 0.82,
     "center_offset_x": 0.0,
-    "center_offset_y": 0.0
+    "center_offset_y": 0.0,
+    "stroke_cones": {
+      "enabled": true,
+      "wings": [
+        "fore_left"
+      ],
+      "color": "#ffa500",
+      "alpha": 0.6,
+      "n_theta": 48,
+      "half_y": "positive"
+    }
   },
   "framerate": 30,
   "trail_length": -1,
