@@ -13,10 +13,12 @@ SUPPORTED_SIMULATION_DRIVERS = {"yaml_case"}
 SUPPORTED_THEMES = {"light", "dark"}
 SUPPORTED_ARTIFACT_KINDS = {
     "case_fore_hind_kinematics",
+    "exp_kinematics_scatter",
     "body_flight_metrics_vs_reference",
     "simulation_video",
     "stick_video",
     "force_comparison",
+    "mass_regression",
 }
 
 
@@ -90,6 +92,11 @@ def _validate_artifact_common(
                 raise ValueError(f"artifacts[{idx}].angle_keys must contain exactly two items{_ctx(path)}")
             for j, item in enumerate(values):
                 _expect_nonempty_str(item, f"artifacts[{idx}].angle_keys[{j}]", path=path)
+        return
+
+    if kind == "exp_kinematics_scatter":
+        _expect_nonempty_str(artifact.get("source_case_file"), f"artifacts[{idx}].source_case_file", path=path)
+        _expect_nonempty_str(artifact.get("csv_path"), f"artifacts[{idx}].csv_path", path=path)
         return
 
     if kind == "body_flight_metrics_vs_reference":

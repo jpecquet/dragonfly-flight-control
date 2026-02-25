@@ -167,6 +167,8 @@ def _run_artifact(
     from post.docs_artifacts import (
         plot_body_flight_metrics_vs_reference,
         plot_case_fore_hind_kinematics,
+        plot_exp_kinematics_scatter,
+        plot_mass_regression,
         render_simulation_video_from_h5,
         render_stick_video_from_h5,
     )
@@ -202,6 +204,23 @@ def _run_artifact(
             case,
             output_path,
             angle_keys=(str(angle_keys_raw[0]), str(angle_keys_raw[1])),
+            theme=theme,
+        )
+        return
+
+    if kind == "exp_kinematics_scatter":
+        case_file_raw = resolved.get("source_case_file")
+        csv_path_raw = resolved.get("csv_path")
+        if not isinstance(case_file_raw, str) or not case_file_raw:
+            raise ValueError("exp_kinematics_scatter requires source_case_file")
+        if not isinstance(csv_path_raw, str) or not csv_path_raw:
+            raise ValueError("exp_kinematics_scatter requires csv_path")
+        case_path = _resolve_repo_path(case_file_raw)
+        case = _load_case_cache(case_cache, case_path)
+        plot_exp_kinematics_scatter(
+            case,
+            _resolve_repo_path(csv_path_raw),
+            output_path,
             theme=theme,
         )
         return
@@ -281,17 +300,6 @@ def _run_artifact(
             read_force_series_csv,
         )
 
-        # Run secondary simulation if configured.
-        secondary = resolved.get("secondary_simulation")
-        if isinstance(secondary, dict):
-            sec_run_dir = _resolve_repo_path(secondary["run_dir"])
-            sec_h5 = sec_run_dir / "output.h5"
-            if not sec_h5.exists():
-                sec_case = _resolve_repo_path(secondary["case_file"])
-                sec_binary = secondary.get("binary")
-                sec_binary_path = Path(sec_binary) if isinstance(sec_binary, str) and sec_binary else None
-                run_case(sec_case, run_dir=sec_run_dir, binary=sec_binary_path)
-
         h5_series_raw = resolved.get("h5_series", [])
         h5_inputs = [_resolve_repo_path(s["input_h5"]) for s in h5_series_raw]
         h5_labels = [str(s["label"]) for s in h5_series_raw]
@@ -305,6 +313,17 @@ def _run_artifact(
                 str(csv_entry.get("value_col", "Fz")),
                 str(csv_entry["label"]),
             )
+            # Pass through optional display fields.
+            style = str(csv_entry.get("style", "line"))
+            color = csv_entry.get("color")
+            wrap_raw = csv_entry.get("wrap_period")
+            wrap_period = float(wrap_raw) if wrap_raw is not None else None
+            ext = ExternalForceSeries(
+                x=ext.x, fz=ext.fz, label=ext.label,
+                style=style,
+                color=str(color) if color is not None else None,
+                wrap_period=wrap_period,
+            )
             external_series.append(ext)
 
         plot_force_comparison(
@@ -313,6 +332,29 @@ def _run_artifact(
             omega_nondim=resolved.get("omega_nondim"),
             labels=h5_labels,
             external_series=external_series if external_series else None,
+            theme=theme,
+        )
+        return
+
+    if kind == "mass_regression":
+        case_file_raw = resolved.get("source_case_file")
+        if not isinstance(case_file_raw, str) or not case_file_raw:
+            raise ValueError("mass_regression requires source_case_file")
+        case_path = _resolve_repo_path(case_file_raw)
+        case = _load_case_cache(case_cache, case_path)
+        body_csv_raw = resolved.get("body_csv")
+        forewing_csv_raw = resolved.get("forewing_csv")
+        if not isinstance(body_csv_raw, str) or not body_csv_raw:
+            raise ValueError("mass_regression requires body_csv")
+        if not isinstance(forewing_csv_raw, str) or not forewing_csv_raw:
+            raise ValueError("mass_regression requires forewing_csv")
+        extra = resolved.get("extra_specimens")
+        plot_mass_regression(
+            case,
+            _resolve_repo_path(body_csv_raw),
+            _resolve_repo_path(forewing_csv_raw),
+            output_path,
+            extra_specimens=extra if isinstance(extra, list) else None,
             theme=theme,
         )
         return

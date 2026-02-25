@@ -92,7 +92,7 @@ If the wingtip is bound to a plane, it follows from simple geometry that the lin
 Fig. 2A and 2B side to side
 -->
 
-In addition to flapping, the wing motion has a pitching component. Here we take the approach of {cite}`azuma1988` and assume that the root-to-tip line introduced to describe flapping is also the pitching axis. Following {cite}`azuma1988`, we further assume that it corresponds to the quarter-chord line (the quarter-chord point at each spanwise location being the chordwise aerodynamic center). Pitching about this spanwise axis is described by the pitching angle $\psi$. $\psi = 0$ means the wing chord axis is normal to the wing cone surface. $\psi > 0$ is pitched up and $\psi < 0$ is pitched down. A classical way to visualize wing pitch, and wing motion in general, is the stick plot (Fig. 3), showing the wing crossection is a line segment with a small circle at the leading edge. The stroke planes and wing root joints are also shown in the below plot. Note that this plot is not strictly a 2D projection: the wing pitch orientation is shown as if viewed from the wingtip, looking down the spanwise direction.
+In addition to flapping, the wing motion has a pitching component. Here we take the approach of {cite}`azuma1988` and assume that the root-to-tip line introduced to describe flapping is also the pitching axis. Following {cite}`azuma1988`, we further assume that it corresponds to the quarter-chord line (the quarter-chord point at each spanwise location being the chordwise aerodynamic center). Pitching about this spanwise axis is described by the pitching angle $\psi$. $\psi = 0$ means the wing chord axis is normal to the wing cone surface. $\psi > 0$ is pitched up and $\psi < 0$ is pitched down. A classical way to visualize wing pitch, and wing motion in general, is the stick plot (Fig. 3), showing the wing crossection as a line segment with a small circle at the leading edge. Here sticks are shown for the wingtips, but they could in principle be shown for any spanwise station. Note that this plot is not strictly a 2D projection: the wing pitch orientation is shown as if viewed from the wingtip, looking down the spanwise direction.
 
 ```{raw} html
 <div style="margin-bottom:1.5rem;">
@@ -113,6 +113,18 @@ In addition to flapping, the wing motion has a pitching component. Here we take 
   <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 3. Stick plot.</div>
 </div>
 ```
+
+## Wing angle representation
+
+In the model, the motion of each wing can be described by four angular quantities: the stroke plane angle $\gamma(t)$, the coning angle $\beta(t)$, the flapping angle $\phi(t)$, and the pitching angle $\psi(t)$. In steady flight, the mean values are constant, and the wing angles can be represented by harmonic series of the form
+
+$$
+\theta(t) = \theta_0 + \sum_{k=1}^{N} \theta_k \cos{(k \omega t + \delta_k)}
+$$
+
+The stroke plane angle is simply $\gamma(t) = \gamma_0$. The coning angle may be represented by $\beta(t) = \beta_0$, but in some cases, the wingtip does not follow the stroke plane exactly. Instead it draws a narrow ellipse whose major axis is the stroke plane as viewed from the side {cite}`azuma1985` {cite}`azuma1988`. In this case, a single-harmonic ($N=1$) representation $\beta(t) = \beta_0 + \beta_1 \cos{(\omega t + \delta_1)}$ is appropriate, with the wing cone widening on the downstroke and narrowing on the upstroke. Higher-order representations may also be appropriate to capture more irregular motion in the stroke plane normal direction.
+
+The flapping angle $\phi(t)$ has been found to be well represented by a single harmonic. The time evolution of the pitching angle $\psi(t)$ is somewhat more complex, and 3 to 4 harmonics may be required to adequately capture it {cite}`azuma1985` {cite}`azuma1988`.
 
 ## References
 

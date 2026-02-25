@@ -195,10 +195,12 @@ def setup_axes(
         ax.set_axis_off()
         return
 
-    # Labels
-    ax.set_xlabel('X (forward)', fontsize=10, color=style.text_color, labelpad=12)
-    ax.set_ylabel('Y (left)', fontsize=10, color=style.text_color, labelpad=12)
-    ax.set_zlabel('Z (up)', fontsize=10, color=style.text_color, labelpad=10)
+    # Labels — pad proportional to span so longer axes don't overlap tick labels.
+    ex, ey, ez = (float(v) for v in viewport.extent_xyz)
+    pad_per_unit = 6.0
+    ax.set_xlabel(r'$\tilde{X}$', fontsize=10, color=style.text_color, labelpad=pad_per_unit * ex)
+    ax.set_ylabel(r'$\tilde{Y}$', fontsize=10, color=style.text_color, labelpad=pad_per_unit * ey)
+    ax.set_zlabel(r'$\tilde{Z}$', fontsize=10, color=style.text_color, labelpad=pad_per_unit * ez)
 
     # Axis ticks: denser for compact extents, coarser for larger extents.
     ax.xaxis.set_major_locator(MultipleLocator(_major_tick_step(float(viewport.extent_xyz[0]))))

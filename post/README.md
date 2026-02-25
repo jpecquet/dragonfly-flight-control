@@ -149,9 +149,8 @@ python -m post.plot_terminal_velocity --psi 45 --theme dark output.mp4
 Compare one or more vertical force time series from simulation outputs.
 
 ```bash
-python -m post.plot_force_comparison runs/wang2007/demo/post/force_comparison.png --omega-nondim 14.982242894657686 --series runs/wang2007/demo/sim/output_7harm.h5 "Run A" --series runs/wang2007/demo/sim/output_1harm.h5 "Run B"
-python -m post.plot_force_comparison runs/wang2007/demo/post/force_comparison.dark.png --omega-nondim 14.982242894657686 --series runs/wang2007/demo/sim/output_7harm.h5 "Run A" --series runs/wang2007/demo/sim/output_1harm.h5 "Run B" --theme dark
-python -m post.plot_force_comparison runs/wang2007/demo/post/force_plus_cfd.png --omega-nondim 14.982242894657686 --series runs/wang2007/demo/sim/output_7harm.h5 "7 harmonics/wingbeat (35 components)" --series runs/wang2007/demo/sim/output_1harm.h5 "1 harmonic" --series-csv data/kinematics/wang2007/cfd_data.csv t Fz "CFD"
+python -m post.plot_force_comparison force_comparison.png --series output.h5 "Simulation" --series-csv data/kinematics/wang2007/cfd_data.csv t Fz "CFD"
+python -m post.plot_force_comparison force_comparison.dark.png --series output.h5 "Simulation" --series-csv data/kinematics/wang2007/cfd_data.csv t Fz "CFD" --theme dark
 ```
 
 ## Custom Configuration

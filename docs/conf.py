@@ -47,6 +47,7 @@ html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 html_js_files = ["theme_media.js"]
 html_show_sphinx = False
+html_show_sourcelink = False
 
 bibtex_bibfiles = ["references.bib"]
 

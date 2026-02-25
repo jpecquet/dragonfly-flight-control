@@ -63,6 +63,11 @@ mjx-container[jax="CHTML"][display="false"] > mjx-math {
   line-height: 1;
 }
 
+/* Hide the paragraph symbol (¶) on heading hover */
+a.headerlink {
+  display: none !important;
+}
+
 /* Legacy MathJax wrapper class (in case some pages use it) */
 .MathJax {
   line-height: 0;

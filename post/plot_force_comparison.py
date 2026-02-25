@@ -18,9 +18,10 @@ from pathlib import Path
 from typing import Sequence
 
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 
-from post.time_series import HorizontalLineSpec, SeriesSpec, plot_time_series
+from post.time_series import SeriesSpec, plot_time_series
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,9 @@ class ExternalForceSeries:
     x: np.ndarray
     fz: np.ndarray
     label: str
+    style: str = "line"  # "line" or "scatter"
+    color: str | None = None
+    wrap_period: float | None = None  # wrap x into [0, period]
 
 
 def read_aero_force_z(h5_path: Path) -> tuple[np.ndarray, np.ndarray, float]:
@@ -100,7 +104,7 @@ def plot_force_comparison(
     labels: Sequence[str] | None = None,
     external_series: Sequence[ExternalForceSeries] | None = None,
     theme: str | None = None,
-    include_mean_in_label: bool = True,
+    include_mean_in_label: bool = False,
 ) -> None:
     """Plot vertical aerodynamic force for an arbitrary number of simulation outputs.
 
@@ -118,7 +122,6 @@ def plot_force_comparison(
 
     resolved_labels = list(labels) if labels is not None else [Path(p).stem for p in resolved_h5_inputs]
     series: list[SeriesSpec] = []
-    hlines: list[HorizontalLineSpec] = []
     series_data: list[tuple[np.ndarray, np.ndarray, str]] = []
 
     for h5_path, label in zip(resolved_h5_inputs, resolved_labels):
@@ -126,8 +129,19 @@ def plot_force_comparison(
         wingbeats = time * omega / (2.0 * np.pi)
         series_data.append((wingbeats, fz, label))
 
+    # Separate scatter externals from line externals.
+    scatter_externals: list[ExternalForceSeries] = []
     for ext in resolved_external:
-        series_data.append((ext.x, ext.fz, ext.label))
+        x = ext.x
+        if ext.wrap_period is not None:
+            x = x % ext.wrap_period
+        if ext.style == "scatter":
+            scatter_externals.append(ExternalForceSeries(
+                x=x, fz=ext.fz, label=ext.label,
+                style=ext.style, color=ext.color, wrap_period=ext.wrap_period,
+            ))
+        else:
+            series_data.append((ext.x, ext.fz, ext.label))
 
     # Compute xlim from simulation (H5) series only so external reference data
     # that extends slightly beyond the simulation range doesn't shorten the plot.
@@ -140,27 +154,55 @@ def plot_force_comparison(
     else:
         sim_xlim = None
 
+    _sim_colors = ["#f0a030", "C1", "C2", "C3"]  # yellow-orange for first sim series
+    n_labeled = len(series_data)  # for legend ncol (envelope lines are unlabeled)
     for i, (x_values, fz, label) in enumerate(series_data):
         mean_force = float(np.mean(fz))
         legend_label = f"{label} (mean {mean_force:.3f})" if include_mean_in_label else label
-        color = f"C{i}"
+        color = _sim_colors[i] if i < len(_sim_colors) else f"C{i}"
         series.append(SeriesSpec(x_values, fz, label=legend_label, color=color))
-        hlines.append(HorizontalLineSpec(mean_force, color=color))
+        if i < n_sim:
+            series.append(SeriesSpec(x_values, 0.5 * fz, label=None, color=color, linewidth=0.8, linestyle="--", alpha=0.5))
+            series.append(SeriesSpec(x_values, 1.5 * fz, label=None, color=color, linewidth=0.8, linestyle="--", alpha=0.5))
 
-    plot_time_series(
+    # Build scatter specs to pass through to the plotting call.
+    scatter_specs: list[tuple[np.ndarray, np.ndarray, str, str]] = []
+    for ext in scatter_externals:
+        mean_force = float(np.mean(ext.fz))
+        legend_label = f"{ext.label} (mean {mean_force:.3f})" if include_mean_in_label else ext.label
+        scolor = ext.color or "green"
+        scatter_specs.append((ext.x, ext.fz, legend_label, scolor))
+
+    fig, ax = plot_time_series(
         series=series,
-        output_path=output_path,
+        output_path=None,  # defer saving — we add scatter overlay first
         xlabel="$t/T_{wb}$",
         ylabel=r"$\tilde{F}_z$",
         theme=theme,
         height_over_width=1.0 / 2.0,
-        hlines=hlines,
         xlim=sim_xlim,
+        show_grid=True,
         legend_loc="lower center",
         legend_bbox_to_anchor=(0.5, 1.03),
-        legend_ncol=max(1, min(3, len(series))),
+        legend_ncol=max(1, min(3, n_labeled + len(scatter_specs))),
         legend_fontsize=10.0,
     )
+    for sx, sy, slabel, scolor in scatter_specs:
+        ax.scatter(sx, sy, s=12, alpha=0.35, color=scolor, label=slabel, zorder=1)
+
+    # Re-draw legend to include scatter entries.
+    if scatter_specs:
+        ax.legend(
+            loc="lower center",
+            bbox_to_anchor=(0.5, 1.03),
+            ncol=max(1, min(3, n_labeled + len(scatter_specs))),
+            fontsize=10.0,
+        )
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(str(output_path), bbox_inches="tight", dpi=300)
+    plt.close(fig)
 
 
 def main() -> int:

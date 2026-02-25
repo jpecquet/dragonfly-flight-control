@@ -16,10 +16,19 @@ docs_media:
   frame_step: 3
 
 artifacts:
-  - kind: case_fore_hind_kinematics
+  - kind: mass_regression
     source_case_file: cases/wang2007/case.yaml
-    output: kinematics.{theme}.png
-    angle_keys: [phi, psi]
+    body_csv: data/morphology/wakeling1997/body_data.csv
+    forewing_csv: data/morphology/wakeling1997/forewing_data.csv
+    extra_specimens:
+      - {ID: azuma1985, L: 40.0, m: 260.0}
+      - {ID: azuma1988, L: 75.0, m: 790.0}
+    output: mass_regression.{theme}.png
+
+  - kind: exp_kinematics_scatter
+    source_case_file: cases/wang2007/case.yaml
+    csv_path: data/kinematics/wang2007/exp_data.csv
+    output: exp_kinematics.{theme}.png
 
   - kind: body_flight_metrics_vs_reference
     input_h5: "{run_dir}/output.h5"
@@ -38,17 +47,13 @@ artifacts:
   - kind: force_comparison
     h5_series:
       - input_h5: "{run_dir}/output.h5"
-        label: "35-comp"
-      - input_h5: "docs/validation/wang2007/artifacts_1harm/output.h5"
-        label: "1-comp"
-    secondary_simulation:
-      case_file: cases/wang2007_1harm/case.yaml
-      run_dir: docs/validation/wang2007/artifacts_1harm
-      binary: build/bin/dragonfly
+        label: "Model"
     csv_series:
       - path: data/kinematics/wang2007/cfd_data.csv
         time_col: t
         value_col: Fz
         label: "CFD"
-    omega_nondim: 14.982242894657686
+        style: scatter
+        color: "#9b6dff"
+        wrap_period: 1
     output: force_comparison.{theme}.png
