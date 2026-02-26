@@ -113,23 +113,43 @@ which we correct for. The $\phi(t)$ and $\psi(t)$ time series are shown in Fig. 
 </div>
 ```
 
-Fig. 4 shows angle of attack over one wingbeat for the right forewing and right hindwing at the $0.75R$ (3/4-span) station under the fixed-velocity tethered condition, with AoA data computed from the paper's measured kinematics (scatter), the simulation (solid lines), and a simplified estimate
+Fig. 4 shows angle of attack over one wingbeat at the $0.75R$ (3/4-span) station assuming constant velocity. Angle of attack data from the paper is shown for comparison. The paper data is obtained with a so-called Local Circulation Method which computes an induced velocity field to account for wake effects, which explains the discrepancy. To validate the raw angle of attack calculation (zero induced velocity) the model result is compared to a simplified expression for angle of attack which assumes the velocity is normal to the stroke plane, and the coning angle is zero:
 
-$$\alpha \approx \psi - \pi/2 - \tan^{-1}{\left(\frac{U}{-0.75R\dot{\phi}}\right)}$$
+$$\alpha(r) \approx \psi - \pi/2 + \tan^{-1}{\left(\frac{U}{r\dot{\phi}}\right)}$$
 
-which assumes the velocity is normal to the stroke plane, and the coning angle is zero.
+Where $r$ is the distance from the wing root along the span, set here to $0.75R$. It it clear that the misalignement of the stroke plane and velocity vector, as well as the non-zero coning angle, have only a very small effect on the result.
 
+::::{tab-set}
+:::{tab-item} Model
 ```{raw} html
-<div style="margin-bottom:1.5rem;">
+<div style="margin-bottom:0.3rem;">
   <img
     class="case-study-image"
-    src="../_static/media/azuma1985/angle_of_attack.dark.png"
-    alt="Azuma 1985 forewing and hindwing angle of attack over one wingbeat at 0.75 span"
-    data-light-src="../_static/media/azuma1985/angle_of_attack.light.png"
-    data-dark-src="../_static/media/azuma1985/angle_of_attack.dark.png"
+    src="../_static/media/azuma1985/angle_of_attack_model.dark.png"
+    alt="Azuma 1985 forewing and hindwing angle of attack over one wingbeat at 0.75 span with model curves"
+    data-light-src="../_static/media/azuma1985/angle_of_attack_model.light.png"
+    data-dark-src="../_static/media/azuma1985/angle_of_attack_model.dark.png"
   />
-  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 4. Angle of attack over one wingbeat.</div>
 </div>
+```
+:::
+:::{tab-item} Simplified Expression
+```{raw} html
+<div style="margin-bottom:0.3rem;">
+  <img
+    class="case-study-image"
+    src="../_static/media/azuma1985/angle_of_attack_simplified.dark.png"
+    alt="Azuma 1985 forewing and hindwing angle of attack over one wingbeat at 0.75 span with simplified curves"
+    data-light-src="../_static/media/azuma1985/angle_of_attack_simplified.light.png"
+    data-dark-src="../_static/media/azuma1985/angle_of_attack_simplified.dark.png"
+  />
+</div>
+```
+:::
+::::
+
+```{raw} html
+<div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; margin-bottom:1.5rem; text-align:center;">Fig. 4. Angle of attack over one wingbeat.</div>
 ```
 
 Fig. 5 shows the horizontal and vertical aerodynamic force components over one wingbeat, decomposed into the combined forewing contribution, combined hindwing contribution, total force, and the mean total force (dashed).

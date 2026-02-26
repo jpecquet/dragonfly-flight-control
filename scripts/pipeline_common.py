@@ -125,21 +125,24 @@ def build_wing_block(
         lines.append(f"psi_twist_ref_eta = {fmt(float(psi_twist_ref_eta))}")
 
     if motion is not None:
-        gamma_amp, gamma_phase = _series_amp_phase_from_motion(motion, "gamma")
-        phi_amp, phi_phase = _series_amp_phase_from_motion(motion, "phi")
-        psi_amp, psi_phase = _series_amp_phase_from_motion(motion, "psi")
-        lines.extend(
-            [
-                f"gamma_mean = {fmt(float(motion['gamma_mean']))}",
-                f"gamma_amp = {fmt_list(gamma_amp)}",
-                f"gamma_phase = {fmt_list(gamma_phase)}",
-                f"phi_mean = {fmt(float(motion['phi_mean']))}",
-                f"phi_amp = {fmt_list(phi_amp)}",
-                f"phi_phase = {fmt_list(phi_phase)}",
-                f"psi_mean = {fmt(float(motion['psi_mean']))}",
-                f"psi_amp = {fmt_list(psi_amp)}",
-                f"psi_phase = {fmt_list(psi_phase)}",
-            ]
-        )
+        for prefix in ("gamma", "phi", "psi"):
+            amp, phase_vals = _series_amp_phase_from_motion(motion, prefix)
+            lines.extend(
+                [
+                    f"{prefix}_mean = {fmt(float(motion[f'{prefix}_mean']))}",
+                    f"{prefix}_amp = {fmt_list(amp)}",
+                    f"{prefix}_phase = {fmt_list(phase_vals)}",
+                ]
+            )
+
+        if any(k in motion for k in ("cone_mean", "cone_amp", "cone_phase")):
+            cone_amp, cone_phase = _series_amp_phase_from_motion(motion, "cone")
+            lines.extend(
+                [
+                    f"cone_mean = {fmt(float(motion.get('cone_mean', 0.0)))}",
+                    f"cone_amp = {fmt_list(cone_amp)}",
+                    f"cone_phase = {fmt_list(cone_phase)}",
+                ]
+            )
 
     return "\n".join(lines)

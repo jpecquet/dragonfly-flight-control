@@ -22,12 +22,18 @@ wings:
   fore:
     span: 0.046
     area: 0.00038
-    cone: 8.0
     drag_coeff: 0.4
     lift_coeff: 1.2
     kinematics:
       gamma:
         mean: 53.0
+      beta:
+        mean: 10.0
+        harmonics:
+          - [1.0, 146.0]
+          - [1.0, 33.0]
+          - [2.0, -104.0]
+          - [1.0, 117.0]
       phi:
         mean: 0.281664
         harmonics:
@@ -43,12 +49,18 @@ wings:
   hind:
     span: 0.043
     area: 0.00044
-    cone: -2.0
     drag_coeff: 0.4
     lift_coeff: 1.2
     kinematics:
       gamma:
         mean: 44.0
+      beta:
+        mean: -5.0
+        harmonics:
+          - [0.0, 41.0]
+          - [0.0, -44.0]
+          - [1.0, -130.0]
+          - [1.0, -92.0]
       phi:
         mean: 2.413912
         harmonics:

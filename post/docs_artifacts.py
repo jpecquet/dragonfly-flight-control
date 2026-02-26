@@ -119,8 +119,10 @@ def plot_wing_aoa_timeseries(
     eta: float = 2.0 / 3.0,
     aoa_csv_path: Path | None = None,
     source_case: dict[str, Any] | None = None,
+    simplified_speed_m_s: float | None = None,
     theme: str | None = None,
     last_n_wingbeats: float | None = None,
+    curve_variant: str = "model",
 ) -> None:
     """Plot AoA time traces for a fore/hind wing pair at a fixed span station."""
     import matplotlib.pyplot as plt
@@ -131,6 +133,8 @@ def plot_wing_aoa_timeseries(
 
     if not (0.0 <= float(eta) <= 1.0):
         raise ValueError("eta must be in [0, 1]")
+    if curve_variant not in {"model", "simplified"}:
+        raise ValueError("curve_variant must be one of: model, simplified")
 
     params, time, states, wings = read_simulation(str(h5_path))
     omega_nondim = float(params["omega"])
@@ -142,7 +146,10 @@ def plot_wing_aoa_timeseries(
         time = time[mask]
         states = states[mask]
         wings = {
-            name: {k: np.asarray(v[mask]) for k, v in data.items()}
+            name: {
+                k: (np.asarray(v[mask]) if not isinstance(v, dict) else v)
+                for k, v in data.items()
+            }
             for name, data in wings.items()
         }
 
@@ -197,12 +204,54 @@ def plot_wing_aoa_timeseries(
             aoa[i] = np.degrees(np.arctan2(s_alpha, c_alpha))
         return aoa
 
+    def _aoa_from_blade_alpha_single_eta(wing_data: dict[str, Any], *, eta_val: float) -> np.ndarray | None:
+        """Interpolate per-blade AoA (radians) to a target span station and return degrees."""
+        blade = wing_data.get("blade")
+        if not isinstance(blade, dict):
+            return None
+        if "eta" not in blade or "alpha" not in blade:
+            return None
+
+        eta_grid = np.asarray(blade["eta"], dtype=float)
+        alpha_blade = np.asarray(blade["alpha"], dtype=float)
+        if eta_grid.ndim != 1 or alpha_blade.ndim != 2:
+            return None
+        if alpha_blade.shape[0] != len(time) or alpha_blade.shape[1] != eta_grid.size:
+            return None
+        if eta_grid.size == 0:
+            return None
+
+        order = np.argsort(eta_grid)
+        eta_sorted = eta_grid[order]
+        alpha_sorted = alpha_blade[:, order]
+
+        # Avoid extrapolating outside the blade quadrature range; exact method fallback is better there.
+        tol = 1e-12
+        if float(eta_val) < float(eta_sorted[0]) - tol or float(eta_val) > float(eta_sorted[-1]) + tol:
+            return None
+
+        if eta_sorted.size == 1:
+            if abs(float(eta_val) - float(eta_sorted[0])) > tol:
+                return None
+            return np.degrees(np.asarray(alpha_sorted[:, 0], dtype=float))
+
+        sin_vals = np.sin(alpha_sorted)
+        cos_vals = np.cos(alpha_sorted)
+        sin_interp = np.asarray([np.interp(float(eta_val), eta_sorted, row) for row in sin_vals], dtype=float)
+        cos_interp = np.asarray([np.interp(float(eta_val), eta_sorted, row) for row in cos_vals], dtype=float)
+        return np.degrees(np.arctan2(sin_interp, cos_interp))
+
     aoa_series: dict[str, np.ndarray] = {}
     for wing_name in wing_names:
         if wing_name not in wings:
             raise ValueError(f"Wing '{wing_name}' not found in {h5_path}")
         if wing_name not in params["wing_lb0"]:
             raise ValueError(f"Wing parameters missing for '{wing_name}' in {h5_path}")
+
+        aoa_from_blade = _aoa_from_blade_alpha_single_eta(wings[wing_name], eta_val=float(eta))
+        if aoa_from_blade is not None:
+            aoa_series[wing_name] = np.asarray(aoa_from_blade, dtype=float)
+            continue
 
         e_r = np.asarray(wings[wing_name]["e_r"], dtype=float)
         e_s = np.asarray(wings[wing_name]["e_s"], dtype=float)
@@ -239,16 +288,26 @@ def plot_wing_aoa_timeseries(
     if aoa_csv_path is not None:
         import pandas as pd
 
-        df = pd.read_csv(aoa_csv_path, header=[0, 1])
-        if df.shape[1] < 4:
-            raise ValueError(f"AoA CSV must have at least 4 columns (fore X/Y, hind X/Y): {aoa_csv_path}")
-        arr = df.to_numpy(dtype=float)
-        exp_aoa = {
-            "fore_t": np.mod(arr[:, 0], 1.0),
-            "fore_aoa": arr[:, 1],
-            "hind_t": np.mod(arr[:, 2], 1.0),
-            "hind_aoa": arr[:, 3],
-        }
+        df = pd.read_csv(aoa_csv_path)
+        if "t_fore" in df.columns:
+            # Per-wing time columns (e.g. wang2007): t_fore, alpha_deg_fore, t_hind, alpha_deg_hind
+            fore_mask = df["t_fore"].notna()
+            hind_mask = df["t_hind"].notna()
+            exp_aoa = {
+                "fore_t": np.mod(df.loc[fore_mask, "t_fore"].to_numpy(dtype=float), 1.0),
+                "fore_aoa": df.loc[fore_mask, "alpha_deg_fore"].to_numpy(dtype=float),
+                "hind_t": np.mod(df.loc[hind_mask, "t_hind"].to_numpy(dtype=float), 1.0),
+                "hind_aoa": df.loc[hind_mask, "alpha_deg_hind"].to_numpy(dtype=float),
+            }
+        else:
+            # Shared time column (e.g. azuma1985): t, alpha_fore, alpha_hind
+            t_col = np.mod(df["t"].to_numpy(dtype=float), 1.0)
+            exp_aoa = {
+                "fore_t": t_col,
+                "fore_aoa": df["alpha_fore"].to_numpy(dtype=float),
+                "hind_t": t_col,
+                "hind_aoa": df["alpha_hind"].to_numpy(dtype=float),
+            }
 
     simplified_aoa: dict[str, np.ndarray] | None = None
     if source_case is not None:
@@ -257,13 +316,17 @@ def plot_wing_aoa_timeseries(
         spec = source_case.get("specimen", {})
         frequency_hz = float(spec["frequency"])
         refs = source_case.get("references", [])
-        speed_ref_m_s = None
-        for ref in refs:
-            if isinstance(ref, dict) and ref.get("kind") == "flight_condition" and "speed" in ref:
-                speed_ref_m_s = float(ref["speed"])
-                break
+        speed_ref_m_s = float(simplified_speed_m_s) if simplified_speed_m_s is not None else None
         if speed_ref_m_s is None:
-            raise ValueError("source_case for wing_aoa_timeseries must include references.kind=flight_condition speed")
+            for ref in refs:
+                if isinstance(ref, dict) and ref.get("kind") == "flight_condition" and "speed" in ref:
+                    speed_ref_m_s = float(ref["speed"])
+                    break
+        if speed_ref_m_s is None:
+            raise ValueError(
+                "source_case for wing_aoa_timeseries must include references.kind=flight_condition speed "
+                "or provide simplified_speed_m_s"
+            )
 
         def _angle_rad(case_wing: dict[str, Any], key: str, t_wb_arr: np.ndarray) -> np.ndarray:
             entry = case_wing["kinematics"][key]
@@ -294,44 +357,92 @@ def plot_wing_aoa_timeseries(
             case_wing = source_case["wings"][wing_key]
             span_m = float(case_wing["span"])
             psi_rad = _angle_rad(case_wing, "psi", t_wb_line)
-            # Simplified paper-style estimate uses the 0.75-span tangential speed.
-            denom = 0.75 * span_m * (-_angle_rate_rad_s(case_wing, "phi", t_wb_line))
+            # Simplified estimate uses the tangential speed at the selected span station eta*R.
+            denom = float(eta) * span_m * _angle_rate_rad_s(case_wing, "phi", t_wb_line)
             with np.errstate(divide="ignore", invalid="ignore"):
-                alpha_simplified = psi_rad + (0.5 * np.pi) - np.arctan2(speed_ref_m_s, denom)
+                alpha_simplified = psi_rad + (0.5 * np.pi) - np.arctan2(speed_ref_m_s, -denom)
             simplified_aoa[wing_name] = np.degrees(alpha_simplified)
+    if curve_variant == "simplified" and simplified_aoa is None:
+        raise ValueError("curve_variant='simplified' requires source_case to compute the simplified expression")
 
     style = resolve_style(theme=theme)
     apply_matplotlib_style(style)
+
+    def _mask_discontinuities(y: np.ndarray, threshold: float = 90.0) -> np.ndarray:
+        """Return a copy of y with NaN inserted before large jumps."""
+        y_out = np.array(y, dtype=float)
+        jumps = np.abs(np.diff(y_out)) > threshold
+        y_out[1:][jumps] = np.nan
+        return y_out
 
     fig, ax = plt.subplots(figsize=figure_size(height_over_width=0.38))
     colors = ("C0", "C1")
     labels = ("Forewing", "Hindwing")
     if exp_aoa is not None:
-        dot_kw = dict(s=10, alpha=0.3, edgecolors="none")
+        dot_kw = dict(s=12, alpha=0.35, linewidths=0.5, zorder=1)
         ax.scatter(exp_aoa["fore_t"], exp_aoa["fore_aoa"], color=colors[0], **dot_kw)
         ax.scatter(exp_aoa["hind_t"], exp_aoa["hind_aoa"], color=colors[1], **dot_kw)
     for wing_name, color, label in zip(wing_names, colors, labels):
-        ax.plot(t, aoa_series[wing_name], linewidth=1.6, color=color, label=f"{label} (model)", zorder=3)
-        if simplified_aoa is not None and wing_name in simplified_aoa:
-            ax.plot(
-                t,
-                simplified_aoa[wing_name],
-                linewidth=1.4,
-                color=color,
-                linestyle="--",
-                alpha=0.95,
-                label=f"{label} (simplified)",
-                zorder=2,
-            )
+        if curve_variant == "model":
+            y_vals = aoa_series[wing_name]
+        else:
+            assert simplified_aoa is not None
+            y_vals = simplified_aoa[wing_name]
+        ax.plot(
+            t,
+            _mask_discontinuities(y_vals),
+            linewidth=1.6,
+            color=color,
+            linestyle="-",
+            label=label,
+            zorder=3,
+        )
 
     ax.set_xlabel(r"$t/T_{wb}$")
-    ax.set_ylabel("AoA (deg)")
+    ax.set_ylabel(r"$\alpha$ (deg)")
+    y_arrays: list[np.ndarray] = []
+    if exp_aoa is not None:
+        y_arrays.extend(
+            [
+                np.asarray(exp_aoa["fore_aoa"], dtype=float),
+                np.asarray(exp_aoa["hind_aoa"], dtype=float),
+            ]
+        )
+    y_arrays.extend(np.asarray(aoa_series[name], dtype=float) for name in wing_names if name in aoa_series)
+    if simplified_aoa is not None:
+        y_arrays.extend(np.asarray(simplified_aoa[name], dtype=float) for name in wing_names if name in simplified_aoa)
+    if y_arrays:
+        y_concat = np.concatenate([arr[np.isfinite(arr)] for arr in y_arrays if arr.size])
+        if y_concat.size:
+            y_min = float(np.min(y_concat))
+            y_max = float(np.max(y_concat))
+            if y_max <= y_min:
+                y_pad = max(5.0, 0.05 * max(abs(y_min), 1.0))
+            else:
+                y_pad = max(5.0, 0.05 * (y_max - y_min))
+            ax.set_ylim(y_min - y_pad, y_max + y_pad)
     ax.grid(True, alpha=0.25)
-    ax.legend(loc="best")
     if t.size:
         ax.set_xlim(float(t[0]), float(t[-1]))
 
     fig.tight_layout()
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        label_to_handle = {label: handle for handle, label in zip(handles, labels)}
+        legend_order = ["Forewing", "Hindwing"]
+        ordered_labels = [label for label in legend_order if label in label_to_handle]
+        ordered_handles = [label_to_handle[label] for label in ordered_labels]
+        fig.legend(
+            ordered_handles,
+            ordered_labels,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 1.01),
+            ncol=2,
+            fontsize=10.0,
+            columnspacing=1.2,
+            handlelength=2.2,
+            handletextpad=0.5,
+        )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(str(output_path), dpi=300, bbox_inches="tight")
     plt.close(fig)
@@ -341,6 +452,8 @@ def plot_wing_force_components_timeseries(
     h5_path: Path,
     output_path: Path,
     *,
+    force_csv_path: Path | None = None,
+    body_weight_mN: float | None = None,
     theme: str | None = None,
     last_n_wingbeats: float | None = None,
 ) -> None:
@@ -360,7 +473,10 @@ def plot_wing_force_components_timeseries(
         mask = time >= t_start - 1e-9 * t_wb
         time = time[mask]
         wings = {
-            name: {k: np.asarray(v[mask]) for k, v in data.items()}
+            name: {
+                k: (np.asarray(v[mask]) if not isinstance(v, dict) else v)
+                for k, v in data.items()
+            }
             for name, data in wings.items()
         }
 
@@ -386,6 +502,24 @@ def plot_wing_force_components_timeseries(
     t = np.asarray(time, dtype=float) * omega_nondim / (2.0 * np.pi)
     t = t - float(t[0])
 
+    exp_force: dict[str, np.ndarray] | None = None
+    if force_csv_path is not None:
+        import pandas as pd
+
+        if body_weight_mN is None:
+            raise ValueError("force_csv_path requires body_weight_mN for nondimensionalization")
+        df = pd.read_csv(force_csv_path)
+        exp_t = np.mod(df["t"].to_numpy(dtype=float), 1.0)
+        exp_force = {
+            "t": exp_t,
+            "fore_Fx": df["Fx_fore"].to_numpy(dtype=float) / body_weight_mN,
+            "fore_Fz": df["Fz_fore"].to_numpy(dtype=float) / body_weight_mN,
+            "hind_Fx": df["Fx_hind"].to_numpy(dtype=float) / body_weight_mN,
+            "hind_Fz": df["Fz_hind"].to_numpy(dtype=float) / body_weight_mN,
+        }
+        exp_force["total_Fx"] = exp_force["fore_Fx"] + exp_force["hind_Fx"]
+        exp_force["total_Fz"] = exp_force["fore_Fz"] + exp_force["hind_Fz"]
+
     style = resolve_style(theme=theme)
     apply_matplotlib_style(style)
 
@@ -409,20 +543,12 @@ def plot_wing_force_components_timeseries(
         hind_vals = pair_forces["hind"][:, comp_idx]
         total_vals = total_force[:, comp_idx]
         mean_total = float(np.mean(total_vals))
-        y_min = min(
-            y_min,
-            float(np.min(fore_vals)),
-            float(np.min(hind_vals)),
-            float(np.min(total_vals)),
-            mean_total,
-        )
-        y_max = max(
-            y_max,
-            float(np.max(fore_vals)),
-            float(np.max(hind_vals)),
-            float(np.max(total_vals)),
-            mean_total,
-        )
+        all_vals = [fore_vals, hind_vals, total_vals, np.array([mean_total])]
+        if exp_force is not None:
+            comp_key = "Fx" if comp_idx == 0 else "Fz"
+            all_vals.extend([exp_force[f"fore_{comp_key}"], exp_force[f"hind_{comp_key}"], exp_force[f"total_{comp_key}"]])
+        y_min = min(y_min, *(float(np.min(v)) for v in all_vals))
+        y_max = max(y_max, *(float(np.max(v)) for v in all_vals))
 
         ax.plot(
             t,
@@ -455,6 +581,13 @@ def plot_wing_force_components_timeseries(
             label="Mean total" if panel_idx == 0 else None,
             zorder=2,
         )
+
+        if exp_force is not None:
+            comp_key = "Fx" if comp_idx == 0 else "Fz"
+            dot_kw = dict(s=12, alpha=0.35, linewidths=0.5, zorder=1)
+            ax.scatter(exp_force["t"], exp_force[f"fore_{comp_key}"], color="C0", **dot_kw)
+            ax.scatter(exp_force["t"], exp_force[f"hind_{comp_key}"], color="C1", **dot_kw)
+            ax.scatter(exp_force["t"], exp_force[f"total_{comp_key}"], color=total_color, **dot_kw)
 
         ax.set_ylabel(ylabel)
         ax.set_xlim(float(t[0]), float(t[-1]))
@@ -554,18 +687,31 @@ def plot_exp_kinematics_scatter(
 
     from post.style import apply_matplotlib_style, figure_size, resolve_style
 
+    from matplotlib.gridspec import GridSpec
+
+    def _wing_cone_deg(wing_payload: dict[str, Any]) -> float:
+        if "cone" in wing_payload:
+            return float(wing_payload["cone"])
+        kin = wing_payload.get("kinematics", {})
+        beta = kin.get("beta", {}) if isinstance(kin, dict) else {}
+        if "mean" in beta:
+            return float(beta["mean"])
+        return 0.0
+
     df = pd.read_csv(csv_path)
     t_s = df["t"].to_numpy(dtype=float)
     s_mm_fore = df["s_mm_fore"].to_numpy(dtype=float)
     s_mm_hind = df["s_mm_hind"].to_numpy(dtype=float)
     beta_deg_fore = df["beta_deg_fore"].to_numpy(dtype=float)
     beta_deg_hind = df["beta_deg_hind"].to_numpy(dtype=float)
+    d_mm_fore = df["d_mm_fore"].to_numpy(dtype=float)
+    d_mm_hind = df["d_mm_hind"].to_numpy(dtype=float)
 
     # Wing parameters from case.
     R_fore = float(case["wings"]["fore"]["span"]) * 1000.0  # m -> mm
     R_hind = float(case["wings"]["hind"]["span"]) * 1000.0
-    cone_fore_rad = math.radians(float(case["wings"]["fore"]["cone"]))
-    cone_hind_rad = math.radians(float(case["wings"]["hind"]["cone"]))
+    cone_fore_rad = math.radians(_wing_cone_deg(case["wings"]["fore"]))
+    cone_hind_rad = math.radians(_wing_cone_deg(case["wings"]["hind"]))
 
     # s is measured at the 2/3-span station, so use (2R/3) in the inversion.
     phi_fore = np.degrees(np.arcsin(np.clip(s_mm_fore / ((2.0 * R_fore / 3.0) * math.cos(cone_fore_rad)), -1, 1)))
@@ -574,6 +720,10 @@ def plot_exp_kinematics_scatter(
     # psi = 90 deg - beta
     psi_fore = 90 - beta_deg_fore
     psi_hind = 90 - beta_deg_hind
+
+    # beta - beta_mean = arcsin(3*(d - d_bar) / (2*R))
+    dbeta_fore = np.degrees(np.arcsin(np.clip((d_mm_fore - np.mean(d_mm_fore)) / (2.0 * R_fore / 3.0), -1, 1)))
+    dbeta_hind = np.degrees(np.arcsin(np.clip((d_mm_hind - np.mean(d_mm_hind)) / (2.0 * R_hind / 3.0), -1, 1)))
 
     # Time in CSV is already in wingbeat units (0 to n_wingbeats).
     t_wrapped = t_s % 1.0
@@ -603,16 +753,20 @@ def plot_exp_kinematics_scatter(
     phi_hind_coeffs = _fit_harmonics(t_wrapped, phi_hind, 2)
     psi_fore_coeffs = _fit_harmonics(t_wrapped, psi_fore, 4)
     psi_hind_coeffs = _fit_harmonics(t_wrapped, psi_hind, 4)
+    dbeta_fore_coeffs = _fit_harmonics(t_wrapped, dbeta_fore, 4)
+    dbeta_hind_coeffs = _fit_harmonics(t_wrapped, dbeta_hind, 4)
 
     # --- Plotting ------------------------------------------------------------
     style = resolve_style(theme=theme)
     apply_matplotlib_style(style)
 
-    fig, (ax_phi, ax_psi) = plt.subplots(
-        nrows=1,
-        ncols=2,
-        figsize=figure_size(height_over_width=0.45),
-    )
+    # 2-row, 4-column grid: phi and psi span 2 cols each on top;
+    # beta-beta_mean spans the middle 2 cols on the bottom (same width, centered).
+    fig = plt.figure(figsize=figure_size(height_over_width=0.90))
+    gs = GridSpec(2, 4, figure=fig)
+    ax_phi  = fig.add_subplot(gs[0, 0:2])
+    ax_psi  = fig.add_subplot(gs[0, 2:4])
+    ax_beta = fig.add_subplot(gs[1, 1:3])
 
     dot_kw = dict(s=10, alpha=0.3, edgecolors="none")
 
@@ -633,6 +787,15 @@ def plot_exp_kinematics_scatter(
     ax_psi.set_ylabel(r"$\psi$ (deg)")
     ax_psi.set_xlim(0.0, 1.0)
     ax_psi.grid(True, alpha=0.25)
+
+    ax_beta.scatter(t_wrapped, dbeta_fore, color="C0", **dot_kw)
+    ax_beta.scatter(t_wrapped, dbeta_hind, color="C1", **dot_kw)
+    ax_beta.plot(t_fit, _eval_harmonics(t_fit, dbeta_fore_coeffs), color="C0", linewidth=1.5)
+    ax_beta.plot(t_fit, _eval_harmonics(t_fit, dbeta_hind_coeffs), color="C1", linewidth=1.5)
+    ax_beta.set_xlabel(r"$t/T_{wb}$")
+    ax_beta.set_ylabel(r"$\beta - \bar{\beta}$ (deg)")
+    ax_beta.set_xlim(0.0, 1.0)
+    ax_beta.grid(True, alpha=0.25)
 
     fig.tight_layout()
     handles, labels = ax_phi.get_legend_handles_labels()
@@ -755,7 +918,10 @@ def render_simulation_video_from_h5(
         mask = time >= t_start - 1e-9 * t_wb
         time = time[mask]
         states = states[mask]
-        wings = {wn: {vn: arr[mask] for vn, arr in wd.items()} for wn, wd in wings.items()}
+        wings = {
+            wn: {vn: (arr[mask] if not isinstance(arr, dict) else arr) for vn, arr in wd.items()}
+            for wn, wd in wings.items()
+        }
 
     config = HybridConfig.load(str(render_config))
     config = apply_theme_to_config(config, theme)
@@ -797,6 +963,7 @@ def render_stick_video_from_h5(
     show_grid: bool = True,
     show_timestamp: bool = True,
     show_pitch_angle: bool = False,
+    stroke_plane_beta_mode: str = "mean",
 ) -> None:
     """Render a fore/hind stick video from an HDF5 file."""
     from post.io import read_simulation
@@ -837,4 +1004,5 @@ def render_stick_video_from_h5(
         show_timestamp=show_timestamp,
         show_pitch_angle=show_pitch_angle,
         params=params,
+        stroke_plane_beta_mode=stroke_plane_beta_mode,
     )

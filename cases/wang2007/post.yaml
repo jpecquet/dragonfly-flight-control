@@ -27,7 +27,7 @@ artifacts:
 
   - kind: exp_kinematics_scatter
     source_case_file: cases/wang2007/case.yaml
-    csv_path: data/kinematics/wang2007/exp_data.csv
+    csv_path: cases/wang2007/data/kinematics.csv
     output: exp_kinematics.{theme}.png
 
   - kind: body_flight_metrics_vs_reference
@@ -44,25 +44,36 @@ artifacts:
     input_h5: "{run_dir}/output.h5"
     output: stroke_fore_left.{theme}.mp4
 
+  - kind: wing_aoa_timeseries
+    input_h5: "{run_dir}/output.h5"
+    source_case_file: cases/wang2007/case.yaml
+    output: angle_of_attack_model.{theme}.png
+    wing_names: [fore_right, hind_right]
+    eta: 0.6666667
+    curve_variant: model
+    simplified_speed_m_s: 0.0
+    csv_path: cases/wang2007/data/aoa.csv
+
+  - kind: wing_aoa_timeseries
+    input_h5: "{run_dir}/output.h5"
+    source_case_file: cases/wang2007/case.yaml
+    output: angle_of_attack_simplified.{theme}.png
+    wing_names: [fore_right, hind_right]
+    eta: 0.6666667
+    curve_variant: simplified
+    simplified_speed_m_s: 0.0
+    csv_path: cases/wang2007/data/aoa.csv
+
   - kind: force_comparison
-    mass_uncertainty:
-      kind: forewing_regression_pi
-      source_case_file: cases/wang2007/case.yaml
-      body_csv: data/morphology/wakeling1997/body_data.csv
-      forewing_csv: data/morphology/wakeling1997/forewing_data.csv
-      confidence: 0.68
-      extra_specimens:
-        - {ID: azuma1985, R: 33.5, m: 260.0}
-        - {ID: azuma1988, R: 50.0, m: 790.0}
     h5_series:
       - input_h5: "{run_dir}/output.h5"
         label: "Model"
     csv_series:
-      - path: data/kinematics/wang2007/cfd_data.csv
+      - path: cases/wang2007/data/force.csv
         time_col: t
         value_col: Fz
         label: "CFD"
         style: scatter
-        color: "#9b6dff"
+        color: "#f0a030"
         wrap_period: 1
     output: force_comparison.{theme}.png

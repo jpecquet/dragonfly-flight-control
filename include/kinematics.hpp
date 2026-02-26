@@ -13,6 +13,8 @@ struct WingAngles {
     double phi = 0.0;      // Stroke angle
     double phi_dot = 0.0;  // Stroke angular velocity
     double psi = 0.0;      // Pitch angle
+    double cone = 0.0;     // Dynamic coning offset added to wing config cone angle
+    double cone_dot = 0.0; // Dynamic coning angular velocity
 };
 
 // Function type for computing wing angles from time
@@ -30,6 +32,7 @@ struct MotionParams {
     HarmonicSeries gamma;
     HarmonicSeries phi;
     HarmonicSeries psi;
+    HarmonicSeries cone;  // Dynamic coning angle beta(t) [rad], added to wing config cone_angle
 };
 
 inline void validateHarmonicSeries(const HarmonicSeries& series, const char* name) {
@@ -75,7 +78,8 @@ inline AngleFunc makeControlledAngleFunc(
     const double& gamma_mean_cmd,
     const double& psi_mean_cmd,
     const double& phi_amp_cmd,
-    double eps = 1e-12
+    double eps = 1e-12,
+    const HarmonicSeries& cone_base = HarmonicSeries()
 ) {
     const double* gamma_mean_cmd_ptr = &gamma_mean_cmd;
     const double* psi_mean_cmd_ptr = &psi_mean_cmd;
@@ -96,6 +100,7 @@ inline AngleFunc makeControlledAngleFunc(
             gamma_base,
             phi_base,
             psi_base,
+            cone_base,
             eps,
             phase_offset](double t) -> WingAngles {
         const double phase = basis_omega * t + phase_offset;
@@ -120,12 +125,16 @@ inline AngleFunc makeControlledAngleFunc(
         }
 
         const double psi = evaluateHarmonicValue(psi_base, phase) + psi_shift;
+        const double cone = evaluateHarmonicValue(cone_base, phase);
+        const double cone_dot = evaluateHarmonicRate(cone_base, phase, basis_omega);
         return {
             gam,
             gam_dot,
             phi,
             phi_dot,
-            psi
+            psi,
+            cone,
+            cone_dot
         };
     };
 }
@@ -134,10 +143,12 @@ inline AngleFunc makeAngleFunc(const HarmonicSeries& gamma,
                                const HarmonicSeries& phi,
                                const HarmonicSeries& psi,
                                double phaseOffset, double omega,
-                               double harmonic_period_wingbeats = 1.0) {
+                               double harmonic_period_wingbeats = 1.0,
+                               const HarmonicSeries& cone = HarmonicSeries()) {
     validateHarmonicSeries(gamma, "gamma");
     validateHarmonicSeries(phi, "phi");
     validateHarmonicSeries(psi, "psi");
+    validateHarmonicSeries(cone, "cone");
     if (harmonic_period_wingbeats <= 0.0) {
         throw std::runtime_error("harmonic_period_wingbeats must be > 0");
     }
@@ -150,7 +161,9 @@ inline AngleFunc makeAngleFunc(const HarmonicSeries& gamma,
             evaluateHarmonicRate(gamma, phase, basis_omega),
             evaluateHarmonicValue(phi, phase),
             evaluateHarmonicRate(phi, phase, basis_omega),
-            evaluateHarmonicValue(psi, phase)
+            evaluateHarmonicValue(psi, phase),
+            evaluateHarmonicValue(cone, phase),
+            evaluateHarmonicRate(cone, phase, basis_omega)
         };
     };
 }

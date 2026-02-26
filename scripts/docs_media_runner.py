@@ -277,8 +277,14 @@ def _run_artifact(
                 else None
             ),
             source_case=case_obj,
+            simplified_speed_m_s=(
+                float(resolved["simplified_speed_m_s"])
+                if "simplified_speed_m_s" in resolved and resolved.get("simplified_speed_m_s") is not None
+                else None
+            ),
             theme=theme,
             last_n_wingbeats=float(last_n_wb_raw) if last_n_wb_raw is not None else None,
+            curve_variant=str(resolved.get("curve_variant", "model")),
         )
         return
 
@@ -287,9 +293,24 @@ def _run_artifact(
         if not isinstance(input_h5_raw, str) or not input_h5_raw:
             raise ValueError("wing_force_components_timeseries requires input_h5")
         last_n_wb_raw = resolved.get("last_n_wingbeats")
+        csv_path_raw = resolved.get("csv_path")
+        weight_mN = None
+        source_case_file_raw = resolved.get("source_case_file")
+        if isinstance(source_case_file_raw, str) and source_case_file_raw:
+            case_path = _resolve_repo_path(source_case_file_raw)
+            case_obj = _load_case_cache(case_cache, case_path)
+            body_mass_kg = float(case_obj["specimen"]["body_mass"])
+            gravity_m_s2 = float(case_obj.get("environment", {}).get("gravity", 9.81))
+            weight_mN = body_mass_kg * gravity_m_s2 * 1e3
         plot_wing_force_components_timeseries(
             _resolve_repo_path(input_h5_raw),
             output_path,
+            force_csv_path=(
+                _resolve_repo_path(str(csv_path_raw))
+                if csv_path_raw is not None
+                else None
+            ),
+            body_weight_mN=weight_mN,
             theme=theme,
             last_n_wingbeats=float(last_n_wb_raw) if last_n_wb_raw is not None else None,
         )
@@ -339,13 +360,13 @@ def _run_artifact(
             show_grid=bool(resolved.get("show_grid", True)),
             show_timestamp=bool(resolved.get("show_timestamp", True)),
             show_pitch_angle=bool(resolved.get("show_pitch_angle", False)),
+            stroke_plane_beta_mode=str(resolved.get("stroke_plane_beta_mode", "mean")),
         )
         return
 
     if kind == "force_comparison":
         from post.plot_force_comparison import (
             ExternalForceSeries,
-            compute_forewing_mass_regression_pi_factors,
             plot_force_comparison,
             read_force_series_csv,
         )
@@ -376,32 +397,6 @@ def _run_artifact(
             )
             external_series.append(ext)
 
-        mass_envelope_factors: tuple[float, float] | None = None
-        mass_uncertainty = resolved.get("mass_uncertainty")
-        if isinstance(mass_uncertainty, dict):
-            mode = str(mass_uncertainty.get("kind", ""))
-            if mode == "forewing_regression_pi":
-                case_file_raw = mass_uncertainty.get("source_case_file")
-                body_csv_raw = mass_uncertainty.get("body_csv")
-                forewing_csv_raw = mass_uncertainty.get("forewing_csv")
-                if not isinstance(case_file_raw, str) or not case_file_raw:
-                    raise ValueError("force_comparison.mass_uncertainty.forewing_regression_pi requires source_case_file")
-                if not isinstance(body_csv_raw, str) or not body_csv_raw:
-                    raise ValueError("force_comparison.mass_uncertainty.forewing_regression_pi requires body_csv")
-                if not isinstance(forewing_csv_raw, str) or not forewing_csv_raw:
-                    raise ValueError("force_comparison.mass_uncertainty.forewing_regression_pi requires forewing_csv")
-                case_path = _resolve_repo_path(case_file_raw)
-                case = _load_case_cache(case_cache, case_path)
-                conf = float(mass_uncertainty.get("confidence", 0.68))
-                extra = mass_uncertainty.get("extra_specimens")
-                mass_envelope_factors = compute_forewing_mass_regression_pi_factors(
-                    body_csv=_resolve_repo_path(body_csv_raw),
-                    forewing_csv=_resolve_repo_path(forewing_csv_raw),
-                    target_forewing_span_mm=float(case["wings"]["fore"]["span"]) * 1000.0,
-                    confidence=conf,
-                    extra_specimens=extra if isinstance(extra, list) else None,
-                )
-
         plot_force_comparison(
             h5_inputs=h5_inputs,
             output_path=output_path,
@@ -409,7 +404,6 @@ def _run_artifact(
             labels=h5_labels,
             external_series=external_series if external_series else None,
             theme=theme,
-            mass_envelope_factors=mass_envelope_factors,
         )
         return
 

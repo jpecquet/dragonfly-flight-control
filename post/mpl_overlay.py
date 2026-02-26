@@ -229,7 +229,7 @@ def setup_axes(
 def _wing_frame(wings, frame_idx):
     """Extract single-frame wing vectors from dict-of-arrays format."""
     return {
-        wname: {k: v[frame_idx] for k, v in wdata.items()}
+        wname: {k: v[frame_idx] for k, v in wdata.items() if not isinstance(v, dict)}
         for wname, wdata in wings.items()
     }
 
@@ -634,6 +634,8 @@ def _prepare_shared_payload(
     for wname, wdata in wing_vectors.items():
         wing_payload = {}
         for key, value in wdata.items():
+            if isinstance(value, dict):
+                continue
             wing_payload[key] = _save_array_npy(shared_dir / f"wing_{wname}_{key}.npy", value)
         payload["wing_vectors"][wname] = wing_payload
 

@@ -34,6 +34,13 @@ struct SingleWingVectors {
     Vec3 e_c;    // Chord direction unit vector
     Vec3 lift;   // Lift force vector
     Vec3 drag;   // Drag force vector
+    double alpha = 0.0;  // AoA at reference span station (radians, currently 2/3 span)
+    std::vector<Vec3> blade_e_s;   // Per-blade stroke direction vectors
+    std::vector<Vec3> blade_e_r;   // Per-blade radial direction vectors
+    std::vector<Vec3> blade_e_c;   // Per-blade chord direction vectors
+    std::vector<Vec3> blade_lift;  // Per-blade lift force vectors
+    std::vector<Vec3> blade_drag;  // Per-blade drag force vectors
+    std::vector<double> blade_alpha;  // Per-blade AoA (radians)
 };
 
 // Compute state derivatives (equations of motion)

@@ -93,6 +93,7 @@ public:
     double lb0() const { return lb0_; }
     WingSide side() const { return side_; }
     int nBladeElements() const { return n_blade_elements_; }
+    const std::vector<double>& bladeEta() const { return blade_eta_; }
     bool hasPitchTwistH1() const { return pitch_twist_h1_.enabled; }
     double pitchTwistH1Root() const { return pitch_twist_h1_.root_coeff; }
     double pitchTwistH1RefEta() const { return pitch_twist_h1_.ref_eta; }

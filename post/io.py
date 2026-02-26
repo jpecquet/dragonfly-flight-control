@@ -4,6 +4,7 @@ HDF5 I/O functions for postprocessing.
 
 import subprocess
 import tempfile
+import warnings
 from pathlib import Path
 
 import h5py
@@ -13,6 +14,103 @@ import numpy as np
 def decode_string_array(arr):
     """Decode an array of bytes/strings from HDF5 to a list of Python strings."""
     return [s.decode() if isinstance(s, bytes) else s for s in arr]
+
+
+def _read_optional_blade_data(f, wname: str, n_steps: int):
+    """Read optional per-blade wing data, tolerating malformed/partial groups."""
+    blade_path = f"/wings/{wname}/blade"
+    blade_obj = f.get(blade_path)
+    if blade_obj is None or not isinstance(blade_obj, h5py.Group):
+        return None
+
+    blade = {}
+    try:
+        if "eta" in blade_obj:
+            eta = np.asarray(blade_obj["eta"][:], dtype=float)
+            if eta.ndim == 1:
+                blade["eta"] = eta
+            else:
+                warnings.warn(f"{blade_path}/eta has unexpected shape {eta.shape}; skipping eta")
+    except Exception as exc:
+        warnings.warn(f"Failed reading {blade_path}/eta: {exc}")
+
+    n_blades = None
+    if "eta" in blade:
+        n_blades = int(blade["eta"].shape[0])
+
+    for key in ("e_s", "e_r", "e_c", "lift", "drag", "alpha"):
+        if key not in blade_obj:
+            continue
+        ds_path = f"{blade_path}/{key}"
+        try:
+            arr = np.asarray(blade_obj[key][:], dtype=float)
+        except Exception as exc:
+            warnings.warn(f"Failed reading {ds_path}: {exc}")
+            continue
+
+        if key in {"e_s", "e_r", "e_c", "lift", "drag"}:
+            if arr.ndim == 3 and arr.shape[-1] == 3:
+                # Accept future/native 3D layout directly.
+                if arr.shape[0] != n_steps:
+                    warnings.warn(f"{ds_path} has unexpected timestep dimension {arr.shape}; skipping")
+                    continue
+                if n_blades is not None and arr.shape[1] != n_blades:
+                    warnings.warn(f"{ds_path} blade count mismatch vs eta; skipping")
+                    continue
+                if n_blades is None:
+                    n_blades = int(arr.shape[1])
+                blade[key] = arr
+                continue
+
+            if arr.ndim == 2:
+                if arr.shape[0] != n_steps:
+                    warnings.warn(f"{ds_path} has unexpected timestep dimension {arr.shape}; skipping")
+                    continue
+                if n_blades is None:
+                    if arr.shape[1] % 3 != 0:
+                        warnings.warn(f"{ds_path} cannot infer blade count from shape {arr.shape}; skipping")
+                        continue
+                    n_blades = arr.shape[1] // 3
+                if arr.shape[1] != 3 * n_blades:
+                    warnings.warn(f"{ds_path} shape {arr.shape} incompatible with blade count {n_blades}; skipping")
+                    continue
+                blade[key] = arr.reshape(arr.shape[0], n_blades, 3)
+                continue
+
+            warnings.warn(f"{ds_path} has unsupported shape {arr.shape}; skipping")
+            continue
+
+        # key == "alpha"
+        if arr.ndim == 2:
+            if arr.shape[0] != n_steps:
+                warnings.warn(f"{ds_path} has unexpected timestep dimension {arr.shape}; skipping")
+                continue
+            if n_blades is not None and arr.shape[1] != n_blades:
+                warnings.warn(f"{ds_path} blade count mismatch vs eta; skipping")
+                continue
+            if n_blades is None:
+                n_blades = int(arr.shape[1])
+            blade[key] = arr
+            continue
+
+        if arr.ndim == 1:
+            # Accept legacy/special case single-blade scalar layout.
+            if arr.shape[0] != n_steps:
+                warnings.warn(f"{ds_path} has unsupported shape {arr.shape}; skipping")
+                continue
+            if n_blades is None:
+                n_blades = 1
+            if n_blades != 1:
+                warnings.warn(f"{ds_path} is 1D but inferred blade count is {n_blades}; skipping")
+                continue
+            blade[key] = arr.reshape(arr.shape[0], 1)
+            continue
+
+        warnings.warn(f"{ds_path} has unsupported shape {arr.shape}; skipping")
+
+    if not blade:
+        return None
+    return blade
 
 
 def read_simulation(filename):
@@ -46,12 +144,13 @@ def read_simulation(filename):
             if path in f:
                 params[f"wing_{key}"] = dict(zip(wing_names_param, f[path][:]))
 
-        for key in ("gamma_mean", "phi_mean", "psi_mean", "cone_angle"):
+        for key in ("gamma_mean", "phi_mean", "psi_mean", "cone_mean", "cone_angle"):
             path = f"/parameters/wings/{key}"
             if path in f:
                 params[f"wing_{key}"] = dict(zip(wing_names_param, f[path][:]))
 
-        for key in ("gamma_amp", "gamma_phase", "phi_amp", "phi_phase", "psi_amp", "psi_phase"):
+        for key in ("gamma_amp", "gamma_phase", "phi_amp", "phi_phase", "psi_amp", "psi_phase",
+                    "cone_amp", "cone_phase"):
             path = f"/parameters/wings/{key}"
             if path in f:
                 data = f[path][:]
@@ -74,6 +173,12 @@ def read_simulation(filename):
             wings[wname] = {}
             for vname in vec_names:
                 wings[wname][vname] = f[f"/wings/{wname}/{vname}"][:]
+            alpha_path = f"/wings/{wname}/alpha"
+            if alpha_path in f:
+                wings[wname]["alpha"] = f[alpha_path][:]
+            blade = _read_optional_blade_data(f, wname, n_steps)
+            if blade is not None:
+                wings[wname]["blade"] = blade
             wings[wname]["u"] = np.zeros((n_steps, 3))
 
     return params, time, states, wings

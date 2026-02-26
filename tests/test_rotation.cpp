@@ -147,6 +147,8 @@ int main() {
         bool left_small_circle = true;
         bool right_small_circle = true;
         bool left_derivative_relation = true;
+        bool left_cone_derivative_relation = true;
+        bool right_cone_derivative_relation = true;
         const double deriv_eps = 1e-7;
         const double geom_tol = 1e-12;
         const double deriv_tol = 5e-8;
@@ -176,6 +178,28 @@ int main() {
             left_derivative_relation &= vecNear(
                 de_r_dphi, std::cos(cone) * left.e_s, deriv_tol
             );
+
+            const WingOrientation left_cone_p = computeWingOrientation(
+                0.0, phi, 0.0, cone + deriv_eps, true
+            );
+            const WingOrientation left_cone_m = computeWingOrientation(
+                0.0, phi, 0.0, cone - deriv_eps, true
+            );
+            const Vec3 de_r_dcone_left = (left_cone_p.e_r - left_cone_m.e_r) / (2.0 * deriv_eps);
+            left_cone_derivative_relation &= vecNear(
+                de_r_dcone_left, -left.e_s.cross(left.e_r), deriv_tol
+            );
+
+            const WingOrientation right_cone_p = computeWingOrientation(
+                0.0, phi, 0.0, cone + deriv_eps, false
+            );
+            const WingOrientation right_cone_m = computeWingOrientation(
+                0.0, phi, 0.0, cone - deriv_eps, false
+            );
+            const Vec3 de_r_dcone_right = (right_cone_p.e_r - right_cone_m.e_r) / (2.0 * deriv_eps);
+            right_cone_derivative_relation &= vecNear(
+                de_r_dcone_right, right.e_s.cross(right.e_r), deriv_tol
+            );
         }
 
         std::cout << "  Left wing small-circle cone path: "
@@ -184,8 +208,13 @@ int main() {
                   << (right_small_circle ? "PASS" : "FAIL") << "\n";
         std::cout << "  Left d(e_r)/dphi = cos(cone) * e_s: "
                   << (left_derivative_relation ? "PASS" : "FAIL") << "\n";
+        std::cout << "  Left d(e_r)/dcone = -(e_s x e_r): "
+                  << (left_cone_derivative_relation ? "PASS" : "FAIL") << "\n";
+        std::cout << "  Right d(e_r)/dcone = +(e_s x e_r): "
+                  << (right_cone_derivative_relation ? "PASS" : "FAIL") << "\n";
 
-        all_passed &= left_small_circle && right_small_circle && left_derivative_relation;
+        all_passed &= left_small_circle && right_small_circle && left_derivative_relation &&
+                      left_cone_derivative_relation && right_cone_derivative_relation;
     }
 
     // ========== Summary ==========

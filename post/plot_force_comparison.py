@@ -13,10 +13,8 @@ from __future__ import annotations
 
 import argparse
 import csv
-import math
 from dataclasses import dataclass
 from pathlib import Path
-from statistics import NormalDist
 from typing import Sequence
 
 import h5py
@@ -38,62 +36,6 @@ class ExternalForceSeries:
     wrap_period: float | None = None  # wrap x into [0, period]
 
 
-def compute_forewing_mass_regression_pi_factors(
-    *,
-    body_csv: Path,
-    forewing_csv: Path,
-    target_forewing_span_mm: float,
-    confidence: float = 0.68,
-    extra_specimens: Sequence[dict] | None = None,
-) -> tuple[float, float]:
-    """Return multiplicative mass factors from a log-log forewing-span regression PI."""
-    import pandas as pd
-
-    conf = float(confidence)
-    if not (0.0 < conf < 1.0):
-        raise ValueError(f"confidence must be in (0, 1), got {confidence!r}")
-
-    body_df = pd.read_csv(body_csv)
-    forewing_df = pd.read_csv(forewing_csv)
-    if "species" in body_df.columns:
-        body_df = body_df[~body_df["species"].astype(str).str.startswith("Calopteryx")]
-    if "species" in forewing_df.columns:
-        forewing_df = forewing_df[~forewing_df["species"].astype(str).str.startswith("Calopteryx")]
-
-    merged = body_df[["ID", "m"]].merge(forewing_df[["ID", "R"]], on="ID", how="inner")
-    merged = merged.dropna(subset=["R", "m"])
-
-    if extra_specimens:
-        extra_df = pd.DataFrame(list(extra_specimens))
-        if {"R", "m"}.issubset(extra_df.columns):
-            merged = pd.concat([merged, extra_df[["ID", "R", "m"]]], ignore_index=True)
-
-    x = np.log(merged["R"].to_numpy(dtype=float))
-    y = np.log(merged["m"].to_numpy(dtype=float))
-    n = int(x.size)
-    if n < 3:
-        raise ValueError("Need at least 3 samples for prediction interval")
-
-    X = np.column_stack([np.ones_like(x), x])
-    coef, *_ = np.linalg.lstsq(X, y, rcond=None)
-    y_hat = X @ coef
-    resid = y - y_hat
-    dof = n - 2
-    if dof <= 0:
-        raise ValueError("Need at least 3 samples for 2-parameter regression")
-    s = math.sqrt(float((resid @ resid) / dof))
-
-    x0 = math.log(float(target_forewing_span_mm))
-    x_bar = float(np.mean(x))
-    s_xx = float(np.sum((x - x_bar) ** 2))
-    if s_xx <= 0.0:
-        raise ValueError("Degenerate regression inputs (zero variance in forewing span)")
-
-    se_pred = s * math.sqrt(1.0 + (1.0 / n) + ((x0 - x_bar) ** 2) / s_xx)
-    z = float(NormalDist().inv_cdf(0.5 * (1.0 + conf)))
-    delta = z * se_pred
-    return (math.exp(-delta), math.exp(delta))
-
 
 def read_aero_force_z(h5_path: Path) -> tuple[np.ndarray, np.ndarray, float]:
     """Read total aerodynamic z-force and omega from a simulation output HDF5 file."""
@@ -106,6 +48,23 @@ def read_aero_force_z(h5_path: Path) -> tuple[np.ndarray, np.ndarray, float]:
             fz += f[f"/wings/{wname}/lift"][:, 2]
             fz += f[f"/wings/{wname}/drag"][:, 2]
     return time, fz, omega
+
+
+def read_aero_force_z_by_pair(h5_path: Path) -> tuple[np.ndarray, dict[str, np.ndarray], float]:
+    """Read fore/hind grouped aerodynamic z-forces and omega from a simulation output HDF5 file."""
+    with h5py.File(str(h5_path), "r") as f:
+        time = f["/time"][:]
+        omega = float(f["/parameters/omega"][()])
+        wing_names = sorted(k for k in f["/wings"].keys() if k != "num_wings")
+        groups: dict[str, np.ndarray] = {}
+        for wname in wing_names:
+            prefix = wname.split("_", 1)[0].lower()
+            fz = f[f"/wings/{wname}/lift"][:, 2] + f[f"/wings/{wname}/drag"][:, 2]
+            if prefix in groups:
+                groups[prefix] = groups[prefix] + fz
+            else:
+                groups[prefix] = np.array(fz)
+    return time, groups, omega
 
 
 def _resolve_csv_column_index(header: list[str], key: str) -> int:
@@ -164,7 +123,6 @@ def plot_force_comparison(
     external_series: Sequence[ExternalForceSeries] | None = None,
     theme: str | None = None,
     include_mean_in_label: bool = False,
-    mass_envelope_factors: tuple[float, float] | None = None,
 ) -> None:
     """Plot vertical aerodynamic force for an arbitrary number of simulation outputs.
 
@@ -183,11 +141,14 @@ def plot_force_comparison(
     resolved_labels = list(labels) if labels is not None else [Path(p).stem for p in resolved_h5_inputs]
     series: list[SeriesSpec] = []
     series_data: list[tuple[np.ndarray, np.ndarray, str]] = []
+    pair_data: list[tuple[np.ndarray, dict[str, np.ndarray]]] = []
 
     for h5_path, label in zip(resolved_h5_inputs, resolved_labels):
         time, fz, omega = read_aero_force_z(Path(h5_path))
         wingbeats = time * omega / (2.0 * np.pi)
         series_data.append((wingbeats, fz, label))
+        _, groups, _ = read_aero_force_z_by_pair(Path(h5_path))
+        pair_data.append((wingbeats, groups))
 
     # Separate scatter externals from line externals.
     scatter_externals: list[ExternalForceSeries] = []
@@ -215,31 +176,36 @@ def plot_force_comparison(
         sim_xlim = None
 
     _sim_colors = ["#f0a030", "C1", "C2", "C3"]  # yellow-orange for first sim series
-    lower_factor, upper_factor = (0.5, 1.5)
-    if mass_envelope_factors is not None:
-        lower_factor = float(min(mass_envelope_factors))
-        upper_factor = float(max(mass_envelope_factors))
-    n_labeled = len(series_data)  # for legend ncol (envelope lines are unlabeled)
+    n_labeled = len(series_data)  # for legend ncol
+    model_mean: float | None = None
     for i, (x_values, fz, label) in enumerate(series_data):
         mean_force = float(np.mean(fz))
+        if i == 0:
+            model_mean = mean_force
         legend_label = f"{label} (mean {mean_force:.3f})" if include_mean_in_label else label
         color = _sim_colors[i] if i < len(_sim_colors) else f"C{i}"
         series.append(SeriesSpec(x_values, fz, label=legend_label, color=color))
-        if i < n_sim:
-            series.append(SeriesSpec(x_values, lower_factor * fz, label=None, color=color, linewidth=0.8, linestyle="--", alpha=0.5))
-            series.append(SeriesSpec(x_values, upper_factor * fz, label=None, color=color, linewidth=0.8, linestyle="--", alpha=0.5))
 
     # Build scatter specs to pass through to the plotting call.
     scatter_specs: list[tuple[np.ndarray, np.ndarray, str, str]] = []
+    cfd_mean: float | None = None
     for ext in scatter_externals:
         mean_force = float(np.mean(ext.fz))
+        if cfd_mean is None:
+            cfd_mean = mean_force
         legend_label = f"{ext.label} (mean {mean_force:.3f})" if include_mean_in_label else ext.label
         scolor = ext.color or "green"
         scatter_specs.append((ext.x, ext.fz, legend_label, scolor))
 
+    _pair_colors = {"fore": "C0", "hind": "C1"}
+    _pair_labels = {"fore": "Forewing", "hind": "Hindwing"}
+    n_pair_labels = sum(
+        1 for _, groups in pair_data for prefix in ("fore", "hind") if prefix in groups
+    ) // max(len(pair_data), 1) if pair_data else 0
+
     fig, ax = plot_time_series(
         series=series,
-        output_path=None,  # defer saving — we add scatter overlay first
+        output_path=None,  # defer saving — we add pair/scatter overlays first
         xlabel="$t/T_{wb}$",
         ylabel=r"$\tilde{F}_z$",
         theme=theme,
@@ -248,18 +214,45 @@ def plot_force_comparison(
         show_grid=True,
         legend_loc="lower center",
         legend_bbox_to_anchor=(0.5, 1.03),
-        legend_ncol=max(1, min(3, n_labeled + len(scatter_specs))),
+        legend_ncol=max(1, min(4, n_labeled + n_pair_labels + len(scatter_specs))),
         legend_fontsize=10.0,
     )
-    for sx, sy, slabel, scolor in scatter_specs:
-        ax.scatter(sx, sy, s=12, alpha=0.35, color=scolor, label=slabel, zorder=1)
 
-    # Re-draw legend to include scatter entries.
-    if scatter_specs:
+    for wb, groups in pair_data:
+        for prefix in ("fore", "hind"):
+            if prefix in groups:
+                ax.plot(wb, groups[prefix], linewidth=1.5, color=_pair_colors[prefix],
+                        label=_pair_labels[prefix], zorder=2)
+
+    for sx, sy, slabel, scolor in scatter_specs:
+        ax.scatter(sx, sy, s=12, alpha=0.35, linewidths=0.5, color=scolor, label=slabel, zorder=1)
+
+    _mean_color = "#f0a030"
+    if model_mean is not None:
+        ax.axhline(model_mean, linewidth=1.0, linestyle="--", color=_mean_color, alpha=0.9, zorder=2)
+    if cfd_mean is not None:
+        ax.axhline(cfd_mean, linewidth=1.0, linestyle=":", color=_mean_color, alpha=0.9, zorder=2)
+
+    if model_mean is not None or cfd_mean is not None:
+        lines = []
+        if model_mean is not None:
+            lines.append(f"Model mean: {model_mean:.2f}")
+        if cfd_mean is not None:
+            lines.append(f"CFD mean: {cfd_mean:.2f}")
+        ax.text(
+            0.97, 0.95, "\n".join(lines),
+            transform=ax.transAxes,
+            ha="right", va="top",
+            fontsize=9,
+            linespacing=1.6,
+        )
+
+    # Re-draw legend to include pair and scatter entries.
+    if pair_data or scatter_specs:
         ax.legend(
             loc="lower center",
             bbox_to_anchor=(0.5, 1.03),
-            ncol=max(1, min(3, n_labeled + len(scatter_specs))),
+            ncol=max(1, min(4, n_labeled + n_pair_labels + len(scatter_specs))),
             fontsize=10.0,
         )
 

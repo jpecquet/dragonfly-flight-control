@@ -138,6 +138,18 @@ def _validate_artifact_common(
             eta_val = float(eta)
             if eta_val < 0.0 or eta_val > 1.0:
                 raise ValueError(f"artifacts[{idx}].eta must be in [0, 1]{_ctx(path)}")
+        curve_variant = artifact.get("curve_variant")
+        if curve_variant is not None:
+            variant = _expect_nonempty_str(curve_variant, f"artifacts[{idx}].curve_variant", path=path)
+            if variant not in {"model", "simplified"}:
+                raise ValueError(
+                    f"artifacts[{idx}].curve_variant must be one of 'model' or 'simplified'{_ctx(path)}"
+                )
+        simplified_speed_m_s = artifact.get("simplified_speed_m_s")
+        if simplified_speed_m_s is not None and (
+            isinstance(simplified_speed_m_s, bool) or not isinstance(simplified_speed_m_s, (int, float))
+        ):
+            raise ValueError(f"artifacts[{idx}].simplified_speed_m_s must be numeric{_ctx(path)}")
         return
 
     if kind == "wing_force_components_timeseries":

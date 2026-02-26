@@ -134,10 +134,12 @@ void populateWingMotion(
     out.gamma = default_kin.gamma;
     out.phi = default_kin.phi;
     out.psi = default_kin.psi;
+    out.cone = default_kin.cone;
 
     ensureHarmonicSize(out.gamma, n_harmonics);
     ensureHarmonicSize(out.phi, n_harmonics);
     ensureHarmonicSize(out.psi, n_harmonics);
+    ensureHarmonicSize(out.cone, n_harmonics);
 
     if (entry.motion_overrides.empty()) {
         out.has_custom_motion = false;
@@ -161,6 +163,7 @@ void populateWingMotion(
     applyWingAngleOverrides(entry, wing_label, "gamma", n_harmonics, out.gamma);
     applyWingAngleOverrides(entry, wing_label, "phi", n_harmonics, out.phi);
     applyWingAngleOverrides(entry, wing_label, "psi", n_harmonics, out.psi);
+    applyWingAngleOverrides(entry, wing_label, "cone", n_harmonics, out.cone);
 
     out.has_custom_motion = true;
 }
@@ -372,6 +375,7 @@ SimKinematicParams readKinematicParams(const Config& cfg) {
     loadAngleSeries(cfg, "gamma", kin.n_harmonics, cfg.getDouble("gamma_mean", 0.0), kin.gamma);
     loadAngleSeries(cfg, "phi", kin.n_harmonics, cfg.getDouble("phi_mean", 0.0), kin.phi);
     loadAngleSeries(cfg, "psi", kin.n_harmonics, cfg.getDouble("psi_mean", 0.0), kin.psi);
+    loadAngleSeries(cfg, "cone", kin.n_harmonics, cfg.getDouble("cone_mean", 0.0), kin.cone);
 
     return kin;
 }
@@ -436,7 +440,7 @@ std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinema
 
         auto angleFunc = makeAngleFunc(
             motion.gamma, motion.phi, motion.psi,
-            w.phase_offset, motion.omega, motion.harmonic_period_wingbeats
+            w.phase_offset, motion.omega, motion.harmonic_period_wingbeats, motion.cone
         );
         PitchTwistH1Model twist;
         if (w.has_psi_twist_h1) {

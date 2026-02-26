@@ -17,6 +17,7 @@ copyright = f"{date.today().year}, {author}"
 
 extensions = [
     "myst_parser",
+    "sphinx_design",
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.mathjax",

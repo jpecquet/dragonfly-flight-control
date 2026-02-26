@@ -113,7 +113,8 @@ int runTrack(const Config& cfg) {
             gamma_mean_cmd,
             psi_mean_cmd,
             phi_amp_cmd,
-            EPS
+            EPS,
+            base_motion.cone
         );
         wings[w].setAngleFunc(std::move(angleFunc));
     }

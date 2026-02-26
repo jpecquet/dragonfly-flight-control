@@ -163,6 +163,30 @@ def _stroke_plane_normal_xz(gamma):
     return np.array([np.sin(float(gamma)), np.cos(float(gamma))], dtype=float)
 
 
+def _span_vector_xz_with_mean_beta(e_r, stroke_normal_xz, beta_mean):
+    """Project span vector into XZ while replacing instantaneous beta with beta_mean."""
+    p = project_xz(e_r)
+    n = np.asarray(stroke_normal_xz, dtype=float)
+    n_norm = float(np.linalg.norm(n))
+    if n_norm < 1e-12:
+        return p
+    n = n / n_norm
+
+    # In XZ, p decomposes into a stroke-normal offset term sin(beta)*n plus a
+    # tangent term scaled by cos(beta). Replace beta with its mean while
+    # preserving the tangent phase (the projected azimuthal factor).
+    s_inst = float(np.clip(np.dot(p, n), -1.0, 1.0))
+    t = p - s_inst * n
+    c_inst = float(np.sqrt(max(0.0, 1.0 - s_inst * s_inst)))
+    s_ref = float(np.sin(float(beta_mean)))
+    c_ref = float(np.cos(float(beta_mean)))
+    if c_inst < 1e-12:
+        t_ref = np.zeros_like(t)
+    else:
+        t_ref = (c_ref / c_inst) * t
+    return s_ref * n + t_ref
+
+
 def _draw_pitch_glyph_2d(ax, center, chord_dir_2d, stroke_normal_2d, label_text,
                           *, color, alpha, line_width, fontsize,
                           ref_length=0.12, arc_radius=0.10):
@@ -248,11 +272,23 @@ def project_xz(vec):
     return np.array([vec[0], vec[2]], dtype=float)
 
 
-def compute_stick_endpoints(wing_state, root_offset, stick_length, station, lambda0):
+def compute_stick_endpoints(
+    wing_state,
+    root_offset,
+    stick_length,
+    station,
+    lambda0,
+    *,
+    stroke_normal_xz=None,
+    beta_mean=None,
+):
     """Compute stick center, leading edge, and trailing edge in nondimensional (X,Z)."""
     if not 0.0 <= float(station) <= 1.0:
         raise ValueError("station must be in [0, 1]")
-    center = float(station) * float(lambda0) * project_xz(wing_state["e_r"]) + np.asarray(root_offset, dtype=float)
+    span_xz = project_xz(wing_state["e_r"])
+    if stroke_normal_xz is not None and beta_mean is not None:
+        span_xz = _span_vector_xz_with_mean_beta(wing_state["e_r"], stroke_normal_xz, beta_mean)
+    center = float(station) * float(lambda0) * span_xz + np.asarray(root_offset, dtype=float)
 
     chord_dir = project_xz(wing_state["e_c"])
     chord_norm = np.linalg.norm(chord_dir)
@@ -283,6 +319,7 @@ def animate_stroke(
     show_timestamp=True,
     show_pitch_angle=False,
     params=None,
+    stroke_plane_beta_mode="mean",
 ):
     """Create animation of right fore/hind stick motion in the nondimensional (X,Z) plane."""
     style = resolve_style(style)
@@ -304,17 +341,42 @@ def animate_stroke(
     fore_wing = wings[fore_wing_name]
     hind_wing = wings[hind_wing_name]
     fore_root, hind_root = wing_root_positions()
+    fore_stroke_normal = None
+    hind_stroke_normal = None
+    fore_beta_mean = None
+    hind_beta_mean = None
+    beta_mode = str(stroke_plane_beta_mode).strip().lower()
+    if beta_mode not in {"mean", "actual"}:
+        raise ValueError(f"stroke_plane_beta_mode must be 'mean' or 'actual' (got {stroke_plane_beta_mode!r})")
+    if params is not None and beta_mode == "mean":
+        gamma_map = params.get("wing_gamma_mean", {})
+        cone_mean_map = params.get("wing_cone_mean", {})
+        cone_static_map = params.get("wing_cone_angle", {})
+        if fore_wing_name in gamma_map:
+            fore_stroke_normal = _stroke_plane_normal_xz(gamma_map[fore_wing_name])
+        if hind_wing_name in gamma_map:
+            hind_stroke_normal = _stroke_plane_normal_xz(gamma_map[hind_wing_name])
+        if fore_wing_name in cone_mean_map:
+            fore_beta_mean = float(cone_mean_map[fore_wing_name])
+        elif fore_wing_name in cone_static_map:
+            fore_beta_mean = float(cone_static_map[fore_wing_name])
+        if hind_wing_name in cone_mean_map:
+            hind_beta_mean = float(cone_mean_map[hind_wing_name])
+        elif hind_wing_name in cone_static_map:
+            hind_beta_mean = float(cone_static_map[hind_wing_name])
 
     for station_idx, station in enumerate(stations):
         for i in range(n_frames):
-            fore_state = {k: v[i] for k, v in fore_wing.items()}
-            hind_state = {k: v[i] for k, v in hind_wing.items()}
+            fore_state = {k: v[i] for k, v in fore_wing.items() if not isinstance(v, dict)}
+            hind_state = {k: v[i] for k, v in hind_wing.items() if not isinstance(v, dict)}
             fore_center, fore_le, fore_te = compute_stick_endpoints(
                 fore_state,
                 root_offset=fore_root,
                 stick_length=STICK_LENGTH,
                 station=station,
                 lambda0=fore_lambda0,
+                stroke_normal_xz=fore_stroke_normal,
+                beta_mean=fore_beta_mean,
             )
             hind_center, hind_le, hind_te = compute_stick_endpoints(
                 hind_state,
@@ -322,6 +384,8 @@ def animate_stroke(
                 stick_length=STICK_LENGTH,
                 station=station,
                 lambda0=hind_lambda0,
+                stroke_normal_xz=hind_stroke_normal,
+                beta_mean=hind_beta_mean,
             )
             fore_centers[station_idx, i] = fore_center
             hind_centers[station_idx, i] = hind_center
@@ -524,6 +588,12 @@ def main():
         default=None,
         help="One or more wing stations along span in [0,1] (example: --stations 0.25 0.5 0.75).",
     )
+    parser.add_argument(
+        "--stroke-plane-beta",
+        choices=["mean", "actual"],
+        default="mean",
+        help="Stroke-plane projection mode for stick centers: use mean beta (default) or actual simulated beta.",
+    )
     args = parser.parse_args()
 
     print(f"Reading {args.input}...")
@@ -532,12 +602,14 @@ def main():
     if not args.arg2:
         print(
             "\nUsage: python -m post.plot_stick <input.h5> <output.mp4|gif> "
-            "[--theme light|dark] [--station 0.6667] [--stations 0.25 0.5 0.75]"
+            "[--theme light|dark] [--station 0.6667] [--stations 0.25 0.5 0.75] "
+            "[--stroke-plane-beta mean|actual]"
         )
         print("Legacy usage (still supported):")
         print(
             "  python -m post.plot_stick <input.h5> <wing_name> <output.mp4|gif> "
-            "[--theme light|dark] [--station 0.6667] [--stations 0.25 0.5 0.75]"
+            "[--theme light|dark] [--station 0.6667] [--stations 0.25 0.5 0.75] "
+            "[--stroke-plane-beta mean|actual]"
         )
         print("\nAvailable wings:")
         for name in wings.keys():
@@ -586,6 +658,7 @@ def main():
     print("Wing stations: " + ", ".join(f"{station:.4f}" for station in stations))
     print(f"Stick length (nondimensional): {STICK_LENGTH:.3f}")
     print(f"Frames: {len(time)}")
+    print(f"Stroke-plane beta mode: {args.stroke_plane_beta}")
 
     style = resolve_style(theme=args.theme)
     print(f"Theme: {style.theme}")
@@ -602,6 +675,8 @@ def main():
         fore_lambda0=fore_lambda0,
         hind_lambda0=hind_lambda0,
         omega=omega,
+        params=params,
+        stroke_plane_beta_mode=args.stroke_plane_beta,
     )
 
 

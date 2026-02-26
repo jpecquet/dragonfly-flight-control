@@ -3,6 +3,7 @@
 #include <highfive/H5Easy.hpp>
 #include <highfive/H5File.hpp>
 #include <algorithm>
+#include <limits>
 #include <stdexcept>
 
 namespace {
@@ -33,6 +34,118 @@ Eigen::MatrixXd toMatrix(
     return result;
 }
 
+std::vector<double> toScalarSeries(
+    const std::vector<std::vector<SingleWingVectors>>& wing_data,
+    size_t wing_index,
+    double SingleWingVectors::* scalar_member
+) {
+    const size_t n = wing_data.size();
+    std::vector<double> result(n, 0.0);
+    for (size_t i = 0; i < n; ++i) {
+        if (wing_index < wing_data[i].size()) {
+            result[i] = wing_data[i][wing_index].*scalar_member;
+        }
+    }
+    return result;
+}
+
+size_t bladeCountForWing(
+    const std::vector<std::vector<SingleWingVectors>>& wing_data,
+    size_t wing_index,
+    const std::vector<Vec3> SingleWingVectors::* vec_member
+) {
+    size_t count = 0;
+    for (const auto& step : wing_data) {
+        if (wing_index >= step.size()) {
+            continue;
+        }
+        const size_t n = (step[wing_index].*vec_member).size();
+        if (count == 0) {
+            count = n;
+        } else if (n != count) {
+            throw std::runtime_error("Inconsistent per-blade vector count across timesteps");
+        }
+    }
+    return count;
+}
+
+size_t bladeCountForWing(
+    const std::vector<std::vector<SingleWingVectors>>& wing_data,
+    size_t wing_index,
+    const std::vector<double> SingleWingVectors::* scalar_member
+) {
+    size_t count = 0;
+    for (const auto& step : wing_data) {
+        if (wing_index >= step.size()) {
+            continue;
+        }
+        const size_t n = (step[wing_index].*scalar_member).size();
+        if (count == 0) {
+            count = n;
+        } else if (n != count) {
+            throw std::runtime_error("Inconsistent per-blade scalar count across timesteps");
+        }
+    }
+    return count;
+}
+
+Eigen::MatrixXd toBladeVecMatrixFlattened(
+    const std::vector<std::vector<SingleWingVectors>>& wing_data,
+    size_t wing_index,
+    const std::vector<Vec3> SingleWingVectors::* vec_member,
+    size_t blade_count
+) {
+    const size_t n_steps = wing_data.size();
+    Eigen::MatrixXd result = Eigen::MatrixXd::Constant(
+        static_cast<Eigen::Index>(n_steps),
+        static_cast<Eigen::Index>(blade_count * 3),
+        std::numeric_limits<double>::quiet_NaN()
+    );
+    for (size_t t = 0; t < n_steps; ++t) {
+        if (wing_index >= wing_data[t].size()) {
+            continue;
+        }
+        const auto& vecs = wing_data[t][wing_index].*vec_member;
+        if (vecs.size() != blade_count) {
+            throw std::runtime_error("Per-blade vector count mismatch while serializing HDF5");
+        }
+        for (size_t b = 0; b < blade_count; ++b) {
+            const Eigen::Index col = static_cast<Eigen::Index>(3 * b);
+            result(static_cast<Eigen::Index>(t), col + 0) = vecs[b](0);
+            result(static_cast<Eigen::Index>(t), col + 1) = vecs[b](1);
+            result(static_cast<Eigen::Index>(t), col + 2) = vecs[b](2);
+        }
+    }
+    return result;
+}
+
+Eigen::MatrixXd toBladeScalarMatrix(
+    const std::vector<std::vector<SingleWingVectors>>& wing_data,
+    size_t wing_index,
+    const std::vector<double> SingleWingVectors::* scalar_member,
+    size_t blade_count
+) {
+    const size_t n_steps = wing_data.size();
+    Eigen::MatrixXd result = Eigen::MatrixXd::Constant(
+        static_cast<Eigen::Index>(n_steps),
+        static_cast<Eigen::Index>(blade_count),
+        std::numeric_limits<double>::quiet_NaN()
+    );
+    for (size_t t = 0; t < n_steps; ++t) {
+        if (wing_index >= wing_data[t].size()) {
+            continue;
+        }
+        const auto& vals = wing_data[t][wing_index].*scalar_member;
+        if (vals.size() != blade_count) {
+            throw std::runtime_error("Per-blade scalar count mismatch while serializing HDF5");
+        }
+        for (size_t b = 0; b < blade_count; ++b) {
+            result(static_cast<Eigen::Index>(t), static_cast<Eigen::Index>(b)) = vals[b];
+        }
+    }
+    return result;
+}
+
 std::string wingGroupName(const Wing& wing) {
     std::string suffix = (wing.side() == WingSide::Left) ? "_left" : "_right";
     return wing.name() + suffix;
@@ -49,7 +162,7 @@ void writeMatrixRow(Eigen::MatrixXd& matrix, Eigen::Index row,
     }
 }
 
-// Write a HarmonicSeries set for each angle (gamma, phi, psi) across all wings
+// Write a HarmonicSeries set for each angle across all wings
 void writeAngleHarmonics(HighFive::File& file, const std::string& prefix,
                          const std::vector<WingConfig>& wingConfigs,
                          HarmonicSeries WingConfig::* angle, size_t n_harmonics) {
@@ -87,6 +200,7 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
         {"gamma_mean", k.gamma.mean},
         {"phi_mean", k.phi.mean},
         {"psi_mean", k.psi.mean},
+        {"cone_mean", k.cone.mean},
     };
     for (auto& [name, val] : scalar_params) {
         H5Easy::dump(file, std::string("/parameters/") + name, val);
@@ -97,6 +211,8 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     H5Easy::dump(file, "/parameters/phi_phase", k.phi.phase_coeff);
     H5Easy::dump(file, "/parameters/psi_amp", k.psi.amplitude_coeff);
     H5Easy::dump(file, "/parameters/psi_phase", k.psi.phase_coeff);
+    H5Easy::dump(file, "/parameters/cone_amp", k.cone.amplitude_coeff);
+    H5Easy::dump(file, "/parameters/cone_phase", k.cone.phase_coeff);
 
     // Write wing configurations
     size_t num_configs = output.wingConfigs.size();
@@ -164,7 +280,7 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     bool have_wing_motion = n_harmonics > 0;
     if (have_wing_motion) {
         for (const auto& wc : output.wingConfigs) {
-            for (const auto* s : {&wc.gamma, &wc.phi, &wc.psi}) {
+            for (const auto* s : {&wc.gamma, &wc.phi, &wc.psi, &wc.cone}) {
                 if (s->amplitude_coeff.size() != n_harmonics || s->phase_coeff.size() != n_harmonics) {
                     have_wing_motion = false;
                     break;
@@ -194,6 +310,7 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
         writeAngleHarmonics(file, "gamma", output.wingConfigs, &WingConfig::gamma, n_harmonics);
         writeAngleHarmonics(file, "phi", output.wingConfigs, &WingConfig::phi, n_harmonics);
         writeAngleHarmonics(file, "psi", output.wingConfigs, &WingConfig::psi, n_harmonics);
+        writeAngleHarmonics(file, "cone", output.wingConfigs, &WingConfig::cone, n_harmonics);
     }
 
     // Write time
@@ -222,6 +339,43 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
         file.createDataSet(group + "/e_c", toMatrix(output.wing_data, i, &SingleWingVectors::e_c));
         file.createDataSet(group + "/lift", toMatrix(output.wing_data, i, &SingleWingVectors::lift));
         file.createDataSet(group + "/drag", toMatrix(output.wing_data, i, &SingleWingVectors::drag));
+        H5Easy::dump(file, group + "/alpha", toScalarSeries(output.wing_data, i, &SingleWingVectors::alpha));
+
+        const size_t blade_count = wings[i].bladeEta().size();
+        file.createGroup(group + "/blade");
+        H5Easy::dump(file, group + "/blade/eta", wings[i].bladeEta());
+        if (blade_count > 0) {
+            if (bladeCountForWing(output.wing_data, i, &SingleWingVectors::blade_e_c) != blade_count) {
+                throw std::runtime_error("Per-blade output count does not match wing bladeEta size");
+            }
+            if (bladeCountForWing(output.wing_data, i, &SingleWingVectors::blade_alpha) != blade_count) {
+                throw std::runtime_error("Per-blade alpha count does not match wing bladeEta size");
+            }
+            file.createDataSet(
+                group + "/blade/e_s",
+                toBladeVecMatrixFlattened(output.wing_data, i, &SingleWingVectors::blade_e_s, blade_count)
+            );
+            file.createDataSet(
+                group + "/blade/e_r",
+                toBladeVecMatrixFlattened(output.wing_data, i, &SingleWingVectors::blade_e_r, blade_count)
+            );
+            file.createDataSet(
+                group + "/blade/e_c",
+                toBladeVecMatrixFlattened(output.wing_data, i, &SingleWingVectors::blade_e_c, blade_count)
+            );
+            file.createDataSet(
+                group + "/blade/lift",
+                toBladeVecMatrixFlattened(output.wing_data, i, &SingleWingVectors::blade_lift, blade_count)
+            );
+            file.createDataSet(
+                group + "/blade/drag",
+                toBladeVecMatrixFlattened(output.wing_data, i, &SingleWingVectors::blade_drag, blade_count)
+            );
+            file.createDataSet(
+                group + "/blade/alpha",
+                toBladeScalarMatrix(output.wing_data, i, &SingleWingVectors::blade_alpha, blade_count)
+            );
+        }
     }
 
     // Write controller data if tracking was active

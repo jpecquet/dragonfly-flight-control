@@ -652,18 +652,27 @@ def run_blender_render_parallel(
 
     output_dir = Path(output_dir)
 
-    with ProcessPoolExecutor(max_workers=len(ranges)) as executor:
-        futures = [executor.submit(_blender_worker, w) for w in work]
+    try:
+        with ProcessPoolExecutor(max_workers=len(ranges)) as executor:
+            futures = [executor.submit(_blender_worker, w) for w in work]
 
-        # Poll output directory for rendered frames instead of waiting per-batch
+            # Poll output directory for rendered frames instead of waiting per-batch
+            with pip_progress(n_frames, "Blender", unit="frame", min_interval=0.2) as progress:
+                while not all(f.done() for f in futures):
+                    rendered = len(list(output_dir.glob("frame_*.png")))
+                    progress.set(rendered)
+                    time.sleep(0.5)
+                # Check for worker exceptions before finalizing progress bar
+                for future in futures:
+                    future.result()
+                progress.set(n_frames)
+    except (PermissionError, OSError) as exc:
+        print(f"  Blender: parallel render unavailable ({exc}); falling back to 1 worker")
         with pip_progress(n_frames, "Blender", unit="frame", min_interval=0.2) as progress:
-            while not all(f.done() for f in futures):
+            for item in work:
+                _blender_worker(item)
                 rendered = len(list(output_dir.glob("frame_*.png")))
                 progress.set(rendered)
-                time.sleep(0.5)
-            # Check for worker exceptions before finalizing progress bar
-            for future in futures:
-                future.result()
             progress.set(n_frames)
 
 
@@ -684,7 +693,7 @@ def _subsample_animation_inputs(
 
     states_sub = states[::frame_step]
     wings_sub = {
-        wname: {k: v[::frame_step] for k, v in wdata.items()}
+        wname: {k: (v[::frame_step] if not isinstance(v, dict) else v) for k, v in wdata.items()}
         for wname, wdata in wing_vectors.items()
     }
 

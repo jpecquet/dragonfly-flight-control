@@ -48,7 +48,8 @@ bool isWingMotionKey(const std::string& key) {
         "omega", "harmonic_period_wingbeats",
         "gamma_mean", "gamma_amp", "gamma_phase",
         "phi_mean", "phi_amp", "phi_phase",
-        "psi_mean", "psi_amp", "psi_phase"
+        "psi_mean", "psi_amp", "psi_phase",
+        "cone_mean", "cone_amp", "cone_phase"
     };
     return kMotionKeys.find(key) != kMotionKeys.end();
 }

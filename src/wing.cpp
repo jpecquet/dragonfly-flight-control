@@ -2,11 +2,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 
 namespace {
 constexpr double SPAN_EVAL_POINT = 2.0 / 3.0;
 constexpr double EPS = 1e-12;
+constexpr double VELOCITY_THRESHOLD_SQ = 1e-20;
 
 double clampUnitInterval(double x) {
     return std::max(0.0, std::min(1.0, x));
@@ -14,6 +16,17 @@ double clampUnitInterval(double x) {
 
 double clampSymmetricUnitInterval(double x) {
     return std::max(-1.0, std::min(1.0, x));
+}
+
+double angleOfAttackFromVelocity(const Vec3& u, const Vec3& e_r, const Vec3& e_c) {
+    const double U_sq = u.squaredNorm();
+    if (U_sq < VELOCITY_THRESHOLD_SQ) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    const double U_inv = 1.0 / std::sqrt(U_sq);
+    const double c_alpha = u.dot(e_c) * U_inv;
+    const double s_alpha = u.cross(e_c).dot(e_r) * U_inv;
+    return std::atan2(s_alpha, c_alpha);
 }
 
 // Antiderivative of sqrt(1 - x^2) over x in [-1, 1].
@@ -143,10 +156,12 @@ Vec3 Wing::computeForce(
     // Simulator convention update: interpreted stroke-plane angle is pi - gamma.
     const double gam = M_PI - angles.gam;
     const double gam_dot = -angles.gam_dot;
+    const double cone_eff = cone_angle_ + angles.cone;
+    const double cone_dot = angles.cone_dot;
 
     // Compute wing orientation at reference span station pitch (input Fourier coefficients).
     WingOrientation orient_ref = computeWingOrientation(
-        gam, angles.phi, angles.psi, cone_angle_, side_ == WingSide::Left);
+        gam, angles.phi, angles.psi, cone_eff, side_ == WingSide::Left);
 
     // Store orientation vectors
     vecs.e_s = orient_ref.e_s;
@@ -156,10 +171,11 @@ Vec3 Wing::computeForce(
     // Contribution from stroke plane rotation (gam_dot): omega_gam x r
     // omega_gam = sign * gam_dot * ey (sign depends on wing side due to rotation convention)
     double gam_sign = (side_ == WingSide::Left) ? -1.0 : 1.0;
+    double cone_sign = (side_ == WingSide::Left) ? -1.0 : 1.0;
     Vec3 ey(0, 1, 0);
     Vec3 omega_gam = gam_sign * gam_dot * ey;
     // For conical flapping, spanwise orbit radius about the cone axis is lb0*cos(cone).
-    const double flap_speed_scale = std::cos(cone_angle_);
+    const double flap_speed_scale = std::cos(cone_eff);
     const double force_coefficient = 0.5 * mu0_ / lb0_;
     const double psi_h1_value = pitch_twist_h1_.enabled
         ? (pitch_twist_h1_.c1 * std::cos(pitch_twist_h1_.basis_omega * t + pitch_twist_h1_.phase_offset) +
@@ -168,6 +184,15 @@ Vec3 Wing::computeForce(
 
     vecs.lift = Vec3::Zero();
     vecs.drag = Vec3::Zero();
+    vecs.alpha = std::numeric_limits<double>::quiet_NaN();
+    if (vecs.blade_e_s.size() != blade_eta_.size()) {
+        vecs.blade_e_s.resize(blade_eta_.size(), Vec3::Zero());
+        vecs.blade_e_r.resize(blade_eta_.size(), Vec3::Zero());
+        vecs.blade_e_c.resize(blade_eta_.size(), Vec3::Zero());
+        vecs.blade_lift.resize(blade_eta_.size(), Vec3::Zero());
+        vecs.blade_drag.resize(blade_eta_.size(), Vec3::Zero());
+        vecs.blade_alpha.resize(blade_eta_.size(), std::numeric_limits<double>::quiet_NaN());
+    }
     Vec3 total_force = Vec3::Zero();
 
     for (size_t i = 0; i < blade_eta_.size(); ++i) {
@@ -177,23 +202,57 @@ Vec3 Wing::computeForce(
             ? (angles.psi + (twist_h1_scales_[i] - 1.0) * psi_h1_value)
             : angles.psi;
         const WingOrientation orient_eta = pitch_twist_h1_.enabled
-            ? computeWingOrientation(gam, angles.phi, psi_eta, cone_angle_, side_ == WingSide::Left)
+            ? computeWingOrientation(gam, angles.phi, psi_eta, cone_eff, side_ == WingSide::Left)
             : orient_ref;
 
         // Wing velocity at span station eta.
         Vec3 v_phi = eta * lb0_ * angles.phi_dot * flap_speed_scale * orient_eta.e_s;
+        Vec3 v_cone = eta * lb0_ * cone_dot * cone_sign * orient_eta.e_s.cross(orient_eta.e_r);
         Vec3 r = eta * lb0_ * orient_eta.e_r;
         Vec3 v_gam = omega_gam.cross(r);
-        Vec3 uw = ub + v_phi + v_gam;
+        Vec3 uw = ub + v_phi + v_cone + v_gam;
 
         // Wing velocity projected on plane normal to spanwise direction.
         Vec3 u = uw - uw.dot(orient_eta.e_r) * orient_eta.e_r;
+        const double alpha_i = angleOfAttackFromVelocity(u, orient_eta.e_r, orient_eta.e_c);
 
         Vec3 lift_i, drag_i;
         total_force += blade_.computeForce(
             u, orient_eta.e_r, orient_eta.e_c, coeff_i, lift_i, drag_i);
         vecs.lift += lift_i;
         vecs.drag += drag_i;
+        vecs.blade_e_s[i] = orient_eta.e_s;
+        vecs.blade_e_r[i] = orient_eta.e_r;
+        vecs.blade_e_c[i] = orient_eta.e_c;
+        vecs.blade_lift[i] = lift_i;
+        vecs.blade_drag[i] = drag_i;
+        vecs.blade_alpha[i] = alpha_i;
+    }
+
+    // AoA at the fixed reference span station (2/3 span), using the simulator sign convention.
+    {
+        const double eta_ref = SPAN_EVAL_POINT;
+        double psi_ref = angles.psi;
+        if (pitch_twist_h1_.enabled) {
+            const double ref_coeff = std::hypot(pitch_twist_h1_.c1, pitch_twist_h1_.s1);
+            if (ref_coeff > EPS) {
+                const double coeff_eta =
+                    ((ref_coeff - pitch_twist_h1_.root_coeff) * (eta_ref / pitch_twist_h1_.ref_eta))
+                    + pitch_twist_h1_.root_coeff;
+                const double scale_eta = coeff_eta / ref_coeff;
+                psi_ref += (scale_eta - 1.0) * psi_h1_value;
+            }
+        }
+
+        const WingOrientation orient_eta = computeWingOrientation(
+            gam, angles.phi, psi_ref, cone_eff, side_ == WingSide::Left);
+        Vec3 v_phi = eta_ref * lb0_ * angles.phi_dot * flap_speed_scale * orient_eta.e_s;
+        Vec3 v_cone = eta_ref * lb0_ * cone_dot * cone_sign * orient_eta.e_s.cross(orient_eta.e_r);
+        Vec3 r = eta_ref * lb0_ * orient_eta.e_r;
+        Vec3 v_gam = omega_gam.cross(r);
+        Vec3 uw = ub + v_phi + v_cone + v_gam;
+        Vec3 u = uw - uw.dot(orient_eta.e_r) * orient_eta.e_r;
+        vecs.alpha = angleOfAttackFromVelocity(u, orient_eta.e_r, orient_eta.e_c);
     }
 
     return total_force;

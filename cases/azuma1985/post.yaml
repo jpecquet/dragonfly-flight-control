@@ -25,13 +25,25 @@ artifacts:
   - kind: wing_aoa_timeseries
     input_h5: "{run_dir}/output.h5"
     source_case_file: cases/azuma1985/case.yaml
-    csv_path: cases/azuma1985/aoa.csv
-    output: angle_of_attack.{theme}.png
+    csv_path: cases/azuma1985/paper_data.csv
+    output: angle_of_attack_model.{theme}.png
     wing_names: [fore_right, hind_right]
     eta: 0.75
+    curve_variant: model
+
+  - kind: wing_aoa_timeseries
+    input_h5: "{run_dir}/output.h5"
+    source_case_file: cases/azuma1985/case.yaml
+    csv_path: cases/azuma1985/paper_data.csv
+    output: angle_of_attack_simplified.{theme}.png
+    wing_names: [fore_right, hind_right]
+    eta: 0.75
+    curve_variant: simplified
 
   - kind: wing_force_components_timeseries
     input_h5: "{run_dir}/output.h5"
+    source_case_file: cases/azuma1985/case.yaml
+    csv_path: cases/azuma1985/paper_data.csv
     output: force_components.{theme}.png
     last_n_wingbeats: 1
 
