@@ -337,6 +337,159 @@ def plot_wing_aoa_timeseries(
     plt.close(fig)
 
 
+def plot_wing_force_components_timeseries(
+    h5_path: Path,
+    output_path: Path,
+    *,
+    theme: str | None = None,
+    last_n_wingbeats: float | None = None,
+) -> None:
+    """Plot fore/hind/total horizontal and vertical aerodynamic force components."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from post.io import read_simulation
+    from post.style import apply_matplotlib_style, figure_size, resolve_style
+
+    params, time, _, wings = read_simulation(str(h5_path))
+    omega_nondim = float(params["omega"])
+
+    if last_n_wingbeats is not None:
+        t_wb = 2.0 * math.pi / omega_nondim
+        t_start = time[-1] - float(last_n_wingbeats) * t_wb
+        mask = time >= t_start - 1e-9 * t_wb
+        time = time[mask]
+        wings = {
+            name: {k: np.asarray(v[mask]) for k, v in data.items()}
+            for name, data in wings.items()
+        }
+
+    if len(time) == 0:
+        raise ValueError(f"No time samples found in {h5_path}")
+
+    pair_forces: dict[str, np.ndarray] = {}
+    for wing_name, data in wings.items():
+        prefix = str(wing_name).split("_", 1)[0].lower()
+        if prefix not in {"fore", "hind"}:
+            continue
+        force = np.asarray(data["lift"], dtype=float) + np.asarray(data["drag"], dtype=float)
+        if prefix in pair_forces:
+            pair_forces[prefix] = pair_forces[prefix] + force
+        else:
+            pair_forces[prefix] = np.array(force, copy=True)
+
+    if "fore" not in pair_forces or "hind" not in pair_forces:
+        found = sorted(pair_forces.keys())
+        raise ValueError(f"Expected fore/hind wings in {h5_path}, found groups: {found}")
+
+    total_force = pair_forces["fore"] + pair_forces["hind"]
+    t = np.asarray(time, dtype=float) * omega_nondim / (2.0 * np.pi)
+    t = t - float(t[0])
+
+    style = resolve_style(theme=theme)
+    apply_matplotlib_style(style)
+
+    fig, axes = plt.subplots(
+        nrows=1,
+        ncols=2,
+        sharex=True,
+        figsize=figure_size(height_over_width=0.45),
+    )
+
+    total_color = "#f0a030"  # Match Wang 2007 force-comparison total-force orange.
+    panels = (
+        (0, r"$\tilde{F}_x$"),
+        (2, r"$\tilde{F}_z$"),
+    )
+    y_min = math.inf
+    y_max = -math.inf
+
+    for panel_idx, (ax, (comp_idx, ylabel)) in enumerate(zip(axes, panels)):
+        fore_vals = pair_forces["fore"][:, comp_idx]
+        hind_vals = pair_forces["hind"][:, comp_idx]
+        total_vals = total_force[:, comp_idx]
+        mean_total = float(np.mean(total_vals))
+        y_min = min(
+            y_min,
+            float(np.min(fore_vals)),
+            float(np.min(hind_vals)),
+            float(np.min(total_vals)),
+            mean_total,
+        )
+        y_max = max(
+            y_max,
+            float(np.max(fore_vals)),
+            float(np.max(hind_vals)),
+            float(np.max(total_vals)),
+            mean_total,
+        )
+
+        ax.plot(
+            t,
+            fore_vals,
+            linewidth=1.5,
+            color="C0",
+            label="Forewing" if panel_idx == 0 else None,
+        )
+        ax.plot(
+            t,
+            hind_vals,
+            linewidth=1.5,
+            color="C1",
+            label="Hindwing" if panel_idx == 0 else None,
+        )
+        ax.plot(
+            t,
+            total_vals,
+            linewidth=1.7,
+            color=total_color,
+            label="Total" if panel_idx == 0 else None,
+            zorder=3,
+        )
+        ax.axhline(
+            mean_total,
+            linewidth=1.2,
+            linestyle="--",
+            color=total_color,
+            alpha=0.95,
+            label="Mean total" if panel_idx == 0 else None,
+            zorder=2,
+        )
+
+        ax.set_ylabel(ylabel)
+        ax.set_xlim(float(t[0]), float(t[-1]))
+        ax.grid(True, alpha=0.25)
+
+    if not math.isfinite(y_min) or not math.isfinite(y_max):
+        raise ValueError(f"Invalid force values in {h5_path}")
+    if y_max <= y_min:
+        y_pad = 1.0 if y_max == y_min else 0.05 * max(abs(y_min), abs(y_max), 1.0)
+        y_lo, y_hi = y_min - y_pad, y_max + y_pad
+    else:
+        y_pad = 0.05 * (y_max - y_min)
+        y_lo, y_hi = y_min - y_pad, y_max + y_pad
+    for ax in axes:
+        ax.set_ylim(y_lo, y_hi)
+
+    for ax in axes:
+        ax.set_xlabel(r"$t/T_{wb}$")
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.01),
+        ncol=4,
+        fontsize=10.0,
+    )
+    fig.tight_layout()
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(str(output_path), dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
 def _eval_fourier_degrees(t_wb, mean_deg: float, harmonics: list[list[float]] | list[tuple[float, float]]) -> Any:
     """Evaluate mean + cosine harmonic series in degrees."""
     import numpy as np

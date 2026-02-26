@@ -180,6 +180,57 @@ int main() {
 
     passed = passed && (max_Cd_error < tolerance) && (max_Cl_error < tolerance);
 
+    // Piecewise-linear (Azuma 1985) spot checks
+    // Verify Cl and Cd at specific alpha values against known formulas
+    BladeElementAeroParams pw_params;
+    pw_params.drag_model = DragCoefficientModel::PiecewiseLinear;
+    pw_params.lift_model = LiftCoefficientModel::PiecewiseLinear;
+    BladeElement blade_pw(pw_params);
+
+    std::cout << "\nPiecewise-linear (Azuma 1985) spot checks:\n";
+
+    struct PwCheck {
+        double alpha_deg;
+        double expected_Cl;
+        double expected_Cd;
+    };
+    std::vector<PwCheck> pw_checks = {
+        { -60.0, -0.03*(-60.0) - 2.6, -0.04*(-60.0) - 0.8 },  // outer ramps
+        { -50.0, -1.1,                 -0.04*(-50.0) - 0.8 },   // Cl plateau start, Cd ramp
+        { -35.0, -1.1,                 -0.04*(-35.0) - 0.8 },   // Cl plateau, Cd ramp
+        { -25.0, -1.1,                 0.2 },                    // Cl plateau, Cd plateau start
+        {   0.0, -1.1 + (2.9/45.0)*20.0, 0.2 },                 // Cl linear ramp, Cd plateau
+        {  10.0, -1.1 + (2.9/45.0)*30.0, 0.2 },                 // Cl linear ramp, Cd plateau end
+        {  25.0,  1.8,                 0.04*25.0 - 0.2 },        // Cl plateau start, Cd ramp
+        {  50.0,  1.8,                 0.04*50.0 - 0.2 },        // Cl plateau end, Cd ramp
+        {  60.0, -0.045*60.0 + 4.05,  0.04*60.0 - 0.2 },        // outer ramps
+    };
+
+    double max_pw_error = 0.0;
+    for (const auto& check : pw_checks) {
+        const double alpha = check.alpha_deg * M_PI / 180.0;
+        Vec3 u = U * (std::cos(alpha) * e_c + std::sin(alpha) * Vec3(0.0, 0.0, 1.0));
+        Vec3 lift, drag;
+        blade_pw.computeForce(u, e_r, e_c, force_coefficient, lift, drag);
+
+        // Extract signed coefficients using direction
+        // Drag magnitude is always positive; lift sign comes from direction relative to e_l
+        const double Cd_sim = drag.norm();
+        const double Cl_sim = lift.norm();
+        const double Cd_exact = std::abs(check.expected_Cd);
+        const double Cl_exact = std::abs(check.expected_Cl);
+
+        const double cd_err = std::abs(Cd_sim - Cd_exact);
+        const double cl_err = std::abs(Cl_sim - Cl_exact);
+        max_pw_error = std::max(max_pw_error, std::max(cd_err, cl_err));
+
+        printf("  alpha=%6.1f deg: Cd_sim=%8.5f Cd_exact=%8.5f Cl_sim=%8.5f Cl_exact=%8.5f\n",
+               check.alpha_deg, Cd_sim, Cd_exact, Cl_sim, Cl_exact);
+    }
+
+    std::cout << "  Max piecewise-linear error: " << max_pw_error << "\n";
+    passed = passed && (max_pw_error < tolerance);
+
     if (passed) {
         std::cout << "PASSED: Errors within tolerance (" << tolerance << ")\n";
         return 0;

@@ -17,16 +17,12 @@ artifacts:
     source_case_file: cases/azuma1988_exp1/case.yaml
     output: kinematics.{theme}.png
     angle_keys: [phi, psi]
-
-  - kind: body_flight_metrics_vs_reference
-    input_h5: "{run_dir}/output.h5"
-    source_case_file: cases/azuma1988_exp1/case.yaml
-    output: flight_metrics.{theme}.png
-    reference_kind: flight_condition
+    layout: horizontal
 
   - kind: simulation_video
     input_h5: "{run_dir}/output.h5"
     output: simulation.{theme}.mp4
+    last_n_wingbeats: 1
 
   - kind: stick_video
     input_h5: "{run_dir}/output.h5"

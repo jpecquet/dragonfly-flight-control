@@ -32,9 +32,8 @@ wings:
     span: 0.0335
     area: 0.000221
     cone: 8.0
-    drag_coeff_set: azuma1988
-    lift_model: linear
-    lift_coeff_set: azuma1988
+    drag_coeff_set: azuma1985
+    lift_coeff_set: azuma1985
     kinematics:
       gamma:
         mean: 37.0
@@ -52,9 +51,8 @@ wings:
     span: 0.0325
     area: 0.000272
     cone: -2.0
-    drag_coeff_set: azuma1988
-    lift_model: linear
-    lift_coeff_set: azuma1988
+    drag_coeff_set: azuma1985
+    lift_coeff_set: azuma1985
     kinematics:
       gamma:
         mean: 40.0

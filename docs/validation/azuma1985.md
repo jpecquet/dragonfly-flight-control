@@ -132,6 +132,21 @@ which assumes the velocity is normal to the stroke plane, and the coning angle i
 </div>
 ```
 
+Fig. 5 shows the horizontal and vertical aerodynamic force components over one wingbeat, decomposed into the combined forewing contribution, combined hindwing contribution, total force, and the mean total force (dashed).
+
+```{raw} html
+<div style="margin-bottom:1.5rem;">
+  <img
+    class="case-study-image"
+    src="../_static/media/azuma1985/force_components.dark.png"
+    alt="Azuma 1985 horizontal and vertical aerodynamic force components over one wingbeat with forewing, hindwing, total, and mean total curves"
+    data-light-src="../_static/media/azuma1985/force_components.light.png"
+    data-dark-src="../_static/media/azuma1985/force_components.dark.png"
+  />
+  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 5. Horizontal and vertical aerodynamic force components over one wingbeat.</div>
+</div>
+```
+
 ## Reproduction Commands
 
 ```bash

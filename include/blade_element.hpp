@@ -3,17 +3,20 @@
 #include "linalg.hpp"
 
 enum class DragCoefficientModel {
-    Sinusoidal
+    Sinusoidal,
+    PiecewiseLinear
 };
 
 enum class LiftCoefficientModel {
     Sinusoidal,
-    Linear
+    Linear,
+    PiecewiseLinear
 };
 
 inline const char* toString(DragCoefficientModel model) {
     switch (model) {
         case DragCoefficientModel::Sinusoidal: return "sinusoidal";
+        case DragCoefficientModel::PiecewiseLinear: return "piecewise_linear";
     }
     return "unknown";
 }
@@ -22,6 +25,7 @@ inline const char* toString(LiftCoefficientModel model) {
     switch (model) {
         case LiftCoefficientModel::Sinusoidal: return "sinusoidal";
         case LiftCoefficientModel::Linear: return "linear";
+        case LiftCoefficientModel::PiecewiseLinear: return "piecewise_linear";
     }
     return "unknown";
 }

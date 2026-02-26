@@ -1,313 +1,74 @@
 # Azuma and Watanabe 1988
 
-Flight simulation from experimental wing kinematics from {cite}`azuma1988`.
+## Case and data description
 
-This page renders media for experiments `1`-`4` (Dragonfly A/B).
+The goal of this case study is to validate the simulation against forward-flight wing kinematics reported in {cite}`azuma1988` for four flight conditions (experiments 1-4). Experiments 1-3 correspond to Dragonfly A and experiment 4 corresponds to Dragonfly B. As in the Azuma 1985 case, each simulation here is run as a tethered one-wingbeat simulation with the body velocity fixed to the experimental flight condition.
 
-## Description
-
-### Dragonfly Specimen
-
-| Parameter | Value |
-|---|---|
-| Body length $L$ | `0.075 m` |
-| Body mass $m$ | `7.900e-04 kg` |
-| Forewing span $R_{fw}$ | `0.05 m` |
-| Forewing area $S_{fw}$ | `5.000e-04 m^2` |
-| Hindwing span $R_{hw}$ | `0.0485 m` |
-| Hindwing area $S_{hw}$ | `6.000e-04 m^2` |
-
-Coning angles (shared across experiments):
-- Fore: `8 deg`
-- Hind: `-2 deg`
-
-### Experiments Summary
-
-| Experiment | Dragonfly | Frequency (Hz) | Fore gamma (deg) | Hind gamma (deg) | Reference flight condition |
-|---|---|---:|---:|---:|---|
-| 1 | A | 26.5 | 40 | 38 | speed `0.7 m/s`, direction `-12 deg` |
-| 2 | A | 28.1 | 55 | 48 | speed `1.5 m/s`, direction `-1.1 deg` |
-| 3 | A | 29 | 58 | 52 | speed `2.3 m/s`, direction `4.8 deg` |
-| 4 | B | 27 | 63 | 68 | speed `3.2 m/s`, direction `0 deg` |
-
-## Pre-processing
-
-The simulator motion inputs are constructed from the paper angles using:
-
-- `phi_sim = -psi_paper` (sign flip)
-- `psi_sim = theta_paper - 90 deg`
-
-## Experiment 1 (Dragonfly A)
-
-### Kinematics
+Morphology values are listed separately for Dragonfly A and Dragonfly B to match the experiment grouping used on this page. In the current extracted case inputs, the same morphology values are used for both specimens.
 
 ```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp1/kinematics.dark.png"
-  alt="Azuma 1988 experiment 1 fore/hind kinematics (phi, psi)"
-  data-light-src="../_static/media/azuma1988/exp1/kinematics.light.png"
-  data-dark-src="../_static/media/azuma1988/exp1/kinematics.dark.png"
-/>
+<div style="font-size:0.85em; line-height:1.2; margin-bottom:0.3rem; margin-top:1.5rem; text-align:center;">Table 1. Dragonfly A specimen morphology (experiments 1-3).</div>
 ```
 
-### Wing Motion 3D Visualization
+| Quantity | Value |
+|--|------:|
+| Body length $L$ (mm) | 75 |
+| Body mass $m$ (mg) | 790 |
+| Forewing span $R_f$ (mm) | 50.0 |
+| Forewing area $S_f$ (mm²) | 500 |
+| Hindwing span $R_h$ (mm) | 48.5 |
+| Hindwing area $S_h$ (mm²) | 600 |
 
 ```{raw} html
-<video
-  class="case-study-video"
-  loop
-  autoplay
-  muted
-  playsinline
-  preload="metadata"
-  data-light-src="../_static/media/azuma1988/exp1/simulation.light.mp4"
-  data-dark-src="../_static/media/azuma1988/exp1/simulation.dark.mp4"
->
-  <source src="../_static/media/azuma1988/exp1/simulation.dark.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+<div style="font-size:0.85em; line-height:1.2; margin-bottom:0.3rem; margin-top:1.5rem; text-align:center;">Table 2. Dragonfly B specimen morphology (experiment 4).</div>
 ```
 
-### Wing Motion Stick Plot
+| Quantity | Value |
+|--|------:|
+| Body length $L$ (mm) | 75 |
+| Body mass $m$ (mg) | 790 |
+| Forewing span $R_f$ (mm) | 50.0 |
+| Forewing area $S_f$ (mm²) | 500 |
+| Hindwing span $R_h$ (mm) | 48.5 |
+| Hindwing area $S_h$ (mm²) | 600 |
 
 ```{raw} html
-<video
-  class="case-study-video"
-  loop
-  autoplay
-  muted
-  playsinline
-  preload="metadata"
-  data-light-src="../_static/media/azuma1988/exp1/stick.light.mp4"
-  data-dark-src="../_static/media/azuma1988/exp1/stick.dark.mp4"
->
-  <source src="../_static/media/azuma1988/exp1/stick.dark.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+<div style="font-size:0.85em; line-height:1.2; margin-bottom:0.3rem; margin-top:1.5rem; text-align:center;">Table 3. Experiment conditions and tethered simulation inputs.</div>
 ```
 
-### Body Speed and Direction
+| Exp. | Specimen | $f$ (Hz) | $\gamma_f$ (deg) | $\gamma_h$ (deg) | $U$ (m/s) | $\theta$ (deg) | $U^*$ | $u_x^*$ | $u_z^*$ |
+|--:|:--:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | A | 26.5 | 40 | 38 | 0.7 | -12.0 | 0.816 | 0.798 | -0.170 |
+| 2 | A | 28.1 | 55 | 48 | 1.5 | -1.1 | 1.749 | 1.748 | -0.034 |
+| 3 | A | 29.0 | 58 | 52 | 2.3 | 4.8 | 2.681 | 2.672 | 0.224 |
+| 4 | B | 27.0 | 63 | 68 | 3.2 | 0.0 | 3.731 | 3.731 | 0.000 |
 
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp1/flight_metrics.dark.png"
-  alt="Azuma 1988 experiment 1 body speed and direction"
-  data-light-src="../_static/media/azuma1988/exp1/flight_metrics.light.png"
-  data-dark-src="../_static/media/azuma1988/exp1/flight_metrics.dark.png"
-/>
-```
+The coning angles are fixed across all four experiments at $\beta_f = 8^\circ$ and $\beta_h = -2^\circ$.
 
-## Experiment 2 (Dragonfly A)
+## Wing kinematics
 
-### Kinematics
+Fourier harmonic coefficients from the paper are mapped to the simulator convention using
 
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp2/kinematics.dark.png"
-  alt="Azuma 1988 experiment 2 fore/hind kinematics (phi, psi)"
-  data-light-src="../_static/media/azuma1988/exp2/kinematics.light.png"
-  data-dark-src="../_static/media/azuma1988/exp2/kinematics.dark.png"
-/>
-```
+$$
+\begin{aligned}
+\psi^{\text{(paper)}}(t) &= -\phi(t) \\
+\theta^{\text{(paper)}}(t) &= \psi(t) + 90^\circ
+\end{aligned}
+$$
 
-### Wing Motion 3D Visualization
+The plotted kinematics below show the simulator-convention flapping angle $\phi(t)$ and pitch angle $\psi(t)$ for each experiment.
 
-```{raw} html
-<video
-  class="case-study-video"
-  loop
-  autoplay
-  muted
-  playsinline
-  preload="metadata"
-  data-light-src="../_static/media/azuma1988/exp2/simulation.light.mp4"
-  data-dark-src="../_static/media/azuma1988/exp2/simulation.dark.mp4"
->
-  <source src="../_static/media/azuma1988/exp2/simulation.dark.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-```
+## Experiment Pages
 
-### Wing Motion Stick Plot
+The per-experiment results are split into sub-pages:
 
-```{raw} html
-<video
-  class="case-study-video"
-  loop
-  autoplay
-  muted
-  playsinline
-  preload="metadata"
-  data-light-src="../_static/media/azuma1988/exp2/stick.light.mp4"
-  data-dark-src="../_static/media/azuma1988/exp2/stick.dark.mp4"
->
-  <source src="../_static/media/azuma1988/exp2/stick.dark.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-```
+```{toctree}
+:maxdepth: 1
 
-### Body Speed and Direction
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp2/flight_metrics.dark.png"
-  alt="Azuma 1988 experiment 2 body speed and direction"
-  data-light-src="../_static/media/azuma1988/exp2/flight_metrics.light.png"
-  data-dark-src="../_static/media/azuma1988/exp2/flight_metrics.dark.png"
-/>
-```
-
-## Experiment 3 (Dragonfly A)
-
-### Kinematics
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp3/kinematics.dark.png"
-  alt="Azuma 1988 experiment 3 fore/hind kinematics (phi, psi)"
-  data-light-src="../_static/media/azuma1988/exp3/kinematics.light.png"
-  data-dark-src="../_static/media/azuma1988/exp3/kinematics.dark.png"
-/>
-```
-
-### Wing Motion 3D Visualization
-
-```{raw} html
-<video
-  class="case-study-video"
-  loop
-  autoplay
-  muted
-  playsinline
-  preload="metadata"
-  data-light-src="../_static/media/azuma1988/exp3/simulation.light.mp4"
-  data-dark-src="../_static/media/azuma1988/exp3/simulation.dark.mp4"
->
-  <source src="../_static/media/azuma1988/exp3/simulation.dark.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-```
-
-### Wing Motion Stick Plot
-
-```{raw} html
-<video
-  class="case-study-video"
-  loop
-  autoplay
-  muted
-  playsinline
-  preload="metadata"
-  data-light-src="../_static/media/azuma1988/exp3/stick.light.mp4"
-  data-dark-src="../_static/media/azuma1988/exp3/stick.dark.mp4"
->
-  <source src="../_static/media/azuma1988/exp3/stick.dark.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-```
-
-### Body Speed and Direction
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp3/flight_metrics.dark.png"
-  alt="Azuma 1988 experiment 3 body speed and direction"
-  data-light-src="../_static/media/azuma1988/exp3/flight_metrics.light.png"
-  data-dark-src="../_static/media/azuma1988/exp3/flight_metrics.dark.png"
-/>
-```
-
-## Experiment 4 (Dragonfly B)
-
-### Kinematics
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp4/kinematics.dark.png"
-  alt="Azuma 1988 experiment 4 fore/hind kinematics (phi, psi)"
-  data-light-src="../_static/media/azuma1988/exp4/kinematics.light.png"
-  data-dark-src="../_static/media/azuma1988/exp4/kinematics.dark.png"
-/>
-```
-
-### Wing Motion 3D Visualization
-
-```{raw} html
-<video
-  class="case-study-video"
-  loop
-  autoplay
-  muted
-  playsinline
-  preload="metadata"
-  data-light-src="../_static/media/azuma1988/exp4/simulation.light.mp4"
-  data-dark-src="../_static/media/azuma1988/exp4/simulation.dark.mp4"
->
-  <source src="../_static/media/azuma1988/exp4/simulation.dark.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-```
-
-### Wing Motion Stick Plot
-
-```{raw} html
-<video
-  class="case-study-video"
-  loop
-  autoplay
-  muted
-  playsinline
-  preload="metadata"
-  data-light-src="../_static/media/azuma1988/exp4/stick.light.mp4"
-  data-dark-src="../_static/media/azuma1988/exp4/stick.dark.mp4"
->
-  <source src="../_static/media/azuma1988/exp4/stick.dark.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-```
-
-### Body Speed and Direction
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp4/flight_metrics.dark.png"
-  alt="Azuma 1988 experiment 4 body speed and direction"
-  data-light-src="../_static/media/azuma1988/exp4/flight_metrics.light.png"
-  data-dark-src="../_static/media/azuma1988/exp4/flight_metrics.dark.png"
-/>
-```
-
-### Pitch Angle Along Span and Wingbeat
-
-Pitch angle over one wingbeat of constant-velocity flight, viewed normal to the
-stroke plane, for the forewing (above) and hindwing (below)
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp4/stroke_pitch_fore_right_down.dark.png"
-  alt="Azuma 1988 experiment 4 forewing right pitch angle in stroke plane"
-  data-light-src="../_static/media/azuma1988/exp4/stroke_pitch_fore_right_down.light.png"
-  data-dark-src="../_static/media/azuma1988/exp4/stroke_pitch_fore_right_down.dark.png"
-/>
-```
-
-```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1988/exp4/stroke_pitch_hind_right_down.dark.png"
-  alt="Azuma 1988 experiment 4 hindwing right pitch angle in stroke plane"
-  data-light-src="../_static/media/azuma1988/exp4/stroke_pitch_hind_right_down.light.png"
-  data-dark-src="../_static/media/azuma1988/exp4/stroke_pitch_hind_right_down.dark.png"
-/>
+Experiment 1 <azuma1988/exp1>
+Experiment 2 <azuma1988/exp2>
+Experiment 3 <azuma1988/exp3>
+Experiment 4 <azuma1988/exp4>
 ```
 
 ## Reproduction Commands

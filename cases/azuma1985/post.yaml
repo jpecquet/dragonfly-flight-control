@@ -30,6 +30,11 @@ artifacts:
     wing_names: [fore_right, hind_right]
     eta: 0.75
 
+  - kind: wing_force_components_timeseries
+    input_h5: "{run_dir}/output.h5"
+    output: force_components.{theme}.png
+    last_n_wingbeats: 1
+
   - kind: simulation_video
     input_h5: "{run_dir}/output.h5"
     output: simulation.{theme}.mp4

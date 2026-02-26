@@ -11,9 +11,21 @@ environment:
   gravity: 9.81
 
 simulation:
-  n_wingbeats: 5
+  n_wingbeats: 1
   steps_per_wingbeat: 200
   n_blade_elements: 5
+
+tether: true
+
+initial_state:
+  # Experimental forward-flight velocity U = 1.5 m/s at -1.1 deg, nondimensionalized
+  # by sqrt(g L) with L = 0.075 m: U* = 1.7487.
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  ux: 1.7484212697
+  uy: 0.0
+  uz: -0.0335714034
 
 wings:
   fore:

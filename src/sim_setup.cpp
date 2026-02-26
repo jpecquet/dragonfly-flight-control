@@ -13,7 +13,8 @@ namespace {
 enum class CoeffSet {
     Custom,
     Wang2004,
-    Azuma1988
+    Azuma1988,
+    Azuma1985
 };
 
 std::vector<double> zeroHarmonics(int n) {
@@ -29,24 +30,27 @@ CoeffSet parseCoeffSet(const std::string& value, const std::string& key,
     if (value == "custom") return CoeffSet::Custom;
     if (value == "wang2004") return CoeffSet::Wang2004;
     if (value == "azuma1988") return CoeffSet::Azuma1988;
+    if (value == "azuma1985") return CoeffSet::Azuma1985;
     throw std::runtime_error(
         "wing '" + wing_label + "' key '" + key +
-        "' must be 'custom', 'wang2004', or 'azuma1988' (got '" + value + "')"
+        "' must be 'custom', 'wang2004', 'azuma1988', or 'azuma1985' (got '" + value + "')"
     );
 }
 
 DragCoefficientModel parseDragModel(const std::string& value, const std::string& wing_label) {
     if (value == "sinusoidal") return DragCoefficientModel::Sinusoidal;
+    if (value == "piecewise_linear") return DragCoefficientModel::PiecewiseLinear;
     throw std::runtime_error(
-        "wing '" + wing_label + "' key 'drag_model' must be 'sinusoidal' (got '" + value + "')"
+        "wing '" + wing_label + "' key 'drag_model' must be 'sinusoidal' or 'piecewise_linear' (got '" + value + "')"
     );
 }
 
 LiftCoefficientModel parseLiftModel(const std::string& value, const std::string& wing_label) {
     if (value == "sinusoidal") return LiftCoefficientModel::Sinusoidal;
     if (value == "linear") return LiftCoefficientModel::Linear;
+    if (value == "piecewise_linear") return LiftCoefficientModel::PiecewiseLinear;
     throw std::runtime_error(
-        "wing '" + wing_label + "' key 'lift_model' must be 'sinusoidal' or 'linear' (got '" + value + "')"
+        "wing '" + wing_label + "' key 'lift_model' must be 'sinusoidal', 'linear', or 'piecewise_linear' (got '" + value + "')"
     );
 }
 
@@ -172,10 +176,29 @@ WingConfig buildWingConfigFromEntry(const WingConfigEntry& entry, int global_n_b
     const WingSide side = parseSide(entry.side);
     const int n_blade_elements =
         (entry.n_blade_elements > 0) ? entry.n_blade_elements : global_n_blade_elements;
-    const DragCoefficientModel drag_model = parseDragModel(entry.drag_model, label);
-    const LiftCoefficientModel lift_model = parseLiftModel(entry.lift_model, label);
+    DragCoefficientModel drag_model = parseDragModel(entry.drag_model, label);
+    LiftCoefficientModel lift_model = parseLiftModel(entry.lift_model, label);
     const CoeffSet drag_coeff_set = parseCoeffSet(entry.drag_coeff_set, "drag_coeff_set", label);
     const CoeffSet lift_coeff_set = parseCoeffSet(entry.lift_coeff_set, "lift_coeff_set", label);
+
+    // Azuma1985 coeff sets override the model to PiecewiseLinear
+    if (drag_coeff_set == CoeffSet::Azuma1985) {
+        if (entry.has_Cd_min || entry.has_Cd_max || entry.has_Cd_alpha_neutral) {
+            throw std::runtime_error(
+                "wing '" + label + "' does not allow Cd parameters when drag_coeff_set=azuma1985"
+            );
+        }
+        drag_model = DragCoefficientModel::PiecewiseLinear;
+    }
+    if (lift_coeff_set == CoeffSet::Azuma1985) {
+        if (entry.has_Cl0 || entry.has_Cl_alpha_slope || entry.has_Cl_alpha_neutral ||
+            entry.has_Cl_min || entry.has_Cl_max) {
+            throw std::runtime_error(
+                "wing '" + label + "' does not allow Cl parameters when lift_coeff_set=azuma1985"
+            );
+        }
+        lift_model = LiftCoefficientModel::PiecewiseLinear;
+    }
 
     double Cd_min = 0.0;
     double Cd_max = 0.0;
@@ -217,13 +240,15 @@ WingConfig buildWingConfigFromEntry(const WingConfigEntry& entry, int global_n_b
             throw std::runtime_error("wing '" + label + "' unknown drag coefficient set");
         }
     }
-    if (!std::isfinite(Cd_min) || !std::isfinite(Cd_max) || !std::isfinite(Cd_alpha_neutral)) {
-        throw std::runtime_error(
-            "wing '" + label + "' requires finite Cd_min, Cd_max, and Cd_alpha_neutral"
-        );
-    }
-    if (Cd_max < Cd_min) {
-        throw std::runtime_error("wing '" + label + "' requires Cd_max >= Cd_min");
+    if (drag_model != DragCoefficientModel::PiecewiseLinear) {
+        if (!std::isfinite(Cd_min) || !std::isfinite(Cd_max) || !std::isfinite(Cd_alpha_neutral)) {
+            throw std::runtime_error(
+                "wing '" + label + "' requires finite Cd_min, Cd_max, and Cd_alpha_neutral"
+            );
+        }
+        if (Cd_max < Cd_min) {
+            throw std::runtime_error("wing '" + label + "' requires Cd_max >= Cd_min");
+        }
     }
 
     double Cl0 = 0.0;
@@ -231,7 +256,9 @@ WingConfig buildWingConfigFromEntry(const WingConfigEntry& entry, int global_n_b
     double Cl_alpha_neutral = 0.0;
     double Cl_min = -1.0e12;
     double Cl_max = 1.0e12;
-    if (lift_model == LiftCoefficientModel::Sinusoidal) {
+    if (lift_model == LiftCoefficientModel::PiecewiseLinear) {
+        // No parameters needed — coefficients are hardcoded in blade_element.cpp
+    } else if (lift_model == LiftCoefficientModel::Sinusoidal) {
         if (entry.has_Cl_alpha_slope || entry.has_Cl_min || entry.has_Cl_max) {
             throw std::runtime_error(
                 "wing '" + label + "' Cl_alpha_slope/Cl_min/Cl_max are only valid when lift_model=linear"

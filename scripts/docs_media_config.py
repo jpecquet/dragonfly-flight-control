@@ -16,6 +16,7 @@ SUPPORTED_ARTIFACT_KINDS = {
     "exp_kinematics_scatter",
     "body_flight_metrics_vs_reference",
     "wing_aoa_timeseries",
+    "wing_force_components_timeseries",
     "simulation_video",
     "stick_video",
     "force_comparison",
@@ -137,6 +138,10 @@ def _validate_artifact_common(
             eta_val = float(eta)
             if eta_val < 0.0 or eta_val > 1.0:
                 raise ValueError(f"artifacts[{idx}].eta must be in [0, 1]{_ctx(path)}")
+        return
+
+    if kind == "wing_force_components_timeseries":
+        _expect_nonempty_str(artifact.get("input_h5"), f"artifacts[{idx}].input_h5", path=path)
         return
 
     if kind == "simulation_video":

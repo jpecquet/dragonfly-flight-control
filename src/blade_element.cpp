@@ -13,6 +13,15 @@ double dragCoefficient(const BladeElementAeroParams& params, double alpha) {
             const double s = std::sin(alpha - params.Cd_alpha_neutral);
             return params.Cd_min + (params.Cd_max - params.Cd_min) * s * s;
         }
+        case DragCoefficientModel::PiecewiseLinear: {
+            // Azuma 1985 Fig. 8 piecewise-linear Cd(alpha)
+            // alpha in radians; breakpoints at -25° and 10°
+            constexpr double deg = M_PI / 180.0;
+            const double a = alpha / deg;  // convert to degrees
+            if (a < -25.0) return -0.04 * a - 0.8;
+            if (a >  10.0) return  0.04 * a - 0.2;
+            return 0.2;
+        }
     }
     throw std::runtime_error("Unsupported drag coefficient model");
 }
@@ -25,6 +34,17 @@ double liftCoefficient(const BladeElementAeroParams& params, double alpha) {
             const double unclamped = params.Cl_alpha_slope * (alpha - params.Cl_alpha_neutral);
             return std::max(params.Cl_min, std::min(params.Cl_max, unclamped));
         }
+        case LiftCoefficientModel::PiecewiseLinear: {
+            // Azuma 1985 Fig. 8 piecewise-linear Cl(alpha)
+            // alpha in radians; breakpoints at -50°, -20°, 25°, 50°
+            constexpr double deg = M_PI / 180.0;
+            const double a = alpha / deg;  // convert to degrees
+            if (a <= -50.0) return -0.03 * a - 2.6;
+            if (a <=  -20.0) return -1.1;
+            if (a <=  25.0) return -1.1 + (2.9 / 45.0) * (a + 20.0);
+            if (a <=  50.0) return 1.8;
+            return -0.045 * a + 4.05;
+        }
     }
     throw std::runtime_error("Unsupported lift coefficient model");
 }
@@ -32,20 +52,24 @@ double liftCoefficient(const BladeElementAeroParams& params, double alpha) {
 
 BladeElement::BladeElement(const BladeElementAeroParams& params)
     : params_(params) {
-    if (!std::isfinite(params_.Cd_min)) {
-        throw std::runtime_error("Cd_min must be finite");
+    if (params_.drag_model != DragCoefficientModel::PiecewiseLinear) {
+        if (!std::isfinite(params_.Cd_min)) {
+            throw std::runtime_error("Cd_min must be finite");
+        }
+        if (!std::isfinite(params_.Cd_max)) {
+            throw std::runtime_error("Cd_max must be finite");
+        }
+        if (params_.Cd_max < params_.Cd_min) {
+            throw std::runtime_error("Cd_max must be >= Cd_min");
+        }
+        if (!std::isfinite(params_.Cd_alpha_neutral)) {
+            throw std::runtime_error("Cd_alpha_neutral must be finite");
+        }
     }
-    if (!std::isfinite(params_.Cd_max)) {
-        throw std::runtime_error("Cd_max must be finite");
-    }
-    if (params_.Cd_max < params_.Cd_min) {
-        throw std::runtime_error("Cd_max must be >= Cd_min");
-    }
-    if (!std::isfinite(params_.Cd_alpha_neutral)) {
-        throw std::runtime_error("Cd_alpha_neutral must be finite");
-    }
-    if (!std::isfinite(params_.Cl0)) {
-        throw std::runtime_error("Cl0 must be finite");
+    if (params_.lift_model != LiftCoefficientModel::PiecewiseLinear) {
+        if (!std::isfinite(params_.Cl0)) {
+            throw std::runtime_error("Cl0 must be finite");
+        }
     }
     if (params_.lift_model == LiftCoefficientModel::Linear) {
         if (!std::isfinite(params_.Cl_alpha_slope) || !std::isfinite(params_.Cl_alpha_neutral)) {

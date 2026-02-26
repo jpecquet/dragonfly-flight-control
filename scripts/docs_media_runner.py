@@ -170,6 +170,7 @@ def _run_artifact(
         plot_exp_kinematics_scatter,
         plot_mass_regression,
         plot_wing_aoa_timeseries,
+        plot_wing_force_components_timeseries,
         render_simulation_video_from_h5,
         render_stick_video_from_h5,
     )
@@ -276,6 +277,19 @@ def _run_artifact(
                 else None
             ),
             source_case=case_obj,
+            theme=theme,
+            last_n_wingbeats=float(last_n_wb_raw) if last_n_wb_raw is not None else None,
+        )
+        return
+
+    if kind == "wing_force_components_timeseries":
+        input_h5_raw = resolved.get("input_h5")
+        if not isinstance(input_h5_raw, str) or not input_h5_raw:
+            raise ValueError("wing_force_components_timeseries requires input_h5")
+        last_n_wb_raw = resolved.get("last_n_wingbeats")
+        plot_wing_force_components_timeseries(
+            _resolve_repo_path(input_h5_raw),
+            output_path,
             theme=theme,
             last_n_wingbeats=float(last_n_wb_raw) if last_n_wb_raw is not None else None,
         )

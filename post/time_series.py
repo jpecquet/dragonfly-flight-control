@@ -190,15 +190,21 @@ def plot_fore_hind_series(
         ax.set_xlim(float(t[0]), float(t[-1]))
         ax.grid(True, alpha=0.25)
 
-    axes[0].legend(
-        loc="lower center", bbox_to_anchor=(0.5, 1.03), ncol=2, fontsize=10.0,
-    )
+    handles, labels = axes[0].get_legend_handles_labels()
     if layout == "horizontal":
         for ax in axes:
             ax.set_xlabel(r"$t/T_{wb}$")
     else:
         axes[-1].set_xlabel(r"$t/T_{wb}$")
     fig.tight_layout()
+    fig.legend(
+        handles,
+        labels,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.01),
+        ncol=2,
+        fontsize=10.0,
+    )
 
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
