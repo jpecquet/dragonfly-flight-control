@@ -1,110 +1,135 @@
 # Azuma and Azuma 1985
 
-Flight simulation from experimental wing kinematics from {cite}`azuma1985`.
+## Case and data description
 
-## Description
+The goal of this case study is to validate the simulation against the forward flight condition measured in {cite}`azuma1985`. The paper provides Fourier harmonic fits to measured wing kinematics, which are used directly as simulation inputs. The wing kinematics correspond to a steady-state flight condition with body velocity magnitude $U = 0.54$ m/s and direction $\theta = 60°$ from the horizontal. Here we run a tethered simulation for one wingbeat with the body velocity fixed to the experimental condition, nondimensionalized as $U^* = U/\sqrt{gL} = 0.862$ (with $L = 40$ mm), and decompose it into $u_x^* = 0.431$ and $u_z^* = 0.747$.
 
-### Dragonfly Specimen
-
-| Parameter | Value |
-|---|---|
-| Body length $L$ | `0.04 m` |
-| Body mass $m$ | `2.600e-04 kg` |
-| Forewing span $R_{fw}$ | `0.0335 m` |
-| Forewing area $S_{fw}$ | `2.210e-04 m^2` |
-| Hindwing span $R_{hw}$ | `0.0325 m` |
-| Hindwing area $S_{hw}$ | `2.720e-04 m^2` |
-
-### Wing Kinematics
-
-Flapping frequency: `41.5 Hz`
-
-Coning angles:
-- Fore: `8 deg`
-- Hind: `-2 deg`
-
-Paper-convention Fourier data (degrees):
-
-| Wing | Series | mean (deg) | Fourier terms |
-|---|---|---:|---|
-| fore | stroke plane angle | 37 | `-` |
-| fore | flapping angle theta (paper figure typo labels this phi) | -3 | k=1: A=-43, phase=0 deg |
-| fore | pitch angle | 98 | k=1: A=-77, phase=-49 deg<br>k=2: A=-3, phase=67 deg<br>k=3: A=-8, phase=29 deg |
-| hind | stroke plane angle | 40 | `-` |
-| hind | flapping angle theta (paper figure typo labels this phi) | 2 | k=1: A=-47, phase=77 deg |
-| hind | pitch angle | 93 | k=1: A=-65, phase=18 deg<br>k=2: A=8, phase=74 deg<br>k=3: A=8, phase=28 deg |
-
-### Experimental Output References
-
-- `body_speed_and_direction`: speed `0.54 m/s`, direction `60 deg`
-  - Definition: `atan2(z, x) in XZ plane`
-
-## Pre-processing
-
-### Kinematics
+Morphology data for the specimen are taken directly from the paper (Table 1).
 
 ```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1985/kinematics.dark.png"
-  alt="Azuma 1985 fore/hind kinematics (phi, psi)"
-  data-light-src="../_static/media/azuma1985/kinematics.light.png"
-  data-dark-src="../_static/media/azuma1985/kinematics.dark.png"
-/>
+<div style="font-size:0.85em; line-height:1.2; margin-bottom:0.3rem; margin-top:1.5rem; text-align:center;">Table 1. Specimen morphology.</div>
 ```
+
+| Quantity | Value |
+|--|------:|
+| Body length $L$ (mm) | 40 |
+| Body mass $m$ (mg) | 260 |
+| Forewing span $R_f$ (mm) | 33.5 |
+| Forewing area $S_f$ (mm²) | 221 |
+| Hindwing span $R_h$ (mm) | 32.5 |
+| Hindwing area $S_h$ (mm²) | 272 |
+| Flapping frequency $f$ (Hz) | 41.5 |
+
+## Wing kinematics
+
+Fourier harmonic coefficients from curve fits of the flapping angle and pitch angle of each wing pair are given with the convention
+
+$$
+\begin{aligned}
+\phi^{\text{(paper)}}(t) &= -\phi(t) \\
+\psi^{\text{(paper)}}(t) &= \psi(t) + 90^\circ
+\end{aligned}
+$$
+
+which we correct for. The $\phi(t)$ and $\psi(t)$ time series are shown in Fig. 1. The corresponding harmonic coefficients are listed in Tables 2 and 3. The stroke plane and coning angles are listed in Table 4.
+
+```{raw} html
+<div style="margin-bottom:1.5rem;">
+  <img
+    class="case-study-image"
+    src="../_static/media/azuma1985/kinematics.dark.png"
+    alt="Azuma 1985 fore/hind kinematics (phi, psi)"
+    data-light-src="../_static/media/azuma1985/kinematics.light.png"
+    data-dark-src="../_static/media/azuma1985/kinematics.dark.png"
+  />
+  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 1. Wing kinematics.</div>
+</div>
+```
+
+```{raw} html
+<div style="font-size:0.85em; line-height:1.2; margin-bottom:0.3rem; text-align:center;">Table 2. Flapping angle harmonic coefficients (degrees).</div>
+```
+
+|          | $\phi_0$ | $\phi_1$ | $\delta_1$ |
+|----------|-----:|-----:|------:|
+| Forewing | 3    | 43   | 0     |
+| Hindwing | -2   | 47   | 77    |
+
+```{raw} html
+<div style="font-size:0.85em; line-height:1.2; margin-bottom:0.3rem; margin-top:1.5rem; text-align:center;">Table 3. Pitching angle harmonic coefficients (degrees).</div>
+```
+
+|          | $\psi_0$ | $\psi_1$ | $\psi_2$ | $\psi_3$ | $\delta_1$ | $\delta_2$ | $\delta_3$ |
+|----------|-----:|-----:|-----:|-----:|------:|------:|------:|
+| Forewing |  8   | -77  | -3   | -8   | -49   | 67    | 29    |
+| Hindwing |  3   | -65  |  8   |  8   |  18   | 74    | 28    |
+
+```{raw} html
+<div style="font-size:0.85em; line-height:1.2; margin-bottom:0.3rem; text-align:center;">Table 4. Stroke plane and coning angles (degrees).</div>
+```
+
+|          | $\gamma$ | $\beta$ |
+|----------|-----:|-----:|
+| Forewing | 37   | 8   |
+| Hindwing | 40   | -2  |
 
 ## Results
 
-### Wing Motion 3D Visualization
-
 ```{raw} html
-<video
-  class="case-study-video"
-  loop
-  autoplay
-  muted
-  playsinline
-  preload="metadata"
-  data-light-src="../_static/media/azuma1985/simulation.light.mp4"
-  data-dark-src="../_static/media/azuma1985/simulation.dark.mp4"
->
-  <source src="../_static/media/azuma1985/simulation.dark.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+<div style="margin-bottom:1.5rem;">
+  <video
+    class="case-study-video"
+    loop
+    autoplay
+    muted
+    playsinline
+    preload="metadata"
+    data-light-src="../_static/media/azuma1985/simulation.light.mp4"
+    data-dark-src="../_static/media/azuma1985/simulation.dark.mp4"
+  >
+    <source src="../_static/media/azuma1985/simulation.dark.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 2. 3D wing motion.</div>
+</div>
 ```
 
-### Wing Motion Stick Plot
-
 ```{raw} html
-<video
-  class="case-study-video"
-  loop
-  autoplay
-  muted
-  playsinline
-  preload="metadata"
-  data-light-src="../_static/media/azuma1985/stick.light.mp4"
-  data-dark-src="../_static/media/azuma1985/stick.dark.mp4"
->
-  <source src="../_static/media/azuma1985/stick.dark.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+<div style="margin-bottom:1.5rem;">
+  <video
+    class="case-study-video"
+    loop
+    autoplay
+    muted
+    playsinline
+    preload="metadata"
+    data-light-src="../_static/media/azuma1985/stick.light.mp4"
+    data-dark-src="../_static/media/azuma1985/stick.dark.mp4"
+  >
+    <source src="../_static/media/azuma1985/stick.dark.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 3. Stick plot.</div>
+</div>
 ```
 
-### Body Speed and Direction vs Experiment
+Fig. 4 shows angle of attack over one wingbeat for the right forewing and right hindwing at the $0.75R$ (3/4-span) station under the fixed-velocity tethered condition, with AoA data computed from the paper's measured kinematics (scatter), the simulation (solid lines), and a simplified estimate
 
-The left panel shows dimensional body speed magnitude from simulation compared to
-the experimental reference. The right panel shows the center-of-mass direction
-angle in the `XZ` plane, `atan2(z, x)` in degrees, compared to experiment.
+$$\alpha \approx \psi - \pi/2 - \tan^{-1}{\left(\frac{U}{-0.75R\dot{\phi}}\right)}$$
+
+which assumes the velocity is normal to the stroke plane, and the coning angle is zero.
 
 ```{raw} html
-<img
-  class="case-study-image"
-  src="../_static/media/azuma1985/flight_metrics.dark.png"
-  alt="Azuma 1985 body speed and direction comparison against experimental references"
-  data-light-src="../_static/media/azuma1985/flight_metrics.light.png"
-  data-dark-src="../_static/media/azuma1985/flight_metrics.dark.png"
-/>
+<div style="margin-bottom:1.5rem;">
+  <img
+    class="case-study-image"
+    src="../_static/media/azuma1985/angle_of_attack.dark.png"
+    alt="Azuma 1985 forewing and hindwing angle of attack over one wingbeat at 0.75 span"
+    data-light-src="../_static/media/azuma1985/angle_of_attack.light.png"
+    data-dark-src="../_static/media/azuma1985/angle_of_attack.dark.png"
+  />
+  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 4. Angle of attack over one wingbeat.</div>
+</div>
 ```
 
 ## Reproduction Commands

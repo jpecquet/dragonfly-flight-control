@@ -21,8 +21,8 @@ artifacts:
     body_csv: data/morphology/wakeling1997/body_data.csv
     forewing_csv: data/morphology/wakeling1997/forewing_data.csv
     extra_specimens:
-      - {ID: azuma1985, L: 40.0, m: 260.0}
-      - {ID: azuma1988, L: 75.0, m: 790.0}
+      - {ID: azuma1985, R: 33.5, m: 260.0}
+      - {ID: azuma1988, R: 50.0, m: 790.0}
     output: mass_regression.{theme}.png
 
   - kind: exp_kinematics_scatter
@@ -45,6 +45,15 @@ artifacts:
     output: stroke_fore_left.{theme}.mp4
 
   - kind: force_comparison
+    mass_uncertainty:
+      kind: forewing_regression_pi
+      source_case_file: cases/wang2007/case.yaml
+      body_csv: data/morphology/wakeling1997/body_data.csv
+      forewing_csv: data/morphology/wakeling1997/forewing_data.csv
+      confidence: 0.68
+      extra_specimens:
+        - {ID: azuma1985, R: 33.5, m: 260.0}
+        - {ID: azuma1988, R: 50.0, m: 790.0}
     h5_series:
       - input_h5: "{run_dir}/output.h5"
         label: "Model"

@@ -20,16 +20,20 @@ artifacts:
     source_case_file: cases/azuma1985/case.yaml
     output: kinematics.{theme}.png
     angle_keys: [phi, psi]
+    layout: horizontal
 
-  - kind: body_flight_metrics_vs_reference
+  - kind: wing_aoa_timeseries
     input_h5: "{run_dir}/output.h5"
     source_case_file: cases/azuma1985/case.yaml
-    output: flight_metrics.{theme}.png
-    reference_kind: flight_condition
+    csv_path: cases/azuma1985/aoa.csv
+    output: angle_of_attack.{theme}.png
+    wing_names: [fore_right, hind_right]
+    eta: 0.75
 
   - kind: simulation_video
     input_h5: "{run_dir}/output.h5"
     output: simulation.{theme}.mp4
+    last_n_wingbeats: 1
 
   - kind: stick_video
     input_h5: "{run_dir}/output.h5"

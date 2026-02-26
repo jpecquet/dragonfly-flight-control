@@ -13,6 +13,7 @@ def compute_body_flight_metrics(
     *,
     body_length_m: float,
     gravity_m_s2: float,
+    last_n_wingbeats: float | None = None,
 ) -> dict[str, Any]:
     """Read HDF5 and compute dimensional body speed/direction over wingbeats."""
     import h5py
@@ -23,9 +24,16 @@ def compute_body_flight_metrics(
         states = np.asarray(f["/state"][:], dtype=float)
         omega_nondim = float(f["/parameters/omega"][()])
 
+    if last_n_wingbeats is not None:
+        t_wb = 2.0 * math.pi / omega_nondim
+        t_start = time[-1] - float(last_n_wingbeats) * t_wb
+        mask = time >= t_start - 1e-9 * t_wb
+        time = time[mask]
+        states = states[mask]
+
     speed_scale = math.sqrt(float(gravity_m_s2) * float(body_length_m))
     speed_m_s = np.linalg.norm(states[:, 3:6], axis=1) * speed_scale
-    direction_deg = np.degrees(np.arctan2(states[:, 2], states[:, 0]))
+    direction_deg = np.degrees(np.arctan2(states[:, 5], states[:, 3]))
     wingbeats = time * omega_nondim / (2.0 * np.pi)
 
     return {
@@ -43,6 +51,7 @@ def plot_body_flight_metrics_vs_reference(
     gravity_m_s2: float,
     references: list[dict[str, Any]],
     theme: str | None = None,
+    last_n_wingbeats: float | None = None,
 ) -> None:
     """Plot simulation body speed and direction against optional flight-condition refs."""
     import matplotlib.pyplot as plt
@@ -54,6 +63,7 @@ def plot_body_flight_metrics_vs_reference(
         h5_path,
         body_length_m=body_length_m,
         gravity_m_s2=gravity_m_s2,
+        last_n_wingbeats=last_n_wingbeats,
     )
     t = np.asarray(metrics["wingbeats"])
     speed = np.asarray(metrics["speed_m_s"])
@@ -101,6 +111,232 @@ def plot_body_flight_metrics_vs_reference(
     plt.close(fig)
 
 
+def plot_wing_aoa_timeseries(
+    h5_path: Path,
+    output_path: Path,
+    *,
+    wing_names: tuple[str, str] = ("fore_right", "hind_right"),
+    eta: float = 2.0 / 3.0,
+    aoa_csv_path: Path | None = None,
+    source_case: dict[str, Any] | None = None,
+    theme: str | None = None,
+    last_n_wingbeats: float | None = None,
+) -> None:
+    """Plot AoA time traces for a fore/hind wing pair at a fixed span station."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from post.io import read_simulation
+    from post.style import apply_matplotlib_style, figure_size, resolve_style
+
+    if not (0.0 <= float(eta) <= 1.0):
+        raise ValueError("eta must be in [0, 1]")
+
+    params, time, states, wings = read_simulation(str(h5_path))
+    omega_nondim = float(params["omega"])
+
+    if last_n_wingbeats is not None:
+        t_wb = 2.0 * math.pi / omega_nondim
+        t_start = time[-1] - float(last_n_wingbeats) * t_wb
+        mask = time >= t_start - 1e-9 * t_wb
+        time = time[mask]
+        states = states[mask]
+        wings = {
+            name: {k: np.asarray(v[mask]) for k, v in data.items()}
+            for name, data in wings.items()
+        }
+
+    has_wing_harmonics = all(
+        key in params
+        for key in (
+            "wing_phi_mean",
+            "wing_phi_amp",
+            "wing_phi_phase",
+            "wing_gamma_mean",
+            "wing_gamma_amp",
+            "wing_gamma_phase",
+        )
+    )
+    if has_wing_harmonics:
+        from post.plot_stroke_aoa import _aoa_grid, _compute_angles
+
+        angle_params = {
+            "phi_mean": params["wing_phi_mean"],
+            "phi_amp": params["wing_phi_amp"],
+            "phi_phase": params["wing_phi_phase"],
+            "gamma_mean": params["wing_gamma_mean"],
+            "gamma_amp": params["wing_gamma_amp"],
+            "gamma_phase": params["wing_gamma_phase"],
+        }
+
+    def _aoa_fd_single_eta(
+        e_r: np.ndarray,
+        e_c: np.ndarray,
+        states_arr: np.ndarray,
+        time_arr: np.ndarray,
+        *,
+        lb0: float,
+        eta_val: float,
+    ) -> np.ndarray:
+        """Fallback AoA from finite-difference span-point velocity r * d(e_r)/dt."""
+        de_r_dt = np.gradient(e_r, time_arr, axis=0, edge_order=2 if len(time_arr) >= 3 else 1)
+        r = float(eta_val) * float(lb0)
+        aoa = np.zeros(len(time_arr), dtype=float)
+        for i in range(len(time_arr)):
+            er = e_r[i]
+            ec = e_c[i]
+            ub = states_arr[i, 3:6]
+            uw = ub + r * de_r_dt[i]
+            u = uw - np.dot(uw, er) * er
+            U_sq = np.dot(u, u)
+            if U_sq < 1e-20:
+                continue
+            U_inv = 1.0 / np.sqrt(U_sq)
+            c_alpha = np.dot(u, ec) * U_inv
+            s_alpha = np.dot(np.cross(u, ec), er) * U_inv
+            aoa[i] = np.degrees(np.arctan2(s_alpha, c_alpha))
+        return aoa
+
+    aoa_series: dict[str, np.ndarray] = {}
+    for wing_name in wing_names:
+        if wing_name not in wings:
+            raise ValueError(f"Wing '{wing_name}' not found in {h5_path}")
+        if wing_name not in params["wing_lb0"]:
+            raise ValueError(f"Wing parameters missing for '{wing_name}' in {h5_path}")
+
+        e_r = np.asarray(wings[wing_name]["e_r"], dtype=float)
+        e_s = np.asarray(wings[wing_name]["e_s"], dtype=float)
+        e_c = np.asarray(wings[wing_name]["e_c"], dtype=float)
+        if has_wing_harmonics:
+            _, phi_dot, _, gam_raw_dot = _compute_angles(time, wing_name, params, angle_params)
+            aoa = _aoa_grid(
+                e_r,
+                e_s,
+                e_c,
+                np.asarray(states, dtype=float),
+                np.asarray(phi_dot, dtype=float),
+                np.asarray(gam_raw_dot, dtype=float),
+                float(params["wing_lb0"][wing_name]),
+                bool(wing_name.endswith("_left")),
+                np.asarray([float(eta)], dtype=float),
+            )
+            aoa_series[wing_name] = np.asarray(aoa[:, 0], dtype=float)
+        else:
+            aoa_series[wing_name] = _aoa_fd_single_eta(
+                e_r,
+                e_c,
+                np.asarray(states, dtype=float),
+                np.asarray(time, dtype=float),
+                lb0=float(params["wing_lb0"][wing_name]),
+                eta_val=float(eta),
+            )
+
+    t = np.asarray(time, dtype=float) * omega_nondim / (2.0 * np.pi)
+    if t.size:
+        t = t - t[0]
+
+    exp_aoa: dict[str, np.ndarray] | None = None
+    if aoa_csv_path is not None:
+        import pandas as pd
+
+        df = pd.read_csv(aoa_csv_path, header=[0, 1])
+        if df.shape[1] < 4:
+            raise ValueError(f"AoA CSV must have at least 4 columns (fore X/Y, hind X/Y): {aoa_csv_path}")
+        arr = df.to_numpy(dtype=float)
+        exp_aoa = {
+            "fore_t": np.mod(arr[:, 0], 1.0),
+            "fore_aoa": arr[:, 1],
+            "hind_t": np.mod(arr[:, 2], 1.0),
+            "hind_aoa": arr[:, 3],
+        }
+
+    simplified_aoa: dict[str, np.ndarray] | None = None
+    if source_case is not None:
+        import numpy as np
+
+        spec = source_case.get("specimen", {})
+        frequency_hz = float(spec["frequency"])
+        refs = source_case.get("references", [])
+        speed_ref_m_s = None
+        for ref in refs:
+            if isinstance(ref, dict) and ref.get("kind") == "flight_condition" and "speed" in ref:
+                speed_ref_m_s = float(ref["speed"])
+                break
+        if speed_ref_m_s is None:
+            raise ValueError("source_case for wing_aoa_timeseries must include references.kind=flight_condition speed")
+
+        def _angle_rad(case_wing: dict[str, Any], key: str, t_wb_arr: np.ndarray) -> np.ndarray:
+            entry = case_wing["kinematics"][key]
+            out = np.full_like(t_wb_arr, np.radians(float(entry["mean"])), dtype=float)
+            for k, (amp_deg, phase_deg) in enumerate(entry.get("harmonics", []), start=1):
+                out += np.radians(float(amp_deg)) * np.cos(
+                    k * 2.0 * np.pi * t_wb_arr + np.radians(float(phase_deg))
+                )
+            return out
+
+        def _angle_rate_rad_s(case_wing: dict[str, Any], key: str, t_wb_arr: np.ndarray) -> np.ndarray:
+            entry = case_wing["kinematics"][key]
+            rate = np.zeros_like(t_wb_arr, dtype=float)
+            for k, (amp_deg, phase_deg) in enumerate(entry.get("harmonics", []), start=1):
+                amp_rad = np.radians(float(amp_deg))
+                phase_rad = np.radians(float(phase_deg))
+                rate += -k * (2.0 * np.pi * frequency_hz) * amp_rad * np.sin(
+                    k * 2.0 * np.pi * t_wb_arr + phase_rad
+                )
+            return rate
+
+        simplified_aoa = {}
+        t_wb_line = np.asarray(t, dtype=float)
+        for wing_name in wing_names:
+            wing_key = str(wing_name).split("_", 1)[0]
+            if wing_key not in source_case.get("wings", {}):
+                raise ValueError(f"source_case is missing wing '{wing_key}' for '{wing_name}'")
+            case_wing = source_case["wings"][wing_key]
+            span_m = float(case_wing["span"])
+            psi_rad = _angle_rad(case_wing, "psi", t_wb_line)
+            # Simplified paper-style estimate uses the 0.75-span tangential speed.
+            denom = 0.75 * span_m * (-_angle_rate_rad_s(case_wing, "phi", t_wb_line))
+            with np.errstate(divide="ignore", invalid="ignore"):
+                alpha_simplified = psi_rad + (0.5 * np.pi) - np.arctan2(speed_ref_m_s, denom)
+            simplified_aoa[wing_name] = np.degrees(alpha_simplified)
+
+    style = resolve_style(theme=theme)
+    apply_matplotlib_style(style)
+
+    fig, ax = plt.subplots(figsize=figure_size(height_over_width=0.38))
+    colors = ("C0", "C1")
+    labels = ("Forewing", "Hindwing")
+    if exp_aoa is not None:
+        dot_kw = dict(s=10, alpha=0.3, edgecolors="none")
+        ax.scatter(exp_aoa["fore_t"], exp_aoa["fore_aoa"], color=colors[0], **dot_kw)
+        ax.scatter(exp_aoa["hind_t"], exp_aoa["hind_aoa"], color=colors[1], **dot_kw)
+    for wing_name, color, label in zip(wing_names, colors, labels):
+        ax.plot(t, aoa_series[wing_name], linewidth=1.6, color=color, label=f"{label} (model)", zorder=3)
+        if simplified_aoa is not None and wing_name in simplified_aoa:
+            ax.plot(
+                t,
+                simplified_aoa[wing_name],
+                linewidth=1.4,
+                color=color,
+                linestyle="--",
+                alpha=0.95,
+                label=f"{label} (simplified)",
+                zorder=2,
+            )
+
+    ax.set_xlabel(r"$t/T_{wb}$")
+    ax.set_ylabel("AoA (deg)")
+    ax.grid(True, alpha=0.25)
+    ax.legend(loc="best")
+    if t.size:
+        ax.set_xlim(float(t[0]), float(t[-1]))
+
+    fig.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(str(output_path), dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
 def _eval_fourier_degrees(t_wb, mean_deg: float, harmonics: list[list[float]] | list[tuple[float, float]]) -> Any:
     """Evaluate mean + cosine harmonic series in degrees."""
     import numpy as np
@@ -120,6 +356,7 @@ def plot_case_fore_hind_kinematics(
     ylabels: tuple[str, str] = (r"$\phi$ (deg)", r"$\psi$ (deg)"),
     n_points: int = 500,
     theme: str | None = None,
+    layout: str = "vertical",
 ) -> None:
     """Plot fore/hind angle time series over one wingbeat from a case dict."""
     import numpy as np
@@ -147,7 +384,7 @@ def plot_case_fore_hind_kinematics(
         (f"{fore_name}_{angle_keys[0]}", f"{hind_name}_{angle_keys[0]}", ylabels[0]),
         (f"{fore_name}_{angle_keys[1]}", f"{hind_name}_{angle_keys[1]}", ylabels[1]),
     ]
-    plot_fore_hind_series(output_path, series, rows, theme=theme)
+    plot_fore_hind_series(output_path, series, rows, theme=theme, layout=layout)
 
 
 def plot_exp_kinematics_scatter(
@@ -177,9 +414,9 @@ def plot_exp_kinematics_scatter(
     cone_fore_rad = math.radians(float(case["wings"]["fore"]["cone"]))
     cone_hind_rad = math.radians(float(case["wings"]["hind"]["cone"]))
 
-    # phi = arcsin(s_mm / (R * cos(cone)))
-    phi_fore = np.degrees(np.arcsin(np.clip(s_mm_fore / (R_fore * math.cos(cone_fore_rad)), -1, 1)))
-    phi_hind = np.degrees(np.arcsin(np.clip(s_mm_hind / (R_hind * math.cos(cone_hind_rad)), -1, 1)))
+    # s is measured at the 2/3-span station, so use (2R/3) in the inversion.
+    phi_fore = np.degrees(np.arcsin(np.clip(s_mm_fore / ((2.0 * R_fore / 3.0) * math.cos(cone_fore_rad)), -1, 1)))
+    phi_hind = np.degrees(np.arcsin(np.clip(s_mm_hind / ((2.0 * R_hind / 3.0) * math.cos(cone_hind_rad)), -1, 1)))
 
     # psi = 90 deg - beta
     psi_fore = 90 - beta_deg_fore
@@ -264,7 +501,7 @@ def plot_mass_regression(
     extra_specimens: list[dict] | None = None,
     theme: str | None = None,
 ) -> None:
-    """Allometric mass vs. body-length regression plot with case specimen highlighted."""
+    """Allometric mass vs. forewing-length regression plot with case specimen highlighted."""
     import matplotlib.pyplot as plt
     import numpy as np
     import pandas as pd
@@ -274,15 +511,18 @@ def plot_mass_regression(
     # Load and filter Wakeling data (dragonflies only, no damselflies).
     body_df = pd.read_csv(body_csv)
     body_df = body_df[~body_df["species"].str.startswith("Calopteryx")]
-    merged = body_df[["ID", "L", "m"]].dropna(subset=["L", "m"])
+    forewing_df = pd.read_csv(forewing_csv)
+    forewing_df = forewing_df[~forewing_df["species"].str.startswith("Calopteryx")]
+    merged = body_df[["ID", "m"]].merge(forewing_df[["ID", "R"]], on="ID", how="inner")
+    merged = merged.dropna(subset=["R", "m"])
 
     # Append extra specimens (e.g. from other case studies).
     if extra_specimens:
-        merged = pd.concat(
-            [merged, pd.DataFrame(extra_specimens)], ignore_index=True
-        )
+        extra_df = pd.DataFrame(extra_specimens)
+        if {"R", "m"}.issubset(extra_df.columns):
+            merged = pd.concat([merged, extra_df[["ID", "R", "m"]]], ignore_index=True)
 
-    L = merged["L"].values.astype(float)
+    L = merged["R"].values.astype(float)
     m = merged["m"].values.astype(float)
 
     # Log-log regression.
@@ -296,8 +536,8 @@ def plot_mass_regression(
     L_fit = np.geomspace(x_lo, x_hi, 300)
     m_fit = np.exp(c[0] + c[1] * np.log(L_fit))
 
-    # Target specimen from case.
-    L_target = float(case["specimen"]["body_length"]) * 1000.0  # m -> mm
+    # Target specimen from case (forewing span).
+    L_target = float(case["wings"]["fore"]["span"]) * 1000.0  # m -> mm
     m_target = np.exp(c[0] + c[1] * np.log(L_target))
 
     style = resolve_style(theme=theme)
@@ -307,19 +547,19 @@ def plot_mass_regression(
 
     ax.scatter(L, m, s=18, color="#9b6dff", alpha=0.7, zorder=2, label="Wakeling (1997)")
     ax.plot(L_fit, m_fit, linewidth=1.5, color="#f0a030", zorder=3,
-            label=rf"$m \propto L^{{{c[1]:.2f}}}$")
+            label=rf"$m \propto R_f^{{{c[1]:.2f}}}$")
     ax.scatter([L_target], [m_target], s=18, color="#f0a030", marker="o", alpha=0.7,
                zorder=4, label=f"Case study estimate")
 
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlim(30, 90)
+    ax.set_xlim(20, 60)
     ax.set_ylim(50, 2000)
-    ax.set_xticks([30, 40, 50, 60, 70, 80, 90])
+    ax.set_xticks([20, 30, 40, 50, 60])
     ax.set_yticks([100, 200, 500, 1000])
     ax.xaxis.set_major_formatter(plt.matplotlib.ticker.ScalarFormatter())
     ax.yaxis.set_major_formatter(plt.matplotlib.ticker.ScalarFormatter())
-    ax.set_xlabel(r"$L$ (mm)")
+    ax.set_xlabel(r"$R_f$ (mm)")
     ax.set_ylabel(r"$m$ (mg)")
     ax.grid(True, alpha=0.25)
     ax.legend(loc="lower right", fontsize=10.0)
@@ -345,6 +585,7 @@ def render_simulation_video_from_h5(
     no_blender: bool = False,
     frame_step: int = 1,
     annotation_overlay: dict | None = None,
+    last_n_wingbeats: float | None = None,
 ) -> None:
     """Render a simulation video from an HDF5 file (Blender hybrid or mpl fallback)."""
     from post.composite import check_blender_available, render_hybrid, render_mpl_only
@@ -353,6 +594,16 @@ def render_simulation_video_from_h5(
     from post.style import apply_theme_to_config
 
     params, time, states, wings = read_simulation(str(input_h5))
+
+    if last_n_wingbeats is not None:
+        omega = float(params["omega"])
+        t_wb = 2.0 * math.pi / omega
+        t_start = float(time[-1]) - float(last_n_wingbeats) * t_wb
+        mask = time >= t_start - 1e-9 * t_wb
+        time = time[mask]
+        states = states[mask]
+        wings = {wn: {vn: arr[mask] for vn, arr in wd.items()} for wn, wd in wings.items()}
+
     config = HybridConfig.load(str(render_config))
     config = apply_theme_to_config(config, theme)
 

@@ -169,6 +169,7 @@ def _run_artifact(
         plot_case_fore_hind_kinematics,
         plot_exp_kinematics_scatter,
         plot_mass_regression,
+        plot_wing_aoa_timeseries,
         render_simulation_video_from_h5,
         render_stick_video_from_h5,
     )
@@ -205,6 +206,7 @@ def _run_artifact(
             output_path,
             angle_keys=(str(angle_keys_raw[0]), str(angle_keys_raw[1])),
             theme=theme,
+            layout=str(resolved.get("layout", "vertical")),
         )
         return
 
@@ -238,6 +240,7 @@ def _run_artifact(
         ref_kind = resolved.get("reference_kind")
         if isinstance(ref_kind, str) and ref_kind:
             refs = [r for r in refs if isinstance(r, dict) and r.get("kind") == ref_kind]
+        last_n_wb_raw = resolved.get("last_n_wingbeats")
         plot_body_flight_metrics_vs_reference(
             _resolve_repo_path(input_h5_raw),
             output_path,
@@ -245,6 +248,36 @@ def _run_artifact(
             gravity_m_s2=float(case.get("environment", {}).get("gravity", 9.81)),
             references=refs,
             theme=theme,
+            last_n_wingbeats=float(last_n_wb_raw) if last_n_wb_raw is not None else None,
+        )
+        return
+
+    if kind == "wing_aoa_timeseries":
+        input_h5_raw = resolved.get("input_h5")
+        if not isinstance(input_h5_raw, str) or not input_h5_raw:
+            raise ValueError("wing_aoa_timeseries requires input_h5")
+        wing_names_raw = resolved.get("wing_names", ["fore_right", "hind_right"])
+        if not isinstance(wing_names_raw, list) or len(wing_names_raw) != 2:
+            raise ValueError("wing_aoa_timeseries wing_names must be a list of two strings")
+        case_obj = None
+        source_case_file_raw = resolved.get("source_case_file")
+        if isinstance(source_case_file_raw, str) and source_case_file_raw:
+            case_path = _resolve_repo_path(source_case_file_raw)
+            case_obj = _load_case_cache(case_cache, case_path)
+        last_n_wb_raw = resolved.get("last_n_wingbeats")
+        plot_wing_aoa_timeseries(
+            _resolve_repo_path(input_h5_raw),
+            output_path,
+            wing_names=(str(wing_names_raw[0]), str(wing_names_raw[1])),
+            eta=float(resolved.get("eta", 2.0 / 3.0)),
+            aoa_csv_path=(
+                _resolve_repo_path(str(resolved["csv_path"]))
+                if "csv_path" in resolved and resolved.get("csv_path") is not None
+                else None
+            ),
+            source_case=case_obj,
+            theme=theme,
+            last_n_wingbeats=float(last_n_wb_raw) if last_n_wb_raw is not None else None,
         )
         return
 
@@ -260,6 +293,7 @@ def _run_artifact(
             if frame_step_override is not None
             else int(resolved.get("frame_step", docs_media_cfg.get("frame_step", 1)))
         )
+        last_n_wb_raw = resolved.get("last_n_wingbeats")
         render_simulation_video_from_h5(
             _resolve_repo_path(input_h5_raw),
             output_path,
@@ -268,6 +302,7 @@ def _run_artifact(
             no_blender=no_blender,
             frame_step=frame_step_val,
             annotation_overlay=resolved.get("annotation_overlay"),
+            last_n_wingbeats=float(last_n_wb_raw) if last_n_wb_raw is not None else None,
         )
         return
 
@@ -296,6 +331,7 @@ def _run_artifact(
     if kind == "force_comparison":
         from post.plot_force_comparison import (
             ExternalForceSeries,
+            compute_forewing_mass_regression_pi_factors,
             plot_force_comparison,
             read_force_series_csv,
         )
@@ -326,6 +362,32 @@ def _run_artifact(
             )
             external_series.append(ext)
 
+        mass_envelope_factors: tuple[float, float] | None = None
+        mass_uncertainty = resolved.get("mass_uncertainty")
+        if isinstance(mass_uncertainty, dict):
+            mode = str(mass_uncertainty.get("kind", ""))
+            if mode == "forewing_regression_pi":
+                case_file_raw = mass_uncertainty.get("source_case_file")
+                body_csv_raw = mass_uncertainty.get("body_csv")
+                forewing_csv_raw = mass_uncertainty.get("forewing_csv")
+                if not isinstance(case_file_raw, str) or not case_file_raw:
+                    raise ValueError("force_comparison.mass_uncertainty.forewing_regression_pi requires source_case_file")
+                if not isinstance(body_csv_raw, str) or not body_csv_raw:
+                    raise ValueError("force_comparison.mass_uncertainty.forewing_regression_pi requires body_csv")
+                if not isinstance(forewing_csv_raw, str) or not forewing_csv_raw:
+                    raise ValueError("force_comparison.mass_uncertainty.forewing_regression_pi requires forewing_csv")
+                case_path = _resolve_repo_path(case_file_raw)
+                case = _load_case_cache(case_cache, case_path)
+                conf = float(mass_uncertainty.get("confidence", 0.68))
+                extra = mass_uncertainty.get("extra_specimens")
+                mass_envelope_factors = compute_forewing_mass_regression_pi_factors(
+                    body_csv=_resolve_repo_path(body_csv_raw),
+                    forewing_csv=_resolve_repo_path(forewing_csv_raw),
+                    target_forewing_span_mm=float(case["wings"]["fore"]["span"]) * 1000.0,
+                    confidence=conf,
+                    extra_specimens=extra if isinstance(extra, list) else None,
+                )
+
         plot_force_comparison(
             h5_inputs=h5_inputs,
             output_path=output_path,
@@ -333,6 +395,7 @@ def _run_artifact(
             labels=h5_labels,
             external_series=external_series if external_series else None,
             theme=theme,
+            mass_envelope_factors=mass_envelope_factors,
         )
         return
 

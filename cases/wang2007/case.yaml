@@ -3,7 +3,7 @@ description: Wang (2007) dragonfly tethered hovering, fitted harmonic kinematics
 
 specimen:
   body_length: 0.051
-  body_mass: 0.00035
+  body_mass: 0.00062
   frequency: 33.4
 
 environment:
@@ -29,10 +29,10 @@ wings:
       gamma:
         mean: 53.0
       phi:
-        mean: 0.047598
+        mean: 0.281664
         harmonics:
-          - [25.743010, -69.034085]
-          - [2.639112, -88.505709]
+          - [40.452985, -69.005558]
+          - [4.371993, -90.413358]
       psi:
         mean: 33.645436
         harmonics:
@@ -50,10 +50,10 @@ wings:
       gamma:
         mean: 44.0
       phi:
-        mean: 1.222672
+        mean: 2.413912
         harmonics:
-          - [28.272112, -47.034462]
-          - [3.701366, -49.723211]
+          - [45.019142, -46.817227]
+          - [6.604161, -51.487007]
       psi:
         mean: 23.934958
         harmonics:

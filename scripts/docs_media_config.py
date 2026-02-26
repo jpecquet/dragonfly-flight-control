@@ -15,6 +15,7 @@ SUPPORTED_ARTIFACT_KINDS = {
     "case_fore_hind_kinematics",
     "exp_kinematics_scatter",
     "body_flight_metrics_vs_reference",
+    "wing_aoa_timeseries",
     "simulation_video",
     "stick_video",
     "force_comparison",
@@ -92,6 +93,13 @@ def _validate_artifact_common(
                 raise ValueError(f"artifacts[{idx}].angle_keys must contain exactly two items{_ctx(path)}")
             for j, item in enumerate(values):
                 _expect_nonempty_str(item, f"artifacts[{idx}].angle_keys[{j}]", path=path)
+        layout = artifact.get("layout")
+        if layout is not None:
+            layout_value = _expect_nonempty_str(layout, f"artifacts[{idx}].layout", path=path)
+            if layout_value not in {"vertical", "horizontal"}:
+                raise ValueError(
+                    f"artifacts[{idx}].layout must be 'vertical' or 'horizontal'{_ctx(path)}"
+                )
         return
 
     if kind == "exp_kinematics_scatter":
@@ -105,6 +113,30 @@ def _validate_artifact_common(
         ref_kind = artifact.get("reference_kind")
         if ref_kind is not None:
             _expect_nonempty_str(ref_kind, f"artifacts[{idx}].reference_kind", path=path)
+        return
+
+    if kind == "wing_aoa_timeseries":
+        _expect_nonempty_str(artifact.get("input_h5"), f"artifacts[{idx}].input_h5", path=path)
+        source_case_file = artifact.get("source_case_file")
+        if source_case_file is not None:
+            _expect_nonempty_str(source_case_file, f"artifacts[{idx}].source_case_file", path=path)
+        csv_path = artifact.get("csv_path")
+        if csv_path is not None:
+            _expect_nonempty_str(csv_path, f"artifacts[{idx}].csv_path", path=path)
+        wing_names = artifact.get("wing_names")
+        if wing_names is not None:
+            values = _expect_list(wing_names, f"artifacts[{idx}].wing_names", path=path)
+            if len(values) != 2:
+                raise ValueError(f"artifacts[{idx}].wing_names must contain exactly two items{_ctx(path)}")
+            for j, item in enumerate(values):
+                _expect_nonempty_str(item, f"artifacts[{idx}].wing_names[{j}]", path=path)
+        eta = artifact.get("eta")
+        if eta is not None:
+            if isinstance(eta, bool) or not isinstance(eta, (int, float)):
+                raise ValueError(f"artifacts[{idx}].eta must be numeric{_ctx(path)}")
+            eta_val = float(eta)
+            if eta_val < 0.0 or eta_val > 1.0:
+                raise ValueError(f"artifacts[{idx}].eta must be in [0, 1]{_ctx(path)}")
         return
 
     if kind == "simulation_video":

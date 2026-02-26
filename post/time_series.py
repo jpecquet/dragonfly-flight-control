@@ -153,8 +153,9 @@ def plot_fore_hind_series(
     *,
     height_over_width: float = 0.45,
     theme: str | None = None,
+    layout: str = "vertical",
 ) -> None:
-    """Plot vertically stacked fore/hind wing time-series panels and save.
+    """Plot fore/hind wing time-series panels and save.
 
     Parameters
     ----------
@@ -165,10 +166,19 @@ def plot_fore_hind_series(
     style = resolve_style(theme=theme)
     apply_matplotlib_style(style)
 
-    fig, axes = plt.subplots(
-        nrows=len(rows), ncols=1, sharex=True,
-        figsize=figure_size(height_over_width=height_over_width),
-    )
+    if layout not in {"vertical", "horizontal"}:
+        raise ValueError(f"Unsupported layout {layout!r}; expected 'vertical' or 'horizontal'")
+
+    if layout == "horizontal":
+        fig, axes = plt.subplots(
+            nrows=1, ncols=len(rows), sharex=True,
+            figsize=figure_size(height_over_width=height_over_width),
+        )
+    else:
+        fig, axes = plt.subplots(
+            nrows=len(rows), ncols=1, sharex=True,
+            figsize=figure_size(height_over_width=height_over_width),
+        )
     if len(rows) == 1:
         axes = [axes]
 
@@ -177,13 +187,17 @@ def plot_fore_hind_series(
         ax.plot(t, series[fore_key], linewidth=1.5, label="Forewing", color="C0")
         ax.plot(t, series[hind_key], linewidth=1.5, label="Hindwing", color="C1")
         ax.set_ylabel(ylabel)
+        ax.set_xlim(float(t[0]), float(t[-1]))
         ax.grid(True, alpha=0.25)
 
     axes[0].legend(
         loc="lower center", bbox_to_anchor=(0.5, 1.03), ncol=2, fontsize=10.0,
     )
-    axes[-1].set_xlabel(r"$t/T_{wb}$")
-    axes[-1].set_xlim(float(t[0]), float(t[-1]))
+    if layout == "horizontal":
+        for ax in axes:
+            ax.set_xlabel(r"$t/T_{wb}$")
+    else:
+        axes[-1].set_xlabel(r"$t/T_{wb}$")
     fig.tight_layout()
 
     output = Path(output_path)
