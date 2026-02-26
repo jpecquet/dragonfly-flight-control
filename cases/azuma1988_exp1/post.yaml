@@ -19,6 +19,30 @@ artifacts:
     angle_keys: [phi, psi]
     layout: horizontal
 
+  - kind: wing_aoa_timeseries
+    input_h5: "{run_dir}/output.h5"
+    source_case_file: cases/azuma1988_exp1/case.yaml
+    output: angle_of_attack_model.{theme}.png
+    wing_names: [fore_right, hind_right]
+    eta: 0.75
+    curve_variant: model
+    last_n_wingbeats: 1
+
+  - kind: wing_aoa_timeseries
+    input_h5: "{run_dir}/output.h5"
+    source_case_file: cases/azuma1988_exp1/case.yaml
+    output: angle_of_attack_simplified.{theme}.png
+    wing_names: [fore_right, hind_right]
+    eta: 0.75
+    curve_variant: simplified
+    last_n_wingbeats: 1
+
+  - kind: wing_force_components_timeseries
+    input_h5: "{run_dir}/output.h5"
+    source_case_file: cases/azuma1988_exp1/case.yaml
+    output: force_components.{theme}.png
+    last_n_wingbeats: 1
+
   - kind: simulation_video
     input_h5: "{run_dir}/output.h5"
     output: simulation.{theme}.mp4

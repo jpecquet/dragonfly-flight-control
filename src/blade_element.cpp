@@ -22,6 +22,17 @@ double dragCoefficient(const BladeElementAeroParams& params, double alpha) {
             if (a >  10.0) return  0.04 * a - 0.2;
             return 0.2;
         }
+        case DragCoefficientModel::Fourier: {
+            // Pi-periodic Fourier series: Cd(alpha) = c[0] + sum_k [c[2k-1]*cos(2k*alpha) + c[2k]*sin(2k*alpha)]
+            const auto& c = params.Cd_fourier;
+            double cd = c[0];
+            const int n = static_cast<int>(c.size());
+            for (int k = 1; 2 * k < n; ++k) {
+                cd += c[2*k-1] * std::cos(2.0 * k * alpha)
+                    + c[2*k]   * std::sin(2.0 * k * alpha);
+            }
+            return cd;
+        }
     }
     throw std::runtime_error("Unsupported drag coefficient model");
 }
@@ -52,7 +63,7 @@ double liftCoefficient(const BladeElementAeroParams& params, double alpha) {
 
 BladeElement::BladeElement(const BladeElementAeroParams& params)
     : params_(params) {
-    if (params_.drag_model != DragCoefficientModel::PiecewiseLinear) {
+    if (params_.drag_model == DragCoefficientModel::Sinusoidal) {
         if (!std::isfinite(params_.Cd_min)) {
             throw std::runtime_error("Cd_min must be finite");
         }
@@ -64,6 +75,17 @@ BladeElement::BladeElement(const BladeElementAeroParams& params)
         }
         if (!std::isfinite(params_.Cd_alpha_neutral)) {
             throw std::runtime_error("Cd_alpha_neutral must be finite");
+        }
+    }
+    if (params_.drag_model == DragCoefficientModel::Fourier) {
+        const int n = static_cast<int>(params_.Cd_fourier.size());
+        if (n < 1 || n % 2 == 0) {
+            throw std::runtime_error("Fourier drag model requires an odd number of coefficients (a0, a1, b1, ...)");
+        }
+        for (double c : params_.Cd_fourier) {
+            if (!std::isfinite(c)) {
+                throw std::runtime_error("Fourier drag model coefficients must be finite");
+            }
         }
     }
     if (params_.lift_model != LiftCoefficientModel::PiecewiseLinear) {

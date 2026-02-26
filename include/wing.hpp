@@ -29,6 +29,7 @@ struct WingConfig : MotionParams {
     double Cd_min = 0.0;          // Minimum drag coefficient
     double Cd_max = 0.0;          // Max drag coefficient for sinusoidal model
     double Cd_alpha_neutral = 0.0; // Neutral AoA (rad) for sinusoidal drag
+    std::vector<double> Cd_fourier; // Fourier drag model coefficients
     double Cl0 = 0.0;             // Lift coefficient
     double Cl_alpha_slope = 0.0;   // Linear model slope (Cl/rad)
     double Cl_alpha_neutral = 0.0; // Neutral AoA (rad) for lift models

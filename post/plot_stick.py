@@ -163,28 +163,35 @@ def _stroke_plane_normal_xz(gamma):
     return np.array([np.sin(float(gamma)), np.cos(float(gamma))], dtype=float)
 
 
-def _span_vector_xz_with_mean_beta(e_r, stroke_normal_xz, beta_mean):
-    """Project span vector into XZ while replacing instantaneous beta with beta_mean."""
-    p = project_xz(e_r)
-    n = np.asarray(stroke_normal_xz, dtype=float)
-    n_norm = float(np.linalg.norm(n))
-    if n_norm < 1e-12:
-        return p
-    n = n / n_norm
+def _mean_stroke_plane_segment_xz(root_offset, lambda0, gamma, beta_mean, station=1.0):
+    """Return endpoints of the selected-station constant-beta center-path line in XZ."""
+    gamma = float(gamma)
+    beta_mean = float(beta_mean)
+    lam = float(lambda0) * float(station)
+    root = np.asarray(root_offset, dtype=float)
+    d = np.array([-np.cos(gamma), np.sin(gamma)], dtype=float)
+    n = np.array([np.sin(gamma), np.cos(gamma)], dtype=float)
+    p0 = root + (lam * np.sin(beta_mean)) * n - (lam * np.cos(beta_mean)) * d
+    p1 = root + (lam * np.sin(beta_mean)) * n + (lam * np.cos(beta_mean)) * d
+    return p0, p1
 
-    # In XZ, p decomposes into a stroke-normal offset term sin(beta)*n plus a
-    # tangent term scaled by cos(beta). Replace beta with its mean while
-    # preserving the tangent phase (the projected azimuthal factor).
-    s_inst = float(np.clip(np.dot(p, n), -1.0, 1.0))
-    t = p - s_inst * n
-    c_inst = float(np.sqrt(max(0.0, 1.0 - s_inst * s_inst)))
-    s_ref = float(np.sin(float(beta_mean)))
-    c_ref = float(np.cos(float(beta_mean)))
-    if c_inst < 1e-12:
-        t_ref = np.zeros_like(t)
-    else:
-        t_ref = (c_ref / c_inst) * t
-    return s_ref * n + t_ref
+
+def _clip_segment_to_projected_path_extent(segment, path_points):
+    """Clip a line segment to the min/max projection of a path onto that line."""
+    if segment is None:
+        return None
+    p0, p1 = (np.asarray(segment[0], dtype=float), np.asarray(segment[1], dtype=float))
+    v = p1 - p0
+    v_norm = float(np.linalg.norm(v))
+    if v_norm < 1e-12:
+        return segment
+    d_hat = v / v_norm
+    center = 0.5 * (p0 + p1)
+    pts = np.asarray(path_points, dtype=float)
+    if pts.ndim != 2 or pts.shape[1] != 2 or pts.shape[0] == 0:
+        return segment
+    s = (pts - center) @ d_hat
+    return center + np.min(s) * d_hat, center + np.max(s) * d_hat
 
 
 def _draw_pitch_glyph_2d(ax, center, chord_dir_2d, stroke_normal_2d, label_text,
@@ -278,16 +285,11 @@ def compute_stick_endpoints(
     stick_length,
     station,
     lambda0,
-    *,
-    stroke_normal_xz=None,
-    beta_mean=None,
 ):
     """Compute stick center, leading edge, and trailing edge in nondimensional (X,Z)."""
     if not 0.0 <= float(station) <= 1.0:
         raise ValueError("station must be in [0, 1]")
     span_xz = project_xz(wing_state["e_r"])
-    if stroke_normal_xz is not None and beta_mean is not None:
-        span_xz = _span_vector_xz_with_mean_beta(wing_state["e_r"], stroke_normal_xz, beta_mean)
     center = float(station) * float(lambda0) * span_xz + np.asarray(root_offset, dtype=float)
 
     chord_dir = project_xz(wing_state["e_c"])
@@ -331,6 +333,8 @@ def animate_stroke(
     stations = tuple(float(s) for s in stations)
     n_frames = len(time)
     n_stations = len(stations)
+    trace_station = max(stations) if stations else (2.0 / 3.0)
+    trace_station_idx = int(np.argmax(np.asarray(stations, dtype=float))) if n_stations > 0 else 0
     fore_centers = np.zeros((n_stations, n_frames, 2), dtype=float)
     hind_centers = np.zeros((n_stations, n_frames, 2), dtype=float)
     fore_leading = np.zeros((n_stations, n_frames, 2), dtype=float)
@@ -341,10 +345,10 @@ def animate_stroke(
     fore_wing = wings[fore_wing_name]
     hind_wing = wings[hind_wing_name]
     fore_root, hind_root = wing_root_positions()
-    fore_stroke_normal = None
-    hind_stroke_normal = None
     fore_beta_mean = None
     hind_beta_mean = None
+    fore_mean_plane_segment = None
+    hind_mean_plane_segment = None
     beta_mode = str(stroke_plane_beta_mode).strip().lower()
     if beta_mode not in {"mean", "actual"}:
         raise ValueError(f"stroke_plane_beta_mode must be 'mean' or 'actual' (got {stroke_plane_beta_mode!r})")
@@ -352,18 +356,30 @@ def animate_stroke(
         gamma_map = params.get("wing_gamma_mean", {})
         cone_mean_map = params.get("wing_cone_mean", {})
         cone_static_map = params.get("wing_cone_angle", {})
-        if fore_wing_name in gamma_map:
-            fore_stroke_normal = _stroke_plane_normal_xz(gamma_map[fore_wing_name])
-        if hind_wing_name in gamma_map:
-            hind_stroke_normal = _stroke_plane_normal_xz(gamma_map[hind_wing_name])
-        if fore_wing_name in cone_mean_map:
-            fore_beta_mean = float(cone_mean_map[fore_wing_name])
-        elif fore_wing_name in cone_static_map:
-            fore_beta_mean = float(cone_static_map[fore_wing_name])
-        if hind_wing_name in cone_mean_map:
-            hind_beta_mean = float(cone_mean_map[hind_wing_name])
-        elif hind_wing_name in cone_static_map:
-            hind_beta_mean = float(cone_static_map[hind_wing_name])
+
+        def _resolve_total_beta_mean(wing_name):
+            beta = 0.0
+            have_beta = False
+            if wing_name in cone_static_map:
+                beta += float(cone_static_map[wing_name])
+                have_beta = True
+            if wing_name in cone_mean_map:
+                beta += float(cone_mean_map[wing_name])
+                have_beta = True
+            return beta if have_beta else None
+
+        fore_beta_mean = _resolve_total_beta_mean(fore_wing_name)
+        hind_beta_mean = _resolve_total_beta_mean(hind_wing_name)
+        fore_gamma_mean = gamma_map.get(fore_wing_name)
+        hind_gamma_mean = gamma_map.get(hind_wing_name)
+        if fore_gamma_mean is not None and fore_beta_mean is not None:
+            fore_mean_plane_segment = _mean_stroke_plane_segment_xz(
+                fore_root, fore_lambda0, fore_gamma_mean, fore_beta_mean, trace_station
+            )
+        if hind_gamma_mean is not None and hind_beta_mean is not None:
+            hind_mean_plane_segment = _mean_stroke_plane_segment_xz(
+                hind_root, hind_lambda0, hind_gamma_mean, hind_beta_mean, trace_station
+            )
 
     for station_idx, station in enumerate(stations):
         for i in range(n_frames):
@@ -375,8 +391,6 @@ def animate_stroke(
                 stick_length=STICK_LENGTH,
                 station=station,
                 lambda0=fore_lambda0,
-                stroke_normal_xz=fore_stroke_normal,
-                beta_mean=fore_beta_mean,
             )
             hind_center, hind_le, hind_te = compute_stick_endpoints(
                 hind_state,
@@ -384,8 +398,6 @@ def animate_stroke(
                 stick_length=STICK_LENGTH,
                 station=station,
                 lambda0=hind_lambda0,
-                stroke_normal_xz=hind_stroke_normal,
-                beta_mean=hind_beta_mean,
             )
             fore_centers[station_idx, i] = fore_center
             hind_centers[station_idx, i] = hind_center
@@ -393,6 +405,16 @@ def animate_stroke(
             fore_trailing[station_idx, i] = fore_te
             hind_leading[station_idx, i] = hind_le
             hind_trailing[station_idx, i] = hind_te
+
+    if beta_mode == "mean":
+        if fore_mean_plane_segment is not None and 0 <= trace_station_idx < n_stations:
+            fore_mean_plane_segment = _clip_segment_to_projected_path_extent(
+                fore_mean_plane_segment, fore_centers[trace_station_idx]
+            )
+        if hind_mean_plane_segment is not None and 0 <= trace_station_idx < n_stations:
+            hind_mean_plane_segment = _clip_segment_to_projected_path_extent(
+                hind_mean_plane_segment, hind_centers[trace_station_idx]
+            )
 
     all_centers = np.vstack([fore_centers.reshape(-1, 2), hind_centers.reshape(-1, 2)])
     half_len = 0.5 * STICK_LENGTH
@@ -443,21 +465,34 @@ def animate_stroke(
     for root in (fore_root, hind_root):
         ax.plot(root[0], root[1], ".", color=style.muted_text_color, markersize=4)
 
-    for station_idx in range(n_stations):
-        ax.plot(
-            fore_centers[station_idx, :, 0],
-            fore_centers[station_idx, :, 1],
-            "-",
-            color=style.muted_text_color,
-            linewidth=0.5,
-        )
-        ax.plot(
-            hind_centers[station_idx, :, 0],
-            hind_centers[station_idx, :, 1],
-            "-",
-            color=style.muted_text_color,
-            linewidth=0.5,
-        )
+    if beta_mode == "actual":
+        for station_idx in range(n_stations):
+            ax.plot(
+                fore_centers[station_idx, :, 0],
+                fore_centers[station_idx, :, 1],
+                "-",
+                color=style.muted_text_color,
+                linewidth=0.5,
+            )
+            ax.plot(
+                hind_centers[station_idx, :, 0],
+                hind_centers[station_idx, :, 1],
+                "-",
+                color=style.muted_text_color,
+                linewidth=0.5,
+            )
+    else:
+        for seg in (fore_mean_plane_segment, hind_mean_plane_segment):
+            if seg is None:
+                continue
+            p0, p1 = seg
+            ax.plot(
+                [float(p0[0]), float(p1[0])],
+                [float(p0[1]), float(p1[1])],
+                "-",
+                color=style.muted_text_color,
+                linewidth=0.7,
+            )
 
     le_marker = dict(
         marker="o",

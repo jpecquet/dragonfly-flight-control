@@ -152,7 +152,7 @@ Where $r$ is the distance from the wing root along the span, set here to $0.75R$
 <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; margin-bottom:1.5rem; text-align:center;">Fig. 4. Angle of attack over one wingbeat.</div>
 ```
 
-Fig. 5 shows the horizontal and vertical aerodynamic force components over one wingbeat, decomposed into the combined forewing contribution, combined hindwing contribution, total force, and the mean total force (dashed).
+Fig. 5 shows the horizontal and vertical aerodynamic force components over one wingbeat, including the forewing and hindwing contributions. Because we neglect the induced velocity in the model, the mean force, especially the horizontal component, is significantly higher than the paper results, which account for induced velocity effects.
 
 ```{raw} html
 <div style="margin-bottom:1.5rem;">

@@ -542,10 +542,12 @@ def plot_wing_force_components_timeseries(
         fore_vals = pair_forces["fore"][:, comp_idx]
         hind_vals = pair_forces["hind"][:, comp_idx]
         total_vals = total_force[:, comp_idx]
-        mean_total = float(np.mean(total_vals))
-        all_vals = [fore_vals, hind_vals, total_vals, np.array([mean_total])]
+        model_mean_total = float(np.mean(total_vals))
+        paper_mean_total: float | None = None
+        all_vals = [fore_vals, hind_vals, total_vals, np.array([model_mean_total])]
         if exp_force is not None:
             comp_key = "Fx" if comp_idx == 0 else "Fz"
+            paper_mean_total = float(np.mean(exp_force[f"total_{comp_key}"]))
             all_vals.extend([exp_force[f"fore_{comp_key}"], exp_force[f"hind_{comp_key}"], exp_force[f"total_{comp_key}"]])
         y_min = min(y_min, *(float(np.min(v)) for v in all_vals))
         y_max = max(y_max, *(float(np.max(v)) for v in all_vals))
@@ -573,12 +575,11 @@ def plot_wing_force_components_timeseries(
             zorder=3,
         )
         ax.axhline(
-            mean_total,
+            model_mean_total,
             linewidth=1.2,
             linestyle="--",
             color=total_color,
             alpha=0.95,
-            label="Mean total" if panel_idx == 0 else None,
             zorder=2,
         )
 
@@ -588,6 +589,28 @@ def plot_wing_force_components_timeseries(
             ax.scatter(exp_force["t"], exp_force[f"fore_{comp_key}"], color="C0", **dot_kw)
             ax.scatter(exp_force["t"], exp_force[f"hind_{comp_key}"], color="C1", **dot_kw)
             ax.scatter(exp_force["t"], exp_force[f"total_{comp_key}"], color=total_color, **dot_kw)
+            if paper_mean_total is not None:
+                ax.axhline(
+                    paper_mean_total,
+                    linewidth=1.2,
+                    linestyle=":",
+                    color=total_color,
+                    alpha=0.95,
+                    zorder=2,
+                )
+
+        mean_lines = [f"Model mean: {model_mean_total:.2f}"]
+        if paper_mean_total is not None:
+            mean_lines.append(f"Paper mean: {paper_mean_total:.2f}")
+        text_x = 0.03 if panel_idx == 0 else 0.97
+        text_ha = "left" if panel_idx == 0 else "right"
+        ax.text(
+            text_x, 0.95, "\n".join(mean_lines),
+            transform=ax.transAxes,
+            ha=text_ha, va="top",
+            fontsize=9,
+            linespacing=1.6,
+        )
 
         ax.set_ylabel(ylabel)
         ax.set_xlim(float(t[0]), float(t[-1]))
@@ -613,7 +636,7 @@ def plot_wing_force_components_timeseries(
         labels,
         loc="lower center",
         bbox_to_anchor=(0.5, 1.01),
-        ncol=4,
+        ncol=max(1, len(labels)),
         fontsize=10.0,
     )
     fig.tight_layout()
@@ -753,8 +776,8 @@ def plot_exp_kinematics_scatter(
     phi_hind_coeffs = _fit_harmonics(t_wrapped, phi_hind, 2)
     psi_fore_coeffs = _fit_harmonics(t_wrapped, psi_fore, 4)
     psi_hind_coeffs = _fit_harmonics(t_wrapped, psi_hind, 4)
-    dbeta_fore_coeffs = _fit_harmonics(t_wrapped, dbeta_fore, 4)
-    dbeta_hind_coeffs = _fit_harmonics(t_wrapped, dbeta_hind, 4)
+    dbeta_fore_coeffs = _fit_harmonics(t_wrapped, dbeta_fore, 5)
+    dbeta_hind_coeffs = _fit_harmonics(t_wrapped, dbeta_hind, 5)
 
     # --- Plotting ------------------------------------------------------------
     style = resolve_style(theme=theme)

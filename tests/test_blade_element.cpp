@@ -231,6 +231,51 @@ int main() {
     std::cout << "  Max piecewise-linear error: " << max_pw_error << "\n";
     passed = passed && (max_pw_error < tolerance);
 
+    // Fourier drag model spot checks
+    // Azuma 1988 preset: 3-harmonic pi-periodic fit, constrained Cd(+-90)=2.0 and min=0.07
+    BladeElementAeroParams fourier_params;
+    fourier_params.drag_model = DragCoefficientModel::Fourier;
+    fourier_params.lift_model = LiftCoefficientModel::Linear;
+    fourier_params.Cl_alpha_slope = 0.052 * (180.0 / M_PI);
+    fourier_params.Cl_alpha_neutral = -7.0 * (M_PI / 180.0);
+    fourier_params.Cl_min = -1.2;
+    fourier_params.Cl_max =  1.2;
+    fourier_params.Cd_fourier = {
+         1.0950622737,
+        -1.0121136563,
+         0.1376875279,
+        -0.0266446397,
+         0.0846997560,
+         0.0805312903,
+        -0.0120505921,
+    };
+    BladeElement blade_fourier(fourier_params);
+
+    auto evalFourierCd = [&](double alpha_rad) -> double {
+        const auto& c = fourier_params.Cd_fourier;
+        double cd = c[0];
+        for (int k = 1; 2*k < (int)c.size(); ++k)
+            cd += c[2*k-1] * std::cos(2.0*k*alpha_rad) + c[2*k] * std::sin(2.0*k*alpha_rad);
+        return cd;
+    };
+
+    std::cout << "\nFourier drag model spot checks:\n";
+    double max_fourier_err = 0.0;
+    for (double alpha_deg : std::vector<double>{-90.0, -45.0, 0.0, 45.0, 90.0}) {
+        const double alpha = alpha_deg * M_PI / 180.0;
+        Vec3 u_f = U * (std::cos(alpha) * e_c + std::sin(alpha) * Vec3(0.0, 0.0, 1.0));
+        Vec3 lift_f, drag_f;
+        blade_fourier.computeForce(u_f, e_r, e_c, force_coefficient, lift_f, drag_f);
+        const double Cd_sim = drag_f.norm();
+        const double Cd_exact = evalFourierCd(alpha);
+        const double err = std::abs(Cd_sim - Cd_exact);
+        max_fourier_err = std::max(max_fourier_err, err);
+        printf("  alpha=%6.1f deg: Cd_sim=%8.5f Cd_exact=%8.5f err=%e\n",
+               alpha_deg, Cd_sim, Cd_exact, err);
+    }
+    std::cout << "  Max Fourier error: " << max_fourier_err << "\n";
+    passed = passed && (max_fourier_err < tolerance);
+
     if (passed) {
         std::cout << "PASSED: Errors within tolerance (" << tolerance << ")\n";
         return 0;

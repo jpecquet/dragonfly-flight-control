@@ -40,8 +40,9 @@ CoeffSet parseCoeffSet(const std::string& value, const std::string& key,
 DragCoefficientModel parseDragModel(const std::string& value, const std::string& wing_label) {
     if (value == "sinusoidal") return DragCoefficientModel::Sinusoidal;
     if (value == "piecewise_linear") return DragCoefficientModel::PiecewiseLinear;
+    if (value == "fourier") return DragCoefficientModel::Fourier;
     throw std::runtime_error(
-        "wing '" + wing_label + "' key 'drag_model' must be 'sinusoidal' or 'piecewise_linear' (got '" + value + "')"
+        "wing '" + wing_label + "' key 'drag_model' must be 'sinusoidal', 'piecewise_linear', or 'fourier' (got '" + value + "')"
     );
 }
 
@@ -184,7 +185,7 @@ WingConfig buildWingConfigFromEntry(const WingConfigEntry& entry, int global_n_b
     const CoeffSet drag_coeff_set = parseCoeffSet(entry.drag_coeff_set, "drag_coeff_set", label);
     const CoeffSet lift_coeff_set = parseCoeffSet(entry.lift_coeff_set, "lift_coeff_set", label);
 
-    // Azuma1985 coeff sets override the model to PiecewiseLinear
+    // Preset coeff sets override the drag model
     if (drag_coeff_set == CoeffSet::Azuma1985) {
         if (entry.has_Cd_min || entry.has_Cd_max || entry.has_Cd_alpha_neutral) {
             throw std::runtime_error(
@@ -192,6 +193,14 @@ WingConfig buildWingConfigFromEntry(const WingConfigEntry& entry, int global_n_b
             );
         }
         drag_model = DragCoefficientModel::PiecewiseLinear;
+    }
+    if (drag_coeff_set == CoeffSet::Azuma1988) {
+        if (entry.has_Cd_min || entry.has_Cd_max || entry.has_Cd_alpha_neutral) {
+            throw std::runtime_error(
+                "wing '" + label + "' does not allow Cd parameters when drag_coeff_set=azuma1988"
+            );
+        }
+        drag_model = DragCoefficientModel::Fourier;
     }
     if (lift_coeff_set == CoeffSet::Azuma1985) {
         if (entry.has_Cl0 || entry.has_Cl_alpha_slope || entry.has_Cl_alpha_neutral ||
@@ -206,6 +215,7 @@ WingConfig buildWingConfigFromEntry(const WingConfigEntry& entry, int global_n_b
     double Cd_min = 0.0;
     double Cd_max = 0.0;
     double Cd_alpha_neutral = 0.0;
+    std::vector<double> Cd_fourier;
     if (drag_model == DragCoefficientModel::Sinusoidal) {
         if (drag_coeff_set == CoeffSet::Wang2004) {
             if (entry.has_Cd_min || entry.has_Cd_max) {
@@ -230,20 +240,9 @@ WingConfig buildWingConfigFromEntry(const WingConfigEntry& entry, int global_n_b
             Cd_min = entry.Cd_min;
             Cd_max = entry.has_Cd_max ? entry.Cd_max : (Cd_min + 2.0);
             Cd_alpha_neutral = entry.has_Cd_alpha_neutral ? entry.Cd_alpha_neutral : 0.0;
-        } else if (drag_coeff_set == CoeffSet::Azuma1988) {
-            if (entry.has_Cd_min || entry.has_Cd_max || entry.has_Cd_alpha_neutral) {
-                throw std::runtime_error(
-                    "wing '" + label + "' does not allow Cd_min/Cd_max/Cd_alpha_neutral when drag_coeff_set=azuma1988"
-                );
-            }
-            Cd_min = 0.07;
-            Cd_max = 2.0;
-            Cd_alpha_neutral = 7.0 * (M_PI / 180.0);
         } else {
             throw std::runtime_error("wing '" + label + "' unknown drag coefficient set");
         }
-    }
-    if (drag_model != DragCoefficientModel::PiecewiseLinear) {
         if (!std::isfinite(Cd_min) || !std::isfinite(Cd_max) || !std::isfinite(Cd_alpha_neutral)) {
             throw std::runtime_error(
                 "wing '" + label + "' requires finite Cd_min, Cd_max, and Cd_alpha_neutral"
@@ -252,6 +251,20 @@ WingConfig buildWingConfigFromEntry(const WingConfigEntry& entry, int global_n_b
         if (Cd_max < Cd_min) {
             throw std::runtime_error("wing '" + label + "' requires Cd_max >= Cd_min");
         }
+    }
+    if (drag_model == DragCoefficientModel::Fourier) {
+        // Only Azuma1988 preset supported — coefficients from 3-harmonic pi-periodic fit to Azuma (1988) Fig. 7.
+        // Cd(alpha) = c[0] + c[1]*cos(2a) + c[2]*sin(2a) + c[3]*cos(4a) + c[4]*sin(4a) + c[5]*cos(6a) + c[6]*sin(6a)
+        // Constrained so that Cd(+/-90 deg) = 2.0 and min Cd = 0.07 (at alpha ≈ -12 deg).
+        Cd_fourier = {
+             1.0950622737,   // a0
+            -1.0121136563,   // a1
+             0.1376875279,   // b1
+            -0.0266446397,   // a2
+             0.0846997560,   // b2
+             0.0805312903,   // a3
+            -0.0120505921,   // b3
+        };
     }
 
     double Cl0 = 0.0;
@@ -308,9 +321,9 @@ WingConfig buildWingConfigFromEntry(const WingConfigEntry& entry, int global_n_b
                 );
             }
             // (Azuma, 1988) preset:
-            //   Cl_min = -1.2, Cl_max = 1.2, alpha_neutral = -7 deg, slope = 0.052 / deg
-            Cl_alpha_slope = 0.052 * (180.0 / M_PI);  // convert from per-degree to per-radian
-            Cl_alpha_neutral = -7.0 * (M_PI / 180.0);
+            //   Cl_min = -1.2, Cl_max = 1.2, alpha_neutral = -6.5 deg, slope = 0.045 / deg
+            Cl_alpha_slope = 0.045 * (180.0 / M_PI);  // convert from per-degree to per-radian
+            Cl_alpha_neutral = -6.5 * (M_PI / 180.0);
             Cl_min = -1.2;
             Cl_max = 1.2;
         } else {
@@ -349,6 +362,7 @@ WingConfig buildWingConfigFromEntry(const WingConfigEntry& entry, int global_n_b
     config.lift_model = lift_model;
     config.Cd_max = Cd_max;
     config.Cd_alpha_neutral = Cd_alpha_neutral;
+    config.Cd_fourier = Cd_fourier;
     config.Cl_alpha_slope = Cl_alpha_slope;
     config.Cl_alpha_neutral = Cl_alpha_neutral;
     config.Cl_min = Cl_min;
@@ -465,6 +479,7 @@ std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinema
         aero.Cd_min = w.Cd_min;
         aero.Cd_max = w.Cd_max;
         aero.Cd_alpha_neutral = w.Cd_alpha_neutral;
+        aero.Cd_fourier = w.Cd_fourier;
         aero.Cl0 = w.Cl0;
         aero.Cl_alpha_slope = w.Cl_alpha_slope;
         aero.Cl_alpha_neutral = w.Cl_alpha_neutral;

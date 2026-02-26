@@ -52,3 +52,49 @@
   <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 3. Experiment 2 stick plot.</div>
 </div>
 ```
+
+::::{tab-set}
+:::{tab-item} Model
+```{raw} html
+<div style="margin-bottom:0.3rem;">
+  <img
+    class="case-study-image"
+    src="../../_static/media/azuma1988/exp2/angle_of_attack_model.dark.png"
+    alt="Azuma 1988 experiment 2 forewing and hindwing angle of attack over one wingbeat at 0.75 span with model curves"
+    data-light-src="../../_static/media/azuma1988/exp2/angle_of_attack_model.light.png"
+    data-dark-src="../../_static/media/azuma1988/exp2/angle_of_attack_model.dark.png"
+  />
+</div>
+```
+:::
+:::{tab-item} Simplified Expression
+```{raw} html
+<div style="margin-bottom:0.3rem;">
+  <img
+    class="case-study-image"
+    src="../../_static/media/azuma1988/exp2/angle_of_attack_simplified.dark.png"
+    alt="Azuma 1988 experiment 2 forewing and hindwing angle of attack over one wingbeat at 0.75 span with simplified curves"
+    data-light-src="../../_static/media/azuma1988/exp2/angle_of_attack_simplified.light.png"
+    data-dark-src="../../_static/media/azuma1988/exp2/angle_of_attack_simplified.dark.png"
+  />
+</div>
+```
+:::
+::::
+
+```{raw} html
+<div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; margin-bottom:1.5rem; text-align:center;">Fig. 4. Experiment 2 angle of attack over one wingbeat.</div>
+```
+
+```{raw} html
+<div style="margin-bottom:1.5rem;">
+  <img
+    class="case-study-image"
+    src="../../_static/media/azuma1988/exp2/force_components.dark.png"
+    alt="Azuma 1988 experiment 2 horizontal and vertical aerodynamic force components over one wingbeat"
+    data-light-src="../../_static/media/azuma1988/exp2/force_components.light.png"
+    data-dark-src="../../_static/media/azuma1988/exp2/force_components.dark.png"
+  />
+  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 5. Experiment 2 horizontal and vertical aerodynamic force components over one wingbeat.</div>
+</div>
+```

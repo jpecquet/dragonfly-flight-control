@@ -2,9 +2,12 @@
 
 #include "linalg.hpp"
 
+#include <vector>
+
 enum class DragCoefficientModel {
     Sinusoidal,
-    PiecewiseLinear
+    PiecewiseLinear,
+    Fourier
 };
 
 enum class LiftCoefficientModel {
@@ -17,6 +20,7 @@ inline const char* toString(DragCoefficientModel model) {
     switch (model) {
         case DragCoefficientModel::Sinusoidal: return "sinusoidal";
         case DragCoefficientModel::PiecewiseLinear: return "piecewise_linear";
+        case DragCoefficientModel::Fourier: return "fourier";
     }
     return "unknown";
 }
@@ -46,6 +50,10 @@ struct BladeElementAeroParams {
     double Cd_max = aero_defaults::kWang2004CdMin + 2.0;
     double Cd_alpha_neutral = 0.0;
     double Cl0 = aero_defaults::kWang2004Cl0;
+
+    // Fourier drag model (pi-periodic):
+    //   Cd(alpha) = Cd_fourier[0] + sum_k [Cd_fourier[2k-1]*cos(2k*alpha) + Cd_fourier[2k]*sin(2k*alpha)]
+    std::vector<double> Cd_fourier;
 
     // Linear lift model:
     //   Cl(alpha) = Cl_alpha_slope * (alpha - Cl_alpha_neutral), clamped to [Cl_min, Cl_max]

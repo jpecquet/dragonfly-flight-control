@@ -441,8 +441,8 @@ bool testLinearLiftParsingAndValidation() {
             std::cout << "  FAILED: expected one wing in azuma1988 linear preset config\n";
         } else {
             const auto& w = wings_azuma[0];
-            const double expected_slope = 0.052 * (180.0 / M_PI);
-            const double expected_neutral = -7.0 * (M_PI / 180.0);
+            const double expected_slope = 0.045 * (180.0 / M_PI);
+            const double expected_neutral = -6.5 * (M_PI / 180.0);
             if (std::abs(w.Cl_alpha_slope - expected_slope) > 1e-12 ||
                 std::abs(w.Cl_alpha_neutral - expected_neutral) > 1e-12 ||
                 std::abs(w.Cl_min + 1.2) > 1e-12 ||
@@ -466,10 +466,9 @@ bool testLinearLiftParsingAndValidation() {
             std::cout << "  FAILED: expected one wing in azuma1988 drag preset config\n";
         } else {
             const auto& w = wings_drag_azuma[0];
-            const double expected_neutral = 7.0 * (M_PI / 180.0);
-            if (std::abs(w.Cd_min - 0.07) > 1e-12 ||
-                std::abs(w.Cd_max - 2.0) > 1e-12 ||
-                std::abs(w.Cd_alpha_neutral - expected_neutral) > 1e-12) {
+            if (w.drag_model != DragCoefficientModel::Fourier ||
+                w.Cd_fourier.size() != 7 ||
+                std::abs(w.Cd_fourier[0] - 1.0950622737) > 1e-9) {
                 passed = false;
                 std::cout << "  FAILED: azuma1988 drag preset values incorrect\n";
             }

@@ -45,8 +45,22 @@ Supported forms include:
 - sinusoidal lift with neutral angle shift
 - linear (clamped) lift with neutral angle shift
 - piecewise-linear presets (e.g. Azuma 1985)
+- sinusoidal drag + clamped-linear lift presets (e.g. Azuma 1988)
 
 The blade-element force vectors are then accumulated into total wing lift and drag.
+
+```{raw} html
+<div style="margin-bottom:1.5rem; margin-top:1.0rem;">
+  <img
+    class="case-study-image"
+    src="../_static/media/modeling/blade_elements/aero_coefficients.dark.png"
+    alt="Aerodynamic coefficient comparison: Wang 2004 vs Azuma 1985"
+    data-light-src="../_static/media/modeling/blade_elements/aero_coefficients.light.png"
+    data-dark-src="../_static/media/modeling/blade_elements/aero_coefficients.dark.png"
+  />
+  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 1. Lift and drag coefficients vs. angle of attack for the three built-in coefficient sets.</div>
+</div>
+```
 
 ## Spanwise Discretization
 
