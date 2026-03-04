@@ -97,6 +97,23 @@ double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
 double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
                          double ux, double uz, int N = 40);
 
+// Returns the wingbeat-averaged acceleration vector (not squared norm)
+Vec3 wingBeatAccelVec(const KinematicParams& kin, const PhysicalParams& phys,
+                      OptimBuffers& buffers, double ux, double uz, int N = 40);
+
+// Result of a multi-start equilibrium search
+struct EquilibriumBranch {
+    KinematicParams kin;
+    double residual;  // sqrt(|a_mean|^2)
+};
+
+// Multi-start equilibrium search at a single (ux, uz) point
+std::vector<EquilibriumBranch> findEquilibria(
+    const KinematicParams& kin_template,
+    const PhysicalParams& phys,
+    double ux, double uz,
+    int n_samples, int max_eval, double equilibrium_tol);
+
 // Optimization algorithm selection
 enum class OptimAlgorithm {
     COBYLA,     // Local (current default, grid search + local)

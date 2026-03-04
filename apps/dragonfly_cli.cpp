@@ -1,6 +1,7 @@
 #include "cmd_args.hpp"
 #include "cmd_optim.hpp"
 #include "cmd_plot.hpp"
+#include "cmd_reachable.hpp"
 #include "cmd_sim.hpp"
 #include "cmd_termvel.hpp"
 #include "cmd_track.hpp"
@@ -54,12 +55,13 @@ void printUsage(const char* prog) {
     std::cerr << "Usage: " << prog << " <command> [options]\n";
     std::cerr << "\n";
     std::cerr << "Commands:\n";
-    std::cerr << "  sim      Run flight simulation (-c/--config <config>)\n";
-    std::cerr << "  track    Run trajectory tracking simulation (-c/--config <config>)\n";
-    std::cerr << "  optim    Find equilibrium flight conditions (-c/--config <config>)\n";
-    std::cerr << "  plot     Generate visualization (-c/--config <config>)\n";
-    std::cerr << "  wingtest Generate wing rotation test data (see options below)\n";
-    std::cerr << "  termvel  Generate terminal velocity data (see options below)\n";
+    std::cerr << "  sim       Run flight simulation (-c/--config <config>)\n";
+    std::cerr << "  track     Run trajectory tracking simulation (-c/--config <config>)\n";
+    std::cerr << "  optim     Find equilibrium flight conditions (-c/--config <config>)\n";
+    std::cerr << "  reachable Map reachable (ux,uz) equilibria (-c/--config <config.yaml>)\n";
+    std::cerr << "  plot      Generate visualization (-c/--config <config>)\n";
+    std::cerr << "  wingtest  Generate wing rotation test data (see options below)\n";
+    std::cerr << "  termvel   Generate terminal velocity data (see options below)\n";
     std::cerr << "\n";
     std::cerr << "Wingtest options:\n";
     std::cerr << "  --gam START:END    Stroke plane angle range (default: 0:90)\n";
@@ -116,6 +118,11 @@ int main(int argc, char* argv[]) {
             std::cerr << "Error: " << config_error << "\n";
             printUsage(argv[0]);
             return 1;
+        }
+
+        // Reachable uses YAML directly, not Config
+        if (command == "reachable") {
+            return runReachable(config_file);
         }
 
         Config cfg = Config::load(config_file);

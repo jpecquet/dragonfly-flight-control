@@ -26,8 +26,8 @@ static void initDimFromRecurrence(std::vector<uint32_t>& dirs,
 }
 
 SobolSequence::SobolSequence(size_t dim) : dim_(dim), index_(0), x_(dim, 0) {
-    if (dim < 1 || dim > 6) {
-        throw std::runtime_error("SobolSequence: dimension must be 1-6, got " + std::to_string(dim));
+    if (dim < 1 || dim > 7) {
+        throw std::runtime_error("SobolSequence: dimension must be 1-7, got " + std::to_string(dim));
     }
     directions_.resize(dim);
     initDirections();
@@ -85,6 +85,11 @@ void SobolSequence::initDirections() {
         uint32_t init[] = {1, 1, 3, 3};
         initDimFromRecurrence(directions_[5], init,
             [](const uint32_t* m, size_t i) { return (m[i-1]<<1) ^ m[i-4] ^ (m[i-4]>>4); });
+    }
+    if (dim_ >= 7) {  // x^4 + x^3 + 1
+        uint32_t init[] = {1, 3, 5, 3};
+        initDimFromRecurrence(directions_[6], init,
+            [](const uint32_t* m, size_t i) { return (m[i-3]<<1) ^ m[i-4] ^ (m[i-4]>>4); });
     }
 }
 

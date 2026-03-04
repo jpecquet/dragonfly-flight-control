@@ -33,6 +33,21 @@ enable_testing()
 # Find NLopt
 find_package(NLopt REQUIRED)
 
+# Optional OpenMP for parallelization
+find_package(OpenMP)
+
+# Fetch yaml-cpp for YAML config parsing
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
+FetchContent_Declare(
+    yaml-cpp
+    GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+    GIT_TAG 0.8.0
+)
+set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "")
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "")
+set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "")
+FetchContent_MakeAvailable(yaml-cpp)
+
 # Physics library (shared between main executable and tests)
 add_library(dragonfly_physics STATIC
     src/rotation.cpp
@@ -83,6 +98,7 @@ target_link_libraries(dragonfly_optim PUBLIC
     dragonfly_sampling
     HighFive
     ${HDF5_LIBRARIES}
+    NLopt::nlopt
 )
 
 target_include_directories(dragonfly_optim PUBLIC
@@ -113,6 +129,7 @@ add_executable(dragonfly_cli
     apps/cmd_plot.cpp
     apps/cmd_termvel.cpp
     apps/cmd_wingtest.cpp
+    apps/cmd_reachable.cpp
 )
 target_include_directories(dragonfly_cli PRIVATE
     ${CMAKE_SOURCE_DIR}/apps
@@ -121,8 +138,12 @@ target_link_libraries(dragonfly_cli PRIVATE
     dragonfly_io
     dragonfly_optim
     dragonfly_controller
-    NLopt::nlopt
+    yaml-cpp::yaml-cpp
 )
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(dragonfly_cli PRIVATE OpenMP::OpenMP_CXX)
+    target_compile_definitions(dragonfly_cli PRIVATE HAS_OPENMP)
+endif()
 set_target_properties(dragonfly_cli PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     OUTPUT_NAME dragonfly

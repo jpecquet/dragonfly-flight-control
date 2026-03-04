@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 
 
-SUPPORTED_SIMULATION_DRIVERS = {"yaml_case"}
+SUPPORTED_SIMULATION_DRIVERS = {"yaml_case", "reachable"}
 SUPPORTED_THEMES = {"light", "dark"}
 SUPPORTED_ARTIFACT_KINDS = {
     "case_fore_hind_kinematics",
@@ -21,6 +21,8 @@ SUPPORTED_ARTIFACT_KINDS = {
     "stick_video",
     "force_comparison",
     "mass_regression",
+    "reachable_set",
+    "reachable_boundary",
 }
 
 
@@ -178,6 +180,10 @@ def _validate_artifact_common(
                     raise ValueError(f"artifacts[{idx}].stations[{j}] must be in [0, 1]{_ctx(path)}")
         return
 
+    if kind in ("reachable_set", "reachable_boundary"):
+        _expect_nonempty_str(artifact.get("input_h5"), f"artifacts[{idx}].input_h5", path=path)
+        return
+
     if kind == "force_comparison":
         h5_series = _expect_list(artifact.get("h5_series"), f"artifacts[{idx}].h5_series", path=path)
         for j, item in enumerate(h5_series):
@@ -215,8 +221,11 @@ def validate_post_config(config: Any, *, path: Path | None = None) -> dict[str, 
             f"Unsupported simulation.driver {driver!r}{_ctx(path)}; "
             f"expected one of {sorted(SUPPORTED_SIMULATION_DRIVERS)}"
         )
-    _expect_nonempty_str(simulation.get("case_file"), "simulation.case_file", path=path)
     _expect_nonempty_str(simulation.get("run_dir"), "simulation.run_dir", path=path)
+    if driver == "yaml_case":
+        _expect_nonempty_str(simulation.get("case_file"), "simulation.case_file", path=path)
+    if driver == "reachable":
+        _expect_nonempty_str(simulation.get("reachable_config"), "simulation.reachable_config", path=path)
     if simulation.get("binary") is not None:
         _expect_nonempty_str(simulation.get("binary"), "simulation.binary", path=path)
 

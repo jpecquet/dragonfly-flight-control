@@ -1,10 +1,12 @@
 #include "optimize.hpp"
 #include "eom.hpp"
 #include "parse_utils.hpp"
+#include "sampling.hpp"
 #include "sim_setup.hpp"
 #include "wing.hpp"
 
 #include <highfive/H5File.hpp>
+#include <nlopt.hpp>
 #include <algorithm>
 #include <cmath>
 #include <optional>
@@ -220,6 +222,113 @@ double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
     OptimBuffers buf;
     buf.init(kin, phys);
     return wingBeatAccel(kin, phys, buf, ux, uz, N);
+}
+
+// wingBeatAccelVec: returns the wingbeat-averaged acceleration vector
+
+Vec3 wingBeatAccelVec(const KinematicParams& kin, const PhysicalParams& phys,
+                      OptimBuffers& buf, double ux, double uz, int N) {
+    updateWingAngleFuncs(buf.wings, kin, phys);
+
+    double omega = kin.omega.value;
+    double T = 2.0 * M_PI / omega;
+    double dt = T / N;
+
+    Vec3 a_mean = Vec3::Zero();
+    double t = 0.0;
+    State state(Vec3::Zero(), Vec3(ux, 0.0, uz));
+
+    while (t < T) {
+        StateDerivative d1 = equationOfMotion(t, state, buf.wings, buf.scratch1);
+        StateDerivative d2 = equationOfMotion(t + dt, state, buf.wings, buf.scratch2);
+
+        a_mean += (dt / T) * (d1.accel + d2.accel) / 2.0;
+        t += dt;
+    }
+
+    return a_mean;
+}
+
+// findEquilibria: multi-start equilibrium search at a single (ux, uz) point
+
+namespace {
+
+struct NLoptContext {
+    KinematicParams* kin;
+    const PhysicalParams* phys;
+    OptimBuffers* buffers;
+    double ux;
+    double uz;
+};
+
+double nloptObjective(const std::vector<double>& x, [[maybe_unused]] std::vector<double>& grad, void* data) {
+    auto* ctx = static_cast<NLoptContext*>(data);
+    ctx->kin->setVariableValues(x);
+    return wingBeatAccel(*ctx->kin, *ctx->phys, *ctx->buffers, ctx->ux, ctx->uz);
+}
+
+bool isNewBranch(const std::vector<EquilibriumBranch>& branches, const KinematicParams& sol, double tol = 1e-3) {
+    for (const auto& prev : branches) {
+        std::vector<double> prev_vals = prev.kin.variableValues();
+        std::vector<double> sol_vals = sol.variableValues();
+        double dist_sq = 0.0;
+        for (size_t i = 0; i < prev_vals.size(); ++i) {
+            dist_sq += std::pow(prev_vals[i] - sol_vals[i], 2);
+        }
+        if (std::sqrt(dist_sq) < tol) return false;
+    }
+    return true;
+}
+
+}  // namespace
+
+std::vector<EquilibriumBranch> findEquilibria(
+    const KinematicParams& kin_template,
+    const PhysicalParams& phys,
+    double ux, double uz,
+    int n_samples, int max_eval, double equilibrium_tol) {
+
+    std::vector<EquilibriumBranch> branches;
+    std::vector<double> lb, ub;
+    kin_template.getVariableBounds(lb, ub);
+
+    if (lb.empty()) return branches;
+
+    auto samples = generateSobolSamples(static_cast<size_t>(n_samples), lb, ub);
+
+    OptimBuffers buffers;
+    buffers.init(kin_template, phys);
+
+    for (const auto& x0 : samples) {
+        KinematicParams kin = kin_template;
+        kin.setVariableValues(x0);
+
+        NLoptContext ctx{&kin, &phys, &buffers, ux, uz};
+        nlopt::opt opt(nlopt::LN_COBYLA, lb.size());
+        opt.set_lower_bounds(lb);
+        opt.set_upper_bounds(ub);
+        opt.set_min_objective(nloptObjective, &ctx);
+        opt.set_maxeval(max_eval);
+        opt.set_xtol_rel(1e-8);
+        opt.set_ftol_rel(1e-10);
+
+        std::vector<double> x = x0;
+        double minf = HUGE_VAL;
+
+        try {
+            opt.optimize(x, minf);
+            kin.setVariableValues(x);
+        } catch (...) {
+            continue;
+        }
+
+        double residual = std::sqrt(wingBeatAccel(kin, phys, buffers, ux, uz));
+        if (residual < equilibrium_tol && isNewBranch(branches, kin)) {
+            branches.push_back({kin, residual});
+        }
+    }
+
+    return branches;
 }
 
 // Algorithm selection implementation

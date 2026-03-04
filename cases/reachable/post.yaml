@@ -1,0 +1,23 @@
+version: 1
+
+# Reachable set analysis: map control parameter space to equilibrium (ux, uz).
+# Consumed by `python -m scripts.docs_media_runner`.
+
+simulation:
+  driver: reachable
+  reachable_config: configs/reachable.yaml
+  run_dir: docs/research/reachable/artifacts
+  binary: build/bin/dragonfly
+
+docs_media:
+  media_dir: docs/_static/media/reachable
+  themes: [light, dark]
+
+artifacts:
+  - kind: reachable_set
+    input_h5: "{run_dir}/reachable.h5"
+    output: reachable_set.{theme}.png
+
+  - kind: reachable_boundary
+    input_h5: "{run_dir}/reachable.h5"
+    output: reachable_boundary.{theme}.png

@@ -1029,3 +1029,93 @@ def render_stick_video_from_h5(
         params=params,
         stroke_plane_beta_mode=stroke_plane_beta_mode,
     )
+
+
+def plot_reachable_set(
+    h5_path: Path,
+    output_path: Path,
+    *,
+    theme: str | None = None,
+) -> None:
+    """Plot reachable set heatmap: log10(min_residual) with equilibrium contour."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from post.style import apply_matplotlib_style, figure_size, resolve_style
+
+    style = resolve_style(theme=theme)
+    apply_matplotlib_style(style)
+
+    import h5py
+
+    with h5py.File(str(h5_path), "r") as f:
+        ux = np.asarray(f["grid/ux"][:], dtype=float)
+        uz = np.asarray(f["grid/uz"][:], dtype=float)
+        min_residual = np.asarray(f["grid/min_residual"][:], dtype=float)
+        equilibrium_tol = float(f["metadata/equilibrium_tol"][()])
+
+    fig, ax = plt.subplots(figsize=figure_size(0.75))
+    log_res = np.log10(np.where(np.isnan(min_residual), np.nan, np.maximum(min_residual, 1e-20)))
+
+    im = ax.pcolormesh(ux, uz, log_res.T, shading="auto", cmap="viridis_r")
+    fig.colorbar(im, ax=ax, label=r"$\log_{10}$(min residual)")
+
+    # Contour at equilibrium tolerance
+    valid = np.isfinite(min_residual)
+    if valid.any():
+        contour_data = np.where(valid, min_residual, np.nan)
+        with np.errstate(invalid="ignore"):
+            ax.contour(ux, uz, contour_data.T, levels=[equilibrium_tol],
+                       colors="red", linewidths=1.5)
+
+    ax.set_xlabel(r"$u_x$ (forward velocity)")
+    ax.set_ylabel(r"$u_z$ (vertical velocity)")
+
+    fig.savefig(str(output_path), dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_reachable_boundary(
+    h5_path: Path,
+    output_path: Path,
+    *,
+    theme: str | None = None,
+) -> None:
+    """Plot the reachable set boundary as a filled contour in (ux, uz) space."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from post.style import apply_matplotlib_style, figure_size, resolve_style
+
+    style = resolve_style(theme=theme)
+    apply_matplotlib_style(style)
+
+    import h5py
+
+    with h5py.File(str(h5_path), "r") as f:
+        ux = np.asarray(f["grid/ux"][:], dtype=float)
+        uz = np.asarray(f["grid/uz"][:], dtype=float)
+        min_residual = np.asarray(f["grid/min_residual"][:], dtype=float)
+        equilibrium_tol = float(f["metadata/equilibrium_tol"][()])
+
+    # Binary reachability: 1 where equilibrium exists, 0 otherwise
+    reachable = np.where(
+        np.isfinite(min_residual) & (min_residual < equilibrium_tol), 1.0, 0.0
+    )
+
+    fig, ax = plt.subplots(figsize=figure_size(0.75))
+
+    # Filled region
+    ax.contourf(ux, uz, reachable.T, levels=[0.5, 1.5],
+                colors=[style.trajectory_color], alpha=0.25)
+
+    # Boundary contour
+    ax.contour(ux, uz, reachable.T, levels=[0.5],
+               colors=[style.trajectory_color], linewidths=1.5)
+
+    ax.set_xlabel(r"$u_x$ (forward velocity)")
+    ax.set_ylabel(r"$u_z$ (vertical velocity)")
+    ax.set_aspect("equal")
+
+    fig.savefig(str(output_path), dpi=300, bbox_inches="tight")
+    plt.close(fig)

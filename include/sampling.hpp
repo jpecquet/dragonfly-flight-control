@@ -8,7 +8,7 @@
 // Uses Bratley & Fox direction numbers with Gray code optimization
 class SobolSequence {
 public:
-    // Create generator for given dimension (1-6)
+    // Create generator for given dimension (1-7)
     explicit SobolSequence(size_t dim);
 
     // Generate next point in [0,1]^dim

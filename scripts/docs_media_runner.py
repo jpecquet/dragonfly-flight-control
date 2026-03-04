@@ -19,7 +19,7 @@ import yaml
 
 from scripts.docs_media_config import load_post_config
 from scripts.case_runner import run_case
-from scripts.pipeline_common import build_plot_env, ensure_dir
+from scripts.pipeline_common import build_plot_env, ensure_dir, run_cmd
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -135,22 +135,52 @@ def _run_simulation(
         raise ValueError("simulation.run_dir must be a non-empty string")
     run_dir = ensure_dir(_resolve_repo_path(run_dir_raw))
 
-    if driver != "yaml_case":
-        raise ValueError(f"Unsupported simulation.driver: {driver!r}")
+    if driver == "yaml_case":
+        case_file_raw = sim_cfg.get("case_file")
+        if not isinstance(case_file_raw, str) or not case_file_raw:
+            raise ValueError("simulation.case_file must be a non-empty string for driver=yaml_case")
+        case_file = _resolve_repo_path(case_file_raw)
 
-    case_file_raw = sim_cfg.get("case_file")
-    if not isinstance(case_file_raw, str) or not case_file_raw:
-        raise ValueError("simulation.case_file must be a non-empty string for driver=yaml_case")
-    case_file = _resolve_repo_path(case_file_raw)
+        if skip_sim:
+            return run_dir, run_dir / "output.h5"
 
-    if skip_sim:
-        h5_path = run_dir / "output.h5"
+        binary_value = binary_override if binary_override is not None else sim_cfg.get("binary")
+        binary_path = Path(binary_value) if isinstance(binary_value, str) and binary_value else None
+        h5_path = run_case(case_file, run_dir=run_dir, binary=binary_path)
         return run_dir, h5_path
 
-    binary_value = binary_override if binary_override is not None else sim_cfg.get("binary")
-    binary_path = Path(binary_value) if isinstance(binary_value, str) and binary_value else None
-    h5_path = run_case(case_file, run_dir=run_dir, binary=binary_path)
-    return run_dir, h5_path
+    if driver == "reachable":
+        reachable_cfg_raw = sim_cfg.get("reachable_config")
+        if not isinstance(reachable_cfg_raw, str) or not reachable_cfg_raw:
+            raise ValueError("simulation.reachable_config must be a non-empty string for driver=reachable")
+        reachable_cfg = _resolve_repo_path(reachable_cfg_raw)
+
+        # Read the YAML to find the output filename
+        reachable_yaml = _load_yaml(reachable_cfg)
+        output_name = str(reachable_yaml.get("output", "reachable.h5"))
+        h5_path = run_dir / output_name
+
+        if skip_sim:
+            return run_dir, h5_path
+
+        binary_value = binary_override if binary_override is not None else sim_cfg.get("binary")
+        binary_path = _resolve_repo_path(binary_value) if isinstance(binary_value, str) and binary_value else REPO_ROOT / "build" / "bin" / "dragonfly"
+        if not binary_path.exists():
+            raise FileNotFoundError(f"dragonfly binary not found: {binary_path}")
+
+        # Create a patched config with output pointing to run_dir
+        patched_yaml = dict(reachable_yaml)
+        patched_yaml["output"] = str(h5_path)
+        patched_cfg = run_dir / "reachable_run.yaml"
+        patched_cfg.write_text(yaml.dump(patched_yaml, default_flow_style=False), encoding="utf-8")
+
+        run_cmd([str(binary_path), "reachable", "-c", str(patched_cfg)], cwd=run_dir)
+        if not h5_path.exists():
+            raise FileNotFoundError(f"Reachable output not found: {h5_path}")
+        print(f"[done] output: {h5_path}")
+        return run_dir, h5_path
+
+    raise ValueError(f"Unsupported simulation.driver: {driver!r}")
 
 
 def _run_artifact(
@@ -403,6 +433,20 @@ def _run_artifact(
             omega_nondim=resolved.get("omega_nondim"),
             labels=h5_labels,
             external_series=external_series if external_series else None,
+            theme=theme,
+        )
+        return
+
+    if kind in ("reachable_set", "reachable_boundary"):
+        from post.docs_artifacts import plot_reachable_boundary, plot_reachable_set
+
+        input_h5_raw = resolved.get("input_h5")
+        if not isinstance(input_h5_raw, str) or not input_h5_raw:
+            raise ValueError(f"{kind} requires input_h5")
+        plot_fn = plot_reachable_boundary if kind == "reachable_boundary" else plot_reachable_set
+        plot_fn(
+            _resolve_repo_path(input_h5_raw),
+            output_path,
             theme=theme,
         )
         return

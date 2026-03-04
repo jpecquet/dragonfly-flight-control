@@ -20,3 +20,11 @@ validation/azuma1985
 validation/azuma1988
 validation/wang2007
 ```
+
+```{toctree}
+:maxdepth: 1
+:caption: research
+:hidden:
+
+research/reachable
+```
