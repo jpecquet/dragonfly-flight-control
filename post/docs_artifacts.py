@@ -1084,6 +1084,7 @@ def plot_reachable_boundary(
     """Plot the reachable set boundary as a filled contour in (ux, uz) space."""
     import matplotlib.pyplot as plt
     import numpy as np
+    from scipy.ndimage import gaussian_filter
 
     from post.style import apply_matplotlib_style, figure_size, resolve_style
 
@@ -1098,19 +1099,20 @@ def plot_reachable_boundary(
         min_residual = np.asarray(f["grid/min_residual"][:], dtype=float)
         equilibrium_tol = float(f["metadata/equilibrium_tol"][()])
 
-    # Binary reachability: 1 where equilibrium exists, 0 otherwise
+    # Binary reachability smoothed with Gaussian for a rounded contour
     reachable = np.where(
         np.isfinite(min_residual) & (min_residual < equilibrium_tol), 1.0, 0.0
     )
+    smooth = gaussian_filter(reachable, sigma=2.0)
 
     fig, ax = plt.subplots(figsize=figure_size(0.75))
 
     # Filled region
-    ax.contourf(ux, uz, reachable.T, levels=[0.5, 1.5],
+    ax.contourf(ux, uz, smooth.T, levels=[0.5, 1.0],
                 colors=[style.trajectory_color], alpha=0.25)
 
     # Boundary contour
-    ax.contour(ux, uz, reachable.T, levels=[0.5],
+    ax.contour(ux, uz, smooth.T, levels=[0.5],
                colors=[style.trajectory_color], linewidths=1.5)
 
     ax.set_xlabel(r"$u_x$ (forward velocity)")

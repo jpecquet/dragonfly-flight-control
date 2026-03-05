@@ -51,8 +51,13 @@ struct ReachableConfig {
     std::string output;
 };
 
+// Returns {min, max} for variable params, {val, val} for fixed (scalar) params
 ControlBounds parseBounds(const YAML::Node& node) {
-    return {node[0].as<double>(), node[1].as<double>()};
+    if (node.IsSequence()) {
+        return {node[0].as<double>(), node[1].as<double>()};
+    }
+    double val = node.as<double>();
+    return {val, val};
 }
 
 WingConfig parseWingYAML(const YAML::Node& node) {
@@ -129,33 +134,29 @@ ReachableConfig parseConfig(const std::string& path) {
     return cfg;
 }
 
+// Build a KinematicParam from control bounds: variable if min != max, fixed otherwise
+KinematicParam buildParam(const char* name, const ControlBounds& cb) {
+    bool is_var = (cb.min != cb.max);
+    double val = is_var ? (cb.min + cb.max) / 2.0 : cb.min;
+    return {name, is_var, val, cb.min, cb.max};
+}
+
 KinematicParams buildKinTemplate(const ReachableConfig& cfg) {
     KinematicParams kin;
 
-    // omega is fixed
     kin.omega = {"omega", false, cfg.omega, cfg.omega, cfg.omega};
 
-    // gamma: mean is variable, amp and phase fixed at 0
-    kin.gamma_mean = {"gamma_mean", true, (cfg.gamma_mean.min + cfg.gamma_mean.max) / 2.0,
-                      cfg.gamma_mean.min, cfg.gamma_mean.max};
+    kin.gamma_mean = buildParam("gamma_mean", cfg.gamma_mean);
     kin.gamma_amp = {"gamma_amp", false, 0.0, 0.0, 0.0};
     kin.gamma_phase = {"gamma_phase", false, 0.0, 0.0, 0.0};
 
-    // phi: mean, amp, phase all variable
-    kin.phi_mean = {"phi_mean", true, (cfg.phi_mean.min + cfg.phi_mean.max) / 2.0,
-                    cfg.phi_mean.min, cfg.phi_mean.max};
-    kin.phi_amp = {"phi_amp", true, (cfg.phi_amp.min + cfg.phi_amp.max) / 2.0,
-                   cfg.phi_amp.min, cfg.phi_amp.max};
-    kin.phi_phase = {"phi_phase", true, (cfg.phi_phase.min + cfg.phi_phase.max) / 2.0,
-                     cfg.phi_phase.min, cfg.phi_phase.max};
+    kin.phi_mean = buildParam("phi_mean", cfg.phi_mean);
+    kin.phi_amp = buildParam("phi_amp", cfg.phi_amp);
+    kin.phi_phase = buildParam("phi_phase", cfg.phi_phase);
 
-    // psi: mean, amp, phase all variable
-    kin.psi_mean = {"psi_mean", true, (cfg.psi_mean.min + cfg.psi_mean.max) / 2.0,
-                    cfg.psi_mean.min, cfg.psi_mean.max};
-    kin.psi_amp = {"psi_amp", true, (cfg.psi_amp.min + cfg.psi_amp.max) / 2.0,
-                   cfg.psi_amp.min, cfg.psi_amp.max};
-    kin.psi_phase = {"psi_phase", true, (cfg.psi_phase.min + cfg.psi_phase.max) / 2.0,
-                     cfg.psi_phase.min, cfg.psi_phase.max};
+    kin.psi_mean = buildParam("psi_mean", cfg.psi_mean);
+    kin.psi_amp = buildParam("psi_amp", cfg.psi_amp);
+    kin.psi_phase = buildParam("psi_phase", cfg.psi_phase);
 
     return kin;
 }
