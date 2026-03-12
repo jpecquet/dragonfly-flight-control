@@ -1,0 +1,51 @@
+morphology:
+  omega: 25.1327  # 8*pi, nondimensional wingbeat frequency
+  wings:
+    - name: fore
+      side: left
+      mu0: 0.025
+      lb0: 0.75
+      phase: 0.0
+      aero_model: wang2004
+    - name: fore
+      side: right
+      mu0: 0.025
+      lb0: 0.75
+      phase: 0.0
+      aero_model: wang2004
+    - name: hind
+      side: left
+      mu0: 0.025
+      lb0: 0.75
+      phase: 3.14159
+      aero_model: wang2004
+    - name: hind
+      side: right
+      mu0: 0.025
+      lb0: 0.75
+      phase: 3.14159
+      aero_model: wang2004
+
+control_bounds:  # scalar = fixed, [min, max] = variable
+  gamma_mean: [0.0, 3.14159]   # stroke plane angle (variable)
+  phi_mean: 0.0                 # flapping mean (fixed)
+  phi_amp: [0.1, 1.5]          # flapping amplitude (variable)
+  phi_phase: 0.0                # flapping phase (fixed)
+  psi_mean: 0.0                 # pitching mean (fixed)
+  psi_amp: [0.1, 1.5708]       # pitching amplitude (variable)
+  psi_phase: [0.0, 6.28318]    # pitch/flap phase offset (variable)
+
+grid:
+  ux_min: -20.0
+  ux_max: 20.0
+  n_ux: 20
+  uz_min: -20.0
+  uz_max: 20.0
+  n_uz: 20
+
+algorithm:
+  n_samples: 50
+  max_eval: 300
+  equilibrium_tol: 1.0e-6
+
+output: reachable_4param_psiamp.h5

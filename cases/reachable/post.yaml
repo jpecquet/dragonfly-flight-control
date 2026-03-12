@@ -5,7 +5,94 @@ version: 1
 
 simulation:
   driver: reachable
-  reachable_config: configs/reachable.yaml
+  reachable_config:
+    - configs/reachable.yaml
+    - configs/reachable_4param_psiamp.yaml
+  base_config: configs/reachable_4param_psiamp.yaml
+  runs:
+    - output: reachable_phase_neg_pi2.h5
+      param: control_bounds.psi_phase
+      value: 4.71239   # -pi/2 (fixed)
+    - output: reachable_phase_zero.h5
+      param: control_bounds.psi_phase
+      value: 0.0       # 0 (fixed)
+    - output: reachable_phase_pos_pi2.h5
+      param: control_bounds.psi_phase
+      value: 1.5708    # +pi/2 (fixed)
+    - output: reachable_gamma_low.h5
+      param: control_bounds.gamma_mean
+      value: [0.0, 1.5708]     # [0, pi/2]
+    - output: reachable_gamma_high.h5
+      param: control_bounds.gamma_mean
+      value: [1.5708, 3.14159] # [pi/2, pi]
+    - output: reachable_mu0_005.h5
+      overrides:
+        morphology.wings.0.mu0: 0.005
+        morphology.wings.1.mu0: 0.005
+        morphology.wings.2.mu0: 0.005
+        morphology.wings.3.mu0: 0.005
+    - output: reachable_mu0_02.h5
+      overrides:
+        morphology.wings.0.mu0: 0.02
+        morphology.wings.1.mu0: 0.02
+        morphology.wings.2.mu0: 0.02
+        morphology.wings.3.mu0: 0.02
+    - output: reachable_mu0_08.h5
+      overrides:
+        morphology.wings.0.mu0: 0.08
+        morphology.wings.1.mu0: 0.08
+        morphology.wings.2.mu0: 0.08
+        morphology.wings.3.mu0: 0.08
+    - output: reachable_lb0_05.h5
+      overrides:
+        morphology.wings.0.lb0: 0.5
+        morphology.wings.1.lb0: 0.5
+        morphology.wings.2.lb0: 0.5
+        morphology.wings.3.lb0: 0.5
+    - output: reachable_lb0_075.h5
+      overrides:
+        morphology.wings.0.lb0: 0.75
+        morphology.wings.1.lb0: 0.75
+        morphology.wings.2.lb0: 0.75
+        morphology.wings.3.lb0: 0.75
+    - output: reachable_lb0_10.h5
+      overrides:
+        morphology.wings.0.lb0: 1.0
+        morphology.wings.1.lb0: 1.0
+        morphology.wings.2.lb0: 1.0
+        morphology.wings.3.lb0: 1.0
+    - output: reachable_omega_6pi.h5
+      param: morphology.omega
+      value: 18.8496   # 6*pi
+    - output: reachable_omega_8pi.h5
+      param: morphology.omega
+      value: 25.1327   # 8*pi
+    - output: reachable_omega_10pi.h5
+      param: morphology.omega
+      value: 31.4159   # 10*pi
+    - output: reachable_psi1_low.h5
+      param: control_bounds.psi_amp
+      value: [0.1, 0.7854]    # psi_1 < pi/4
+    - output: reachable_psi1_high.h5
+      param: control_bounds.psi_amp
+      value: [0.7854, 1.5708] # psi_1 > pi/4
+    - output: reachable_phi1_low.h5
+      param: control_bounds.phi_amp
+      value: [0.1, 0.7854]    # phi_1 < pi/4
+    - output: reachable_phi1_high.h5
+      param: control_bounds.phi_amp
+      value: [0.7854, 1.5]    # phi_1 > pi/4
+    - output: reachable_phi1_pi4.h5
+      param: control_bounds.phi_amp
+      value: 0.7854              # phi_1 = pi/4 (fixed)
+    - output: reachable_phi1_psi1pi16_low.h5
+      overrides:
+        control_bounds.psi_amp: [0.1, 0.1963]  # psi_1 upper bound pi/16
+        control_bounds.phi_amp: [0.1, 0.7854]  # phi_1 < pi/4
+    - output: reachable_phi1_psi1pi16_high.h5
+      overrides:
+        control_bounds.psi_amp: [0.1, 0.1963]  # psi_1 upper bound pi/16
+        control_bounds.phi_amp: [0.7854, 1.5]  # phi_1 > pi/4
   run_dir: docs/research/reachable/artifacts
   binary: build/bin/dragonfly
 
@@ -19,5 +106,175 @@ artifacts:
     output: reachable_set.{theme}.png
 
   - kind: reachable_boundary
-    input_h5: "{run_dir}/reachable.h5"
+    datasets:
+      - h5: "{run_dir}/reachable.h5"
+        label: "3 params"
+      - h5: "{run_dir}/reachable_4param_psiamp.h5"
+        label: "4 params"
     output: reachable_boundary.{theme}.png
+
+  - kind: reachable_boundary
+    datasets:
+      - h5: "{run_dir}/reachable_4param_psiamp.h5"
+        label: "$\\delta_\\psi$ free"
+        color: neutral
+        linestyle: "-"
+        fill: false
+      - h5: "{run_dir}/reachable_phase_neg_pi2.h5"
+        label: "$\\delta_\\psi = -\\pi/2$"
+        color: "#4393c3"
+        linestyle: "-"
+        fill: true
+      - h5: "{run_dir}/reachable_phase_pos_pi2.h5"
+        label: "$\\delta_\\psi = \\pi/2$"
+        color: "#d6604d"
+        linestyle: "-"
+        fill: true
+    output: reachable_phase.{theme}.png
+
+  - kind: reachable_boundary
+    datasets:
+      - h5: "{run_dir}/reachable_4param_psiamp.h5"
+        label: "$\\gamma_0$ free"
+        color: neutral
+        linestyle: "-"
+        fill: false
+      - h5: "{run_dir}/reachable_gamma_low.h5"
+        label: "$\\gamma_0 \\in [0, \\pi/2]$"
+        color: "#d6604d"
+        linestyle: "-"
+        fill: true
+      - h5: "{run_dir}/reachable_gamma_high.h5"
+        label: "$\\gamma_0 \\in [\\pi/2, \\pi]$"
+        color: "#4393c3"
+        linestyle: "-"
+        fill: true
+    output: reachable_gamma.{theme}.png
+
+  - kind: reachable_boundary
+    datasets:
+      - h5: "{run_dir}/reachable_mu0_005.h5"
+        label: "$\\mu_0 = 0.005$"
+        color: "#4393c3"
+        linestyle: "-"
+        fill: true
+      - h5: "{run_dir}/reachable_mu0_02.h5"
+        label: "$\\mu_0 = 0.02$"
+        color: "#74c476"
+        linestyle: "-"
+        fill: true
+      - h5: "{run_dir}/reachable_mu0_08.h5"
+        label: "$\\mu_0 = 0.08$"
+        color: "#d6604d"
+        linestyle: "-"
+        fill: true
+    output: reachable_mu0.{theme}.png
+
+  - kind: reachable_boundary
+    datasets:
+      - h5: "{run_dir}/reachable_lb0_05.h5"
+        label: "$\\lambda_0 = 0.5$"
+        color: "#4393c3"
+        linestyle: "-"
+        fill: true
+      - h5: "{run_dir}/reachable_lb0_075.h5"
+        label: "$\\lambda_0 = 0.75$"
+        color: "#74c476"
+        linestyle: "-"
+        fill: true
+      - h5: "{run_dir}/reachable_lb0_10.h5"
+        label: "$\\lambda_0 = 1.0$"
+        color: "#d6604d"
+        linestyle: "-"
+        fill: true
+    output: reachable_lb0.{theme}.png
+
+  - kind: reachable_boundary
+    datasets:
+      - h5: "{run_dir}/reachable_omega_6pi.h5"
+        label: "$\\omega_0 = 6\\pi$"
+        color: "#4393c3"
+        linestyle: "-"
+        fill: true
+      - h5: "{run_dir}/reachable_omega_8pi.h5"
+        label: "$\\omega_0 = 8\\pi$"
+        color: "#74c476"
+        linestyle: "-"
+        fill: true
+      - h5: "{run_dir}/reachable_omega_10pi.h5"
+        label: "$\\omega_0 = 10\\pi$"
+        color: "#d6604d"
+        linestyle: "-"
+        fill: true
+    output: reachable_omega.{theme}.png
+
+  - kind: reachable_boundary
+    datasets:
+      - h5: "{run_dir}/reachable_4param_psiamp.h5"
+        label: "$\\psi_1$ free"
+        color: neutral
+        linestyle: "-"
+        fill: false
+      - h5: "{run_dir}/reachable_psi1_low.h5"
+        label: "$\\psi_1 < \\pi/4$"
+        color: "#4393c3"
+        linestyle: "-"
+        fill: true
+      - h5: "{run_dir}/reachable_psi1_high.h5"
+        label: "$\\psi_1 > \\pi/4$"
+        color: "#d6604d"
+        linestyle: "-"
+        fill: true
+    output: reachable_psi1.{theme}.png
+
+  - kind: reachable_boundary
+    datasets:
+      - h5: "{run_dir}/reachable_4param_psiamp.h5"
+        label: "$\\phi_1$ free"
+        color: neutral
+        linestyle: "-"
+        fill: false
+      - h5: "{run_dir}/reachable_phi1_low.h5"
+        label: "$\\phi_1 < \\pi/4$"
+        color: "#4393c3"
+        linestyle: "-"
+        fill: true
+      - h5: "{run_dir}/reachable_phi1_high.h5"
+        label: "$\\phi_1 > \\pi/4$"
+        color: "#d6604d"
+        linestyle: "-"
+        fill: true
+    output: reachable_phi1.{theme}.png
+
+  - kind: reachable_boundary
+    datasets:
+      - h5: "{run_dir}/reachable_4param_psiamp.h5"
+        label: "$\\phi_1$ free"
+        color: neutral
+        linestyle: "-"
+        fill: false
+      - h5: "{run_dir}/reachable_phi1_pi4.h5"
+        label: "$\\phi_1 = \\pi/4$"
+        color: "#74c476"
+        linestyle: "-"
+        fill: true
+    output: reachable_phi1_pi4.{theme}.png
+
+  - kind: reachable_boundary
+    datasets:
+      - h5: "{run_dir}/reachable_4param_psiamp.h5"
+        label: "$\\phi_1$ free"
+        color: neutral
+        linestyle: "-"
+        fill: false
+      - h5: "{run_dir}/reachable_phi1_psi1pi16_low.h5"
+        label: "$\\phi_1 < \\pi/4$"
+        color: "#4393c3"
+        linestyle: "-"
+        fill: true
+      - h5: "{run_dir}/reachable_phi1_psi1pi16_high.h5"
+        label: "$\\phi_1 > \\pi/4$"
+        color: "#d6604d"
+        linestyle: "-"
+        fill: true
+    output: reachable_phi1_psi1pi16.{theme}.png

@@ -1054,7 +1054,7 @@ def plot_reachable_set(
         min_residual = np.asarray(f["grid/min_residual"][:], dtype=float)
         equilibrium_tol = float(f["metadata/equilibrium_tol"][()])
 
-    fig, ax = plt.subplots(figsize=figure_size(0.75))
+    fig, ax = plt.subplots(figsize=figure_size(0.5), layout="constrained")
     log_res = np.log10(np.where(np.isnan(min_residual), np.nan, np.maximum(min_residual, 1e-20)))
 
     im = ax.pcolormesh(ux, uz, log_res.T, shading="auto", cmap="viridis_r")
@@ -1068,20 +1068,31 @@ def plot_reachable_set(
             ax.contour(ux, uz, contour_data.T, levels=[equilibrium_tol],
                        colors="red", linewidths=1.5)
 
-    ax.set_xlabel(r"$u_x$ (forward velocity)")
-    ax.set_ylabel(r"$u_z$ (vertical velocity)")
+    ax.set_xlabel(r"$\tilde{u}_x$")
+    ax.set_ylabel(r"$\tilde{u}_z$")
+    ax.set_aspect("equal")
 
-    fig.savefig(str(output_path), dpi=300, bbox_inches="tight")
+    fig.savefig(str(output_path), dpi=300)
     plt.close(fig)
 
 
 def plot_reachable_boundary(
-    h5_path: Path,
+    datasets: list[dict],
     output_path: Path,
     *,
     theme: str | None = None,
 ) -> None:
-    """Plot the reachable set boundary as a filled contour in (ux, uz) space."""
+    """Plot reachable set boundaries as smoothed contours in (ux, uz) space.
+
+    Parameters
+    ----------
+    datasets : list of dicts with keys:
+        path : Path — HDF5 file
+        label : str — legend label
+        color : str, optional — line/fill color (default: theme trajectory color)
+        linestyle : str, optional — "-", "--", ":" etc. (default: cycles "-","--",":")
+        fill : bool, optional — whether to draw a transparent fill (default: first only)
+    """
     import matplotlib.pyplot as plt
     import numpy as np
     from scipy.ndimage import gaussian_filter
@@ -1093,31 +1104,40 @@ def plot_reachable_boundary(
 
     import h5py
 
-    with h5py.File(str(h5_path), "r") as f:
-        ux = np.asarray(f["grid/ux"][:], dtype=float)
-        uz = np.asarray(f["grid/uz"][:], dtype=float)
-        min_residual = np.asarray(f["grid/min_residual"][:], dtype=float)
-        equilibrium_tol = float(f["metadata/equilibrium_tol"][()])
+    def _load_smooth(path):
+        with h5py.File(str(path), "r") as f:
+            ux = np.asarray(f["grid/ux"][:], dtype=float)
+            uz = np.asarray(f["grid/uz"][:], dtype=float)
+            res = np.asarray(f["grid/min_residual"][:], dtype=float)
+            tol = float(f["metadata/equilibrium_tol"][()])
+        reachable = np.where(np.isfinite(res) & (res < tol), 1.0, 0.0)
+        return ux, uz, gaussian_filter(reachable, sigma=1.5)
 
-    # Binary reachability smoothed with Gaussian for a rounded contour
-    reachable = np.where(
-        np.isfinite(min_residual) & (min_residual < equilibrium_tol), 1.0, 0.0
-    )
-    smooth = gaussian_filter(reachable, sigma=2.0)
+    default_linestyles = ["-", "--", ":"]
+    fig, ax = plt.subplots(figsize=figure_size(0.5), layout="constrained")
 
-    fig, ax = plt.subplots(figsize=figure_size(0.75))
+    for i, ds in enumerate(datasets):
+        path = ds["path"]
+        label = ds["label"]
+        color_raw = ds.get("color", style.trajectory_color)
+        color = style.text_color if color_raw == "neutral" else color_raw
+        ls = ds.get("linestyle", default_linestyles[i % len(default_linestyles)])
+        fill = ds.get("fill", i == 0)
 
-    # Filled region
-    ax.contourf(ux, uz, smooth.T, levels=[0.5, 1.0],
-                colors=[style.trajectory_color], alpha=0.25)
+        ux, uz, smooth = _load_smooth(path)
+        if fill:
+            ax.contourf(ux, uz, smooth.T, levels=[0.5, 1.0],
+                        colors=[color], alpha=0.15)
+        ax.contour(ux, uz, smooth.T, levels=[0.5],
+                   colors=[color], linewidths=1.5, linestyles=ls)
+        ax.plot([], [], ls, color=color, label=label)
 
-    # Boundary contour
-    ax.contour(ux, uz, smooth.T, levels=[0.5],
-               colors=[style.trajectory_color], linewidths=1.5)
+    if len(datasets) > 1:
+        ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), borderaxespad=0)
 
-    ax.set_xlabel(r"$u_x$ (forward velocity)")
-    ax.set_ylabel(r"$u_z$ (vertical velocity)")
+    ax.set_xlabel(r"$\tilde{u}_x$")
+    ax.set_ylabel(r"$\tilde{u}_z$")
     ax.set_aspect("equal")
 
-    fig.savefig(str(output_path), dpi=300, bbox_inches="tight")
+    fig.savefig(str(output_path), dpi=300)
     plt.close(fig)

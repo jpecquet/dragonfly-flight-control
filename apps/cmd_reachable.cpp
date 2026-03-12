@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <cmath>
+#include <filesystem>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -128,8 +129,14 @@ ReachableConfig parseConfig(const std::string& path) {
     cfg.max_eval = alg["max_eval"].as<int>(300);
     cfg.equilibrium_tol = alg["equilibrium_tol"].as<double>(1e-6);
 
-    // Output
+    // Output: resolve relative paths against the config file's directory
     cfg.output = yaml["output"].as<std::string>("reachable.h5");
+    {
+        namespace fs = std::filesystem;
+        fs::path out(cfg.output);
+        if (out.is_relative())
+            cfg.output = (fs::path(path).parent_path() / out).string();
+    }
 
     return cfg;
 }

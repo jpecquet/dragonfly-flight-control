@@ -180,8 +180,19 @@ def _validate_artifact_common(
                     raise ValueError(f"artifacts[{idx}].stations[{j}] must be in [0, 1]{_ctx(path)}")
         return
 
-    if kind in ("reachable_set", "reachable_boundary"):
+    if kind == "reachable_set":
         _expect_nonempty_str(artifact.get("input_h5"), f"artifacts[{idx}].input_h5", path=path)
+        return
+
+    if kind == "reachable_boundary":
+        datasets = artifact.get("datasets")
+        if isinstance(datasets, list):
+            for j, d in enumerate(datasets):
+                entry = _expect_mapping(d, f"artifacts[{idx}].datasets[{j}]", path=path)
+                _expect_nonempty_str(entry.get("h5"), f"artifacts[{idx}].datasets[{j}].h5", path=path)
+                _expect_nonempty_str(entry.get("label"), f"artifacts[{idx}].datasets[{j}].label", path=path)
+        else:
+            _expect_nonempty_str(artifact.get("input_h5"), f"artifacts[{idx}].input_h5", path=path)
         return
 
     if kind == "force_comparison":
@@ -225,7 +236,35 @@ def validate_post_config(config: Any, *, path: Path | None = None) -> dict[str, 
     if driver == "yaml_case":
         _expect_nonempty_str(simulation.get("case_file"), "simulation.case_file", path=path)
     if driver == "reachable":
-        _expect_nonempty_str(simulation.get("reachable_config"), "simulation.reachable_config", path=path)
+        has_legacy = simulation.get("reachable_config") is not None
+        has_sweep = simulation.get("base_config") is not None
+        if not has_legacy and not has_sweep:
+            raise ValueError(f"reachable driver requires reachable_config or base_config{_ctx(path)}")
+        if has_legacy:
+            rc = simulation.get("reachable_config")
+            if isinstance(rc, list):
+                for i, item in enumerate(rc):
+                    _expect_nonempty_str(item, f"simulation.reachable_config[{i}]", path=path)
+            else:
+                _expect_nonempty_str(rc, "simulation.reachable_config", path=path)
+        if has_sweep:
+            _expect_nonempty_str(simulation.get("base_config"), "simulation.base_config", path=path)
+            runs = simulation.get("runs")
+            if not isinstance(runs, list) or not runs:
+                raise ValueError(f"simulation.runs must be a non-empty list when base_config is used{_ctx(path)}")
+            for i, run in enumerate(runs):
+                entry = _expect_mapping(run, f"simulation.runs[{i}]", path=path)
+                _expect_nonempty_str(entry.get("output"), f"simulation.runs[{i}].output", path=path)
+                if entry.get("overrides") is not None:
+                    ovr = entry.get("overrides")
+                    if not isinstance(ovr, dict) or not ovr:
+                        raise ValueError(f"simulation.runs[{i}].overrides must be a non-empty mapping{_ctx(path)}")
+                    for k in ovr:
+                        _expect_nonempty_str(k, f"simulation.runs[{i}].overrides key", path=path)
+                elif entry.get("param") is not None:
+                    _expect_nonempty_str(entry.get("param"), f"simulation.runs[{i}].param", path=path)
+                    if "value" not in entry:
+                        raise ValueError(f"simulation.runs[{i}].value is required when param is set{_ctx(path)}")
     if simulation.get("binary") is not None:
         _expect_nonempty_str(simulation.get("binary"), "simulation.binary", path=path)
 

@@ -11,6 +11,7 @@ Usage examples:
 from __future__ import annotations
 
 import argparse
+import copy
 import os
 from pathlib import Path
 from typing import Any
@@ -64,6 +65,32 @@ def _artifact_uses_theme(value: Any) -> bool:
     if isinstance(value, dict):
         return any(_artifact_uses_theme(v) for v in value.values())
     return False
+
+
+def _apply_dot_override(config: dict[str, Any], dot_path: str, value: Any) -> None:
+    """Set a nested key in config using dot-separated path (modifies in-place).
+
+    List indices are supported: e.g. 'morphology.wings.0.mu0'.
+    """
+    keys = dot_path.split(".")
+    node: Any = config
+    for key in keys[:-1]:
+        node = node[int(key)] if isinstance(node, list) else node[key]
+    last = keys[-1]
+    if isinstance(node, list):
+        node[int(last)] = value
+    else:
+        node[last] = value
+
+
+def _apply_run_overrides(run_yaml: dict[str, Any], run: dict[str, Any]) -> None:
+    """Apply overrides from a run entry to a config dict (in-place)."""
+    overrides = run.get("overrides")
+    if overrides is not None:
+        for dot_path, val in overrides.items():
+            _apply_dot_override(run_yaml, str(dot_path), val)
+    elif run.get("param") is not None:
+        _apply_dot_override(run_yaml, str(run["param"]), run["value"])
 
 
 def _load_case_cache(cache: dict[Path, dict[str, Any]], case_path: Path) -> dict[str, Any]:
@@ -150,35 +177,74 @@ def _run_simulation(
         return run_dir, h5_path
 
     if driver == "reachable":
-        reachable_cfg_raw = sim_cfg.get("reachable_config")
-        if not isinstance(reachable_cfg_raw, str) or not reachable_cfg_raw:
-            raise ValueError("simulation.reachable_config must be a non-empty string for driver=reachable")
-        reachable_cfg = _resolve_repo_path(reachable_cfg_raw)
-
-        # Read the YAML to find the output filename
-        reachable_yaml = _load_yaml(reachable_cfg)
-        output_name = str(reachable_yaml.get("output", "reachable.h5"))
-        h5_path = run_dir / output_name
-
-        if skip_sim:
-            return run_dir, h5_path
-
         binary_value = binary_override if binary_override is not None else sim_cfg.get("binary")
         binary_path = _resolve_repo_path(binary_value) if isinstance(binary_value, str) and binary_value else REPO_ROOT / "build" / "bin" / "dragonfly"
-        if not binary_path.exists():
-            raise FileNotFoundError(f"dragonfly binary not found: {binary_path}")
 
-        # Create a patched config with output pointing to run_dir
-        patched_yaml = dict(reachable_yaml)
-        patched_yaml["output"] = str(h5_path)
-        patched_cfg = run_dir / "reachable_run.yaml"
-        patched_cfg.write_text(yaml.dump(patched_yaml, default_flow_style=False), encoding="utf-8")
+        primary_h5: Path | None = None
 
-        run_cmd([str(binary_path), "reachable", "-c", str(patched_cfg)], cwd=run_dir)
-        if not h5_path.exists():
-            raise FileNotFoundError(f"Reachable output not found: {h5_path}")
-        print(f"[done] output: {h5_path}")
-        return run_dir, h5_path
+        # Legacy: reachable_config string or list of standalone config file paths
+        reachable_cfg_raw = sim_cfg.get("reachable_config")
+        if reachable_cfg_raw is not None:
+            if isinstance(reachable_cfg_raw, str):
+                cfg_paths = [reachable_cfg_raw]
+            elif isinstance(reachable_cfg_raw, list):
+                cfg_paths = [str(c) for c in reachable_cfg_raw]
+            else:
+                raise ValueError("simulation.reachable_config must be a string or list of strings")
+
+            first_yaml = _load_yaml(_resolve_repo_path(cfg_paths[0]))
+            primary_h5 = run_dir / str(first_yaml.get("output", "reachable.h5"))
+
+            if not skip_sim:
+                if not binary_path.exists():
+                    raise FileNotFoundError(f"dragonfly binary not found: {binary_path}")
+                for cfg_rel in cfg_paths:
+                    reachable_cfg = _resolve_repo_path(cfg_rel)
+                    reachable_yaml = _load_yaml(reachable_cfg)
+                    output_name = str(reachable_yaml.get("output", "reachable.h5"))
+                    out_path = run_dir / output_name
+                    patched_yaml = dict(reachable_yaml)
+                    patched_yaml["output"] = str(out_path)
+                    patched_cfg = run_dir / f"reachable_run_{Path(cfg_rel).stem}.yaml"
+                    patched_cfg.write_text(yaml.dump(patched_yaml, default_flow_style=False), encoding="utf-8")
+                    run_cmd([str(binary_path), "reachable", "-c", str(patched_cfg)], cwd=run_dir)
+                    if not out_path.exists():
+                        raise FileNotFoundError(f"Reachable output not found: {out_path}")
+                    print(f"[done] output: {out_path}")
+
+        # New: base_config + runs sweep (no separate config files needed per run)
+        base_config_raw = sim_cfg.get("base_config")
+        if base_config_raw is not None:
+            runs_raw = sim_cfg.get("runs", [])
+            if not isinstance(runs_raw, list) or not runs_raw:
+                raise ValueError("simulation.runs must be a non-empty list when base_config is used")
+
+            base_yaml = _load_yaml(_resolve_repo_path(base_config_raw))
+            first_run_h5 = run_dir / str(runs_raw[0]["output"])
+            if primary_h5 is None:
+                primary_h5 = first_run_h5
+
+            if not skip_sim:
+                if not binary_path.exists():
+                    raise FileNotFoundError(f"dragonfly binary not found: {binary_path}")
+                for run in runs_raw:
+                    run_yaml = copy.deepcopy(base_yaml)
+                    output_name = str(run["output"])
+                    out_path = run_dir / output_name
+                    run_yaml["output"] = str(out_path)
+                    _apply_run_overrides(run_yaml, run)
+                    stem = Path(output_name).stem
+                    patched_cfg = run_dir / f"reachable_run_{stem}.yaml"
+                    patched_cfg.write_text(yaml.dump(run_yaml, default_flow_style=False), encoding="utf-8")
+                    run_cmd([str(binary_path), "reachable", "-c", str(patched_cfg)], cwd=run_dir)
+                    if not out_path.exists():
+                        raise FileNotFoundError(f"Reachable output not found: {out_path}")
+                    print(f"[done] output: {out_path}")
+
+        if primary_h5 is None:
+            raise ValueError("reachable driver requires reachable_config or base_config")
+
+        return run_dir, primary_h5
 
     raise ValueError(f"Unsupported simulation.driver: {driver!r}")
 
@@ -437,15 +503,39 @@ def _run_artifact(
         )
         return
 
-    if kind in ("reachable_set", "reachable_boundary"):
-        from post.docs_artifacts import plot_reachable_boundary, plot_reachable_set
+    if kind == "reachable_set":
+        from post.docs_artifacts import plot_reachable_set
 
         input_h5_raw = resolved.get("input_h5")
         if not isinstance(input_h5_raw, str) or not input_h5_raw:
-            raise ValueError(f"{kind} requires input_h5")
-        plot_fn = plot_reachable_boundary if kind == "reachable_boundary" else plot_reachable_set
-        plot_fn(
+            raise ValueError("reachable_set requires input_h5")
+        plot_reachable_set(
             _resolve_repo_path(input_h5_raw),
+            output_path,
+            theme=theme,
+        )
+        return
+
+    if kind == "reachable_boundary":
+        from post.docs_artifacts import plot_reachable_boundary
+
+        datasets_raw = resolved.get("datasets")
+        if isinstance(datasets_raw, list):
+            datasets = []
+            for d in datasets_raw:
+                ds = {"path": _resolve_repo_path(d["h5"]), "label": d["label"]}
+                for key in ("color", "linestyle", "fill"):
+                    if key in d:
+                        ds[key] = d[key]
+                datasets.append(ds)
+        else:
+            # Fallback: single input_h5
+            input_h5_raw = resolved.get("input_h5")
+            if not isinstance(input_h5_raw, str) or not input_h5_raw:
+                raise ValueError("reachable_boundary requires datasets or input_h5")
+            datasets = [{"path": _resolve_repo_path(input_h5_raw), "label": ""}]
+        plot_reachable_boundary(
+            datasets,
             output_path,
             theme=theme,
         )

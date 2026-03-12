@@ -36,12 +36,12 @@ control_bounds:  # scalar = fixed, [min, max] = variable
   psi_phase: [0.0, 6.28318]    # pitch/flap phase offset (variable)
 
 grid:
-  ux_min: -15.0
-  ux_max: 15.0
-  n_ux: 30
-  uz_min: -15.0
-  uz_max: 15.0
-  n_uz: 30
+  ux_min: -20.0
+  ux_max: 20.0
+  n_ux: 20
+  uz_min: -20.0
+  uz_max: 20.0
+  n_uz: 20
 
 algorithm:
   n_samples: 25
