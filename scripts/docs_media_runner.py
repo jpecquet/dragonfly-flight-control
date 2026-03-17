@@ -176,6 +176,26 @@ def _run_simulation(
         h5_path = run_case(case_file, run_dir=run_dir, binary=binary_path)
         return run_dir, h5_path
 
+    if driver == "multi_yaml_case":
+        cases_raw = sim_cfg.get("cases")
+        if not isinstance(cases_raw, list) or not cases_raw:
+            raise ValueError("simulation.cases must be a non-empty list for driver=multi_yaml_case")
+
+        binary_value = binary_override if binary_override is not None else sim_cfg.get("binary")
+        binary_path = Path(binary_value) if isinstance(binary_value, str) and binary_value else None
+
+        for i, case_rel in enumerate(cases_raw):
+            case_path = _resolve_repo_path(str(case_rel))
+            branch_dir = ensure_dir(run_dir / f"branch_{i}")
+            if not skip_sim:
+                run_case(case_path, run_dir=branch_dir, binary=binary_path)
+            branch_h5 = branch_dir / "output.h5"
+            if not skip_sim and not branch_h5.exists():
+                raise FileNotFoundError(f"Branch {i} output not found: {branch_h5}")
+
+        primary_h5 = run_dir / "branch_0" / "output.h5"
+        return run_dir, primary_h5
+
     if driver == "reachable":
         binary_value = binary_override if binary_override is not None else sim_cfg.get("binary")
         binary_path = _resolve_repo_path(binary_value) if isinstance(binary_value, str) and binary_value else REPO_ROOT / "build" / "bin" / "dragonfly"
@@ -457,6 +477,41 @@ def _run_artifact(
             show_timestamp=bool(resolved.get("show_timestamp", True)),
             show_pitch_angle=bool(resolved.get("show_pitch_angle", False)),
             stroke_plane_beta_mode=str(resolved.get("stroke_plane_beta_mode", "mean")),
+        )
+        return
+
+    if kind == "forewing_stroke_diagram":
+        from post.docs_artifacts import plot_forewing_stroke_diagram
+        input_h5_raw = resolved.get("input_h5")
+        if not isinstance(input_h5_raw, str) or not input_h5_raw:
+            raise ValueError("forewing_stroke_diagram requires input_h5")
+        n_samples = int(resolved.get("n_samples", 15))
+        stroke_offset_z = float(resolved.get("stroke_offset_z", -0.2))
+        station = float(resolved.get("station", 2.0 / 3.0))
+        plot_forewing_stroke_diagram(
+            _resolve_repo_path(input_h5_raw),
+            output_path,
+            n_samples=n_samples,
+            stroke_offset_z=stroke_offset_z,
+            station=station,
+            theme=theme,
+        )
+        return
+
+    if kind == "boundary_stroke_and_forces":
+        from post.docs_artifacts import plot_boundary_stroke_and_forces
+        input_h5_raw = resolved.get("input_h5")
+        if not isinstance(input_h5_raw, str) or not input_h5_raw:
+            raise ValueError("boundary_stroke_and_forces requires input_h5")
+        plot_boundary_stroke_and_forces(
+            _resolve_repo_path(input_h5_raw),
+            output_path,
+            n_samples=int(resolved.get("n_samples", 15)),
+            stroke_offset=float(resolved.get("stroke_offset", 0.3)),
+            stroke_lim=float(resolved.get("stroke_lim", 0.6)),
+            force_scale=float(resolved.get("force_scale", 0.02)),
+            station=float(resolved.get("station", 2.0 / 3.0)),
+            theme=theme,
         )
         return
 

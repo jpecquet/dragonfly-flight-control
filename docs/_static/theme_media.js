@@ -17,20 +17,12 @@ function applyThemedMediaSources() {
       return;
     }
 
-    let source = video.querySelector("source");
-    if (!source) {
-      source = document.createElement("source");
-      source.type = "video/mp4";
-      video.appendChild(source);
-    }
-
-    const current = source.getAttribute("src");
-    if (current === src) {
+    if (video.getAttribute("src") === src) {
       return;
     }
 
-    source.setAttribute("src", src);
-    video.load();
+    video.setAttribute("src", src);
+    video.play().catch(() => {});
   });
 
   images.forEach((img) => {

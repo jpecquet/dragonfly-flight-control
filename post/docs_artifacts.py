@@ -1031,6 +1031,348 @@ def render_stick_video_from_h5(
     )
 
 
+def plot_forewing_stroke_diagram(
+    h5_path: Path,
+    output_path: Path,
+    *,
+    n_samples: int = 15,
+    stroke_offset_z: float = -0.2,
+    station: float = 2.0 / 3.0,
+    theme: str | None = None,
+) -> None:
+    """Static forewing chord-trace diagram for one wingbeat (down/upstroke split)."""
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    from post.io import read_simulation
+    from post.plot_stick import (
+        STICK_LENGTH,
+        WING_ROOT_DISTANCE,
+        WING_ROOT_MIDPOINT_Z,
+        WING_ROOT_TILT_DEG,
+        compute_stick_endpoints,
+        project_xz,
+    )
+    from post.style import apply_matplotlib_style, figure_size, resolve_style
+
+    params, time, _, wings = read_simulation(str(h5_path))
+
+    fore_name = next((n for n in wings if n.lower().startswith("fore")), None)
+    if fore_name is None:
+        raise ValueError(f"No forewing found in {h5_path}; wings: {list(wings.keys())}")
+
+    omega = float(params["omega"])
+    T_wb = 2.0 * math.pi / omega
+
+    mask = time >= time[-1] - T_wb
+    time_wb = time[mask]
+    n_wb = len(time_wb)
+
+    phi_amp = float(np.asarray(params["wing_phi_amp"][fore_name], dtype=float)[0])
+    phi_phase = float(np.asarray(params["wing_phi_phase"][fore_name], dtype=float)[0])
+    phi_dot_mid = -phi_amp * omega * np.sin(omega * T_wb / 4 + phi_phase)
+    first_half_is_down = phi_dot_mid < 0
+
+    mid_idx = n_wb // 2
+
+    def _sample_indices(start, end):
+        total = end - start
+        if total <= 0:
+            return np.array([], dtype=int)
+        return np.round(np.linspace(0, total - 1, min(n_samples, total))).astype(int) + start
+
+    if first_half_is_down:
+        down_local = _sample_indices(0, mid_idx)
+        up_local = _sample_indices(mid_idx, n_wb)
+    else:
+        up_local = _sample_indices(0, mid_idx)
+        down_local = _sample_indices(mid_idx, n_wb)
+
+    global_indices = np.where(mask)[0]
+    down_global = global_indices[down_local]
+    up_global = global_indices[up_local]
+
+    half = 0.5 * WING_ROOT_DISTANCE
+    tilt = np.radians(WING_ROOT_TILT_DEG)
+    dx, dz = half * np.cos(tilt), half * np.sin(tilt)
+    fore_root_down = np.array([dx, WING_ROOT_MIDPOINT_Z + dz], dtype=float)
+    fore_root_up = np.array([dx, WING_ROOT_MIDPOINT_Z + dz + stroke_offset_z], dtype=float)
+
+    lambda0 = float(params.get("wing_lb0", {}).get(fore_name, 1.0))
+    fore_wing = wings[fore_name]
+    have_forces = "lift" in fore_wing and "drag" in fore_wing
+
+    style = resolve_style(theme=theme)
+    apply_matplotlib_style(style)
+
+    fig, ax = plt.subplots(figsize=figure_size(1.0, width_in=3.25))
+    ax.set_aspect("equal")
+    ax.axis("off")
+    ax.set_xlim(-1.0, 1.0)
+    ax.set_ylim(-1.0, 1.0)
+    fig.patch.set_facecolor(style.figure_facecolor)
+    ax.set_facecolor(style.axes_facecolor)
+
+    force_scale = 0.05
+
+    def _draw_sticks(global_idxs, root):
+        cx_list, cz_list = [], []
+        lx_list, lz_list = [], []
+        dx_list, dz_list = [], []
+        for gi in global_idxs:
+            wing_state = {"e_r": fore_wing["e_r"][gi], "e_c": fore_wing["e_c"][gi]}
+            center, leading, trailing = compute_stick_endpoints(wing_state, root, STICK_LENGTH, station, lambda0)
+            ax.plot(
+                [trailing[0], leading[0]], [trailing[1], leading[1]],
+                "-", color=style.body_color, linewidth=1.5,
+            )
+            ax.plot(
+                leading[0], leading[1], "o",
+                markerfacecolor=style.axes_facecolor,
+                markeredgecolor=style.body_color,
+                markersize=3, markeredgewidth=1.0,
+            )
+            if have_forces:
+                cx_list.append(center[0])
+                cz_list.append(center[1])
+                lx_list.append(project_xz(fore_wing["lift"][gi])[0])
+                lz_list.append(project_xz(fore_wing["lift"][gi])[1])
+                dx_list.append(project_xz(fore_wing["drag"][gi])[0])
+                dz_list.append(project_xz(fore_wing["drag"][gi])[1])
+        if have_forces and cx_list:
+            ax.quiver(cx_list, cz_list,
+                      np.array(lx_list) * force_scale, np.array(lz_list) * force_scale,
+                      color=style.lift_color, angles="xy", scale_units="xy", scale=1,
+                      width=0.006, headwidth=3, headlength=4, headaxislength=3.5)
+            ax.quiver(cx_list, cz_list,
+                      np.array(dx_list) * force_scale, np.array(dz_list) * force_scale,
+                      color=style.drag_color, angles="xy", scale_units="xy", scale=1,
+                      width=0.006, headwidth=3, headlength=4, headaxislength=3.5)
+
+    _draw_sticks(down_global, fore_root_down)
+    _draw_sticks(up_global, fore_root_up)
+
+    plt.savefig(output_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
+    plt.close()
+    print(f"Saved: {output_path}")
+
+
+def plot_boundary_stroke_and_forces(
+    h5_path: Path,
+    output_path: Path,
+    *,
+    n_samples: int = 15,
+    stroke_offset: float = 0.3,
+    stroke_lim: float = 0.6,
+    force_scale: float = 0.02,
+    station: float = 2.0 / 3.0,
+    theme: str | None = None,
+) -> None:
+    """Combined stroke diagram + Fz + Fx panel for a reachable-boundary equilibrium.
+
+    Left panel: forewing chord-trace diagram (down/upstroke split, force arrows).
+    Middle panel: total Fz timeseries (lift vs drag decomposition).
+    Right panel: total Fx timeseries (lift vs drag decomposition).
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    from post.io import read_simulation
+    from post.plot_stick import (
+        STICK_LENGTH,
+        WING_ROOT_DISTANCE,
+        WING_ROOT_MIDPOINT_Z,
+        WING_ROOT_TILT_DEG,
+        compute_stick_endpoints,
+        project_xz,
+    )
+    from post.style import apply_matplotlib_style, figure_size, resolve_style
+
+    params, time, _, wings = read_simulation(str(h5_path))
+    omega = float(params["omega"])
+    T_wb = 2.0 * math.pi / omega
+
+    # Trim to last wingbeat
+    mask = time >= time[-1] - T_wb
+    time_wb = time[mask]
+    n_wb = len(time_wb)
+
+    # --- Stroke diagram setup (forewing) ---
+    fore_name = next((n for n in wings if n.lower().startswith("fore")), None)
+    if fore_name is None:
+        raise ValueError(f"No forewing found in {h5_path}; wings: {list(wings.keys())}")
+
+    phi_amp = float(np.asarray(params["wing_phi_amp"][fore_name], dtype=float)[0])
+    phi_phase = float(np.asarray(params["wing_phi_phase"][fore_name], dtype=float)[0])
+    phi_dot_mid = -phi_amp * omega * np.sin(omega * T_wb / 4 + phi_phase)
+    first_half_is_down = phi_dot_mid < 0
+
+    mid_idx = n_wb // 2
+
+    def _sample_indices(start, end):
+        total = end - start
+        if total <= 0:
+            return np.array([], dtype=int)
+        return np.round(np.linspace(0, total - 1, min(n_samples, total))).astype(int) + start
+
+    if first_half_is_down:
+        down_local = _sample_indices(0, mid_idx)
+        up_local = _sample_indices(mid_idx, n_wb)
+    else:
+        up_local = _sample_indices(0, mid_idx)
+        down_local = _sample_indices(mid_idx, n_wb)
+
+    global_indices = np.where(mask)[0]
+    down_global = global_indices[down_local]
+    up_global = global_indices[up_local]
+
+    half = 0.5 * WING_ROOT_DISTANCE
+    tilt = np.radians(WING_ROOT_TILT_DEG)
+    dx, dz = half * np.cos(tilt), half * np.sin(tilt)
+    fore_root_base = np.array([dx, WING_ROOT_MIDPOINT_Z + dz], dtype=float)
+
+    # Offset the two stroke traces along the stroke plane normal n = (sin γ, cos γ) in XZ.
+    gamma = float(params.get("wing_gamma_mean", {}).get(fore_name, 0.0))
+    n_stroke = np.array([math.sin(gamma), math.cos(gamma)], dtype=float)
+    fore_root_down = fore_root_base + 0.5 * stroke_offset * n_stroke
+    fore_root_up   = fore_root_base - 0.5 * stroke_offset * n_stroke
+
+    lambda0 = float(params.get("wing_lb0", {}).get(fore_name, 1.0))
+    fore_wing = wings[fore_name]
+    have_forces = "lift" in fore_wing and "drag" in fore_wing
+
+    # --- Force timeseries: sum lift/drag over all wings ---
+    first_wing = next(iter(wings.values()))
+    total_lift = np.zeros_like(np.asarray(first_wing["lift"][mask], dtype=float))
+    total_drag = np.zeros_like(total_lift)
+    for data in wings.values():
+        total_lift += np.asarray(data["lift"][mask], dtype=float)
+        total_drag += np.asarray(data["drag"][mask], dtype=float)
+    total_force = total_lift + total_drag
+
+    t = np.asarray(time_wb, dtype=float) * omega / (2.0 * math.pi)
+    t = t - float(t[0])
+
+    # --- Style ---
+    style = resolve_style(theme=theme)
+    apply_matplotlib_style(style)
+
+    fig = plt.figure(figsize=(9.75, 3.25))
+    gs = fig.add_gridspec(1, 3, width_ratios=[1.75, 1, 1], wspace=0.35)
+    ax_stroke = fig.add_subplot(gs[0])
+    ax_fz = fig.add_subplot(gs[1])
+    ax_fx = fig.add_subplot(gs[2])
+    fig.patch.set_facecolor(style.figure_facecolor)
+
+    # --- Left panel: stroke diagram ---
+    ax_stroke.set_aspect("equal")
+    ax_stroke.axis("off")
+    ax_stroke.set_xlim(-stroke_lim, stroke_lim)
+    ax_stroke.set_ylim(-stroke_lim, stroke_lim)
+    ax_stroke.set_facecolor(style.axes_facecolor)
+
+    def _draw_sticks(global_idxs, root):
+        cx_list, cz_list = [], []
+        lx_list, lz_list = [], []
+        dx_list, dz_list = [], []
+        for gi in global_idxs:
+            wing_state = {"e_r": fore_wing["e_r"][gi], "e_c": fore_wing["e_c"][gi]}
+            center, leading, trailing = compute_stick_endpoints(wing_state, root, STICK_LENGTH, station, lambda0)
+            ax_stroke.plot(
+                [trailing[0], leading[0]], [trailing[1], leading[1]],
+                "-", color=style.body_color, linewidth=1.5,
+            )
+            ax_stroke.plot(
+                leading[0], leading[1], "o",
+                markerfacecolor=style.axes_facecolor,
+                markeredgecolor=style.body_color,
+                markersize=3, markeredgewidth=1.0,
+            )
+            if have_forces:
+                cx_list.append(center[0])
+                cz_list.append(center[1])
+                lx_list.append(project_xz(fore_wing["lift"][gi])[0])
+                lz_list.append(project_xz(fore_wing["lift"][gi])[1])
+                dx_list.append(project_xz(fore_wing["drag"][gi])[0])
+                dz_list.append(project_xz(fore_wing["drag"][gi])[1])
+        if have_forces and cx_list:
+            ax_stroke.quiver(cx_list, cz_list,
+                             np.array(lx_list) * force_scale, np.array(lz_list) * force_scale,
+                             color=style.lift_color, angles="xy", scale_units="xy", scale=1,
+                             width=0.006, headwidth=3, headlength=4, headaxislength=3.5)
+            ax_stroke.quiver(cx_list, cz_list,
+                             np.array(dx_list) * force_scale, np.array(dz_list) * force_scale,
+                             color=style.drag_color, angles="xy", scale_units="xy", scale=1,
+                             width=0.006, headwidth=3, headlength=4, headaxislength=3.5)
+
+    def _draw_motion_arrow(global_idxs, root, chord_offset_length):
+        """Arrow from stroke start to end, offset in chord direction."""
+        if len(global_idxs) < 2:
+            return
+        try:
+            # Average chord direction over all sampled indices for robustness.
+            chord_sum = np.zeros(2, dtype=float)
+            for gi in global_idxs:
+                chord_sum += project_xz(fore_wing["e_c"][gi])
+            chord_norm = np.linalg.norm(chord_sum)
+            if chord_norm < 1e-9:
+                return
+            chord_dir = chord_sum / chord_norm
+            offset_vec = chord_offset_length * chord_dir
+
+            ws0 = {"e_r": fore_wing["e_r"][global_idxs[0]], "e_c": fore_wing["e_c"][global_idxs[0]]}
+            ws1 = {"e_r": fore_wing["e_r"][global_idxs[-1]], "e_c": fore_wing["e_c"][global_idxs[-1]]}
+            c0, _, _ = compute_stick_endpoints(ws0, root, STICK_LENGTH, station, lambda0)
+            c1, _, _ = compute_stick_endpoints(ws1, root, STICK_LENGTH, station, lambda0)
+            p_start = c0 + offset_vec
+            p_end   = c1 + offset_vec
+
+            if np.linalg.norm(p_end - p_start) < 1e-4:
+                return
+
+            ax_stroke.annotate(
+                "", xy=p_end, xytext=p_start,
+                arrowprops=dict(arrowstyle="->", color=style.body_color, lw=1.0),
+            )
+        except Exception:
+            pass
+
+    _draw_sticks(up_global, fore_root_up)
+    _draw_sticks(down_global, fore_root_down)
+    _draw_motion_arrow(down_global, fore_root_down, +1.0 * STICK_LENGTH)
+    _draw_motion_arrow(up_global, fore_root_up, -1.5 * STICK_LENGTH)
+
+    # --- Middle + right panels: force timeseries ---
+    panels = [
+        (ax_fz, 2, r"$\tilde{F}_z$"),
+        (ax_fx, 0, r"$\tilde{F}_x$"),
+    ]
+    legend_handles = None
+    for ax, comp, ylabel in panels:
+        h_lift, = ax.plot(t, total_lift[:, comp], color=style.lift_color, linewidth=1.5, label="Lift")
+        h_drag, = ax.plot(t, total_drag[:, comp], color=style.drag_color, linewidth=1.5, label="Drag")
+        h_total, = ax.plot(t, total_force[:, comp], color="C2", linewidth=1.7, label="Total", zorder=3)
+        ax.axhline(np.mean(total_force[:, comp]), linestyle="--", color="C2", linewidth=1.0, alpha=0.8)
+        ax.set_xlabel(r"$t/T_{wb}$")
+        ax.set_ylabel(ylabel)
+        ax.grid(True, alpha=0.25)
+        ax.set_xlim(0, 1)
+        if legend_handles is None:
+            legend_handles = [h_lift, h_drag, h_total]
+
+    ax_fz.legend(
+        handles=legend_handles,
+        loc="upper center",
+        bbox_to_anchor=(1.0, 1.15),
+        ncol=3,
+        fontsize="small",
+    )
+
+    fig.savefig(output_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
+    plt.close(fig)
+    print(f"Saved: {output_path}")
+
+
 def plot_reachable_set(
     h5_path: Path,
     output_path: Path,

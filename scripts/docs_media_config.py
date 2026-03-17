@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 
 
-SUPPORTED_SIMULATION_DRIVERS = {"yaml_case", "reachable"}
+SUPPORTED_SIMULATION_DRIVERS = {"yaml_case", "reachable", "multi_yaml_case"}
 SUPPORTED_THEMES = {"light", "dark"}
 SUPPORTED_ARTIFACT_KINDS = {
     "case_fore_hind_kinematics",
@@ -23,6 +23,8 @@ SUPPORTED_ARTIFACT_KINDS = {
     "mass_regression",
     "reachable_set",
     "reachable_boundary",
+    "forewing_stroke_diagram",
+    "boundary_stroke_and_forces",
 }
 
 
@@ -184,6 +186,14 @@ def _validate_artifact_common(
         _expect_nonempty_str(artifact.get("input_h5"), f"artifacts[{idx}].input_h5", path=path)
         return
 
+    if kind == "forewing_stroke_diagram":
+        _expect_nonempty_str(artifact.get("input_h5"), f"artifacts[{idx}].input_h5", path=path)
+        return
+
+    if kind == "boundary_stroke_and_forces":
+        _expect_nonempty_str(artifact.get("input_h5"), f"artifacts[{idx}].input_h5", path=path)
+        return
+
     if kind == "reachable_boundary":
         datasets = artifact.get("datasets")
         if isinstance(datasets, list):
@@ -235,6 +245,12 @@ def validate_post_config(config: Any, *, path: Path | None = None) -> dict[str, 
     _expect_nonempty_str(simulation.get("run_dir"), "simulation.run_dir", path=path)
     if driver == "yaml_case":
         _expect_nonempty_str(simulation.get("case_file"), "simulation.case_file", path=path)
+    if driver == "multi_yaml_case":
+        cases = simulation.get("cases")
+        if not isinstance(cases, list) or not cases:
+            raise ValueError(f"simulation.cases must be a non-empty list for driver=multi_yaml_case{_ctx(path)}")
+        for i, item in enumerate(cases):
+            _expect_nonempty_str(item, f"simulation.cases[{i}]", path=path)
     if driver == "reachable":
         has_legacy = simulation.get("reachable_config") is not None
         has_sweep = simulation.get("base_config") is not None

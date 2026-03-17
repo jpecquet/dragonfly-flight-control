@@ -139,10 +139,17 @@ def trim_to_wingbeats(time, wings, omega, n_wingbeats):
         return time, wings
 
     trimmed_time = np.asarray(time)[:last]
-    trimmed_wings = {
-        wing_name: {key: np.asarray(values)[:last] for key, values in wing_data.items()}
-        for wing_name, wing_data in wings.items()
-    }
+    trimmed_wings = {}
+    for wing_name, wing_data in wings.items():
+        trimmed_wings[wing_name] = {}
+        for key, values in wing_data.items():
+            if isinstance(values, dict):
+                trimmed_wings[wing_name][key] = {
+                    k: np.asarray(v)[:last] for k, v in values.items()
+                    if np.asarray(v).ndim >= 1
+                }
+            else:
+                trimmed_wings[wing_name][key] = np.asarray(values)[:last]
     return trimmed_time, trimmed_wings
 
 

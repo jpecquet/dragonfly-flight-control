@@ -1,0 +1,68 @@
+version: 1
+simulation:
+  driver: multi_yaml_case
+  cases:
+  - cases/reachable_hover/case_0_sync.yaml
+  - cases/reachable_hover/case_1_sync.yaml
+  - cases/reachable_hover/case_2_sync.yaml
+  - cases/reachable_hover/case_3_sync.yaml
+  - cases/reachable_hover/case_4_sync.yaml
+  - cases/reachable_hover/case_5_sync.yaml
+  - cases/reachable_hover/case_6_sync.yaml
+  - cases/reachable_hover/case_7_sync.yaml
+  run_dir: docs/research/reachable/artifacts/hover_sync
+  binary: build/bin/dragonfly
+docs_media:
+  media_dir: docs/_static/media/reachable
+  themes:
+  - light
+  - dark
+artifacts:
+- kind: boundary_stroke_and_forces
+  input_h5: '{run_dir}/branch_0/output.h5'
+  output: reachable_hover_0_panel.{theme}.png
+  n_samples: 10
+  stroke_lim: 0.5
+  force_scale: 0.06
+- kind: boundary_stroke_and_forces
+  input_h5: '{run_dir}/branch_1/output.h5'
+  output: reachable_hover_1_panel.{theme}.png
+  n_samples: 10
+  stroke_lim: 0.5
+  force_scale: 0.06
+- kind: boundary_stroke_and_forces
+  input_h5: '{run_dir}/branch_2/output.h5'
+  output: reachable_hover_2_panel.{theme}.png
+  n_samples: 10
+  stroke_lim: 0.5
+  force_scale: 0.06
+- kind: boundary_stroke_and_forces
+  input_h5: '{run_dir}/branch_3/output.h5'
+  output: reachable_hover_3_panel.{theme}.png
+  n_samples: 10
+  stroke_lim: 0.5
+  force_scale: 0.06
+- kind: boundary_stroke_and_forces
+  input_h5: '{run_dir}/branch_4/output.h5'
+  output: reachable_hover_4_panel.{theme}.png
+  n_samples: 10
+  stroke_lim: 0.5
+  force_scale: 0.06
+- kind: boundary_stroke_and_forces
+  input_h5: '{run_dir}/branch_5/output.h5'
+  output: reachable_hover_5_panel.{theme}.png
+  n_samples: 10
+  stroke_lim: 0.5
+  force_scale: 0.06
+- kind: boundary_stroke_and_forces
+  input_h5: '{run_dir}/branch_6/output.h5'
+  output: reachable_hover_6_panel.{theme}.png
+  n_samples: 10
+  stroke_lim: 0.5
+  force_scale: 0.06
+- kind: boundary_stroke_and_forces
+  input_h5: '{run_dir}/branch_7/output.h5'
+  output: reachable_hover_7_panel.{theme}.png
+  n_samples: 10
+  stroke_lim: 0.5
+  force_scale: 0.06

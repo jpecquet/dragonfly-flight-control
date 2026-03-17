@@ -1,0 +1,58 @@
+case_id: reachable_boundary_2
+description: 'Reachable boundary: slow climb, large forward component'
+specimen:
+  body_length: 0.04
+  body_mass: 0.0003249
+  frequency: 62.6418
+environment:
+  rho_air: 1.225
+  gravity: 9.81
+simulation:
+  n_wingbeats: 3
+  steps_per_wingbeat: 200
+  n_blade_elements: 1
+tether: true
+initial_state:
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  ux: 13.684211
+  uy: 0.0
+  uz: 5.263158
+wings:
+  fore:
+    span: 0.03
+    area: 0.000221
+    drag_coeff_set: wang2004
+    lift_coeff_set: wang2004
+    kinematics:
+      gamma:
+        mean: 66.4526
+      phi:
+        mean: 0.0
+        harmonics:
+        - - 85.8692
+          - 0.0
+      psi:
+        mean: 0.0
+        harmonics:
+        - - 36.3791
+          - 91.3765
+  hind:
+    span: 0.03
+    area: 0.000221
+    drag_coeff_set: wang2004
+    lift_coeff_set: wang2004
+    kinematics:
+      gamma:
+        mean: 66.4526
+      phi:
+        mean: 0.0
+        harmonics:
+        - - 85.8692
+          - 180.0
+      psi:
+        mean: 0.0
+        harmonics:
+        - - 36.3791
+          - 271.3765
