@@ -110,6 +110,7 @@ private:
     std::vector<double> blade_eta_;          // Span stations (0..1, root->tip)
     std::vector<double> blade_area_weights_; // Area fractions, sum to 1
     PitchTwistH1Model pitch_twist_h1_;
+    double pitch_twist_h1_ref_coeff_ = 0.0; // Cached std::hypot(c1, s1) — immutable after construction
     std::vector<double> twist_h1_scales_;    // Per-blade scale on first pitch harmonic
     AngleFunc angleFunc_;  // Function to compute angles from time
 };

@@ -190,40 +190,6 @@ static void updateWingAngleFuncs(std::vector<Wing>& wings, const KinematicParams
     }
 }
 
-// Objective function (pre-allocated buffers version - use in hot paths)
-
-double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
-                         OptimBuffers& buf, double ux, double uz, int N) {
-    updateWingAngleFuncs(buf.wings, kin, phys);
-
-    double omega = kin.omega.value;
-    double T = 2.0 * M_PI / omega;
-    double dt = T / N;
-
-    Vec3 a_mean = Vec3::Zero();
-    double t = 0.0;
-    State state(Vec3::Zero(), Vec3(ux, 0.0, uz));
-
-    while (t < T) {
-        StateDerivative d1 = equationOfMotion(t, state, buf.wings, buf.scratch1);
-        StateDerivative d2 = equationOfMotion(t + dt, state, buf.wings, buf.scratch2);
-
-        a_mean += (dt / T) * (d1.accel + d2.accel) / 2.0;
-        t += dt;
-    }
-
-    return a_mean.squaredNorm();
-}
-
-// Convenience overload (allocates internally, for one-off calls)
-
-double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
-                         double ux, double uz, int N) {
-    OptimBuffers buf;
-    buf.init(kin, phys);
-    return wingBeatAccel(kin, phys, buf, ux, uz, N);
-}
-
 // wingBeatAccelVec: returns the wingbeat-averaged acceleration vector
 
 Vec3 wingBeatAccelVec(const KinematicParams& kin, const PhysicalParams& phys,
@@ -249,6 +215,22 @@ Vec3 wingBeatAccelVec(const KinematicParams& kin, const PhysicalParams& phys,
     return a_mean;
 }
 
+// Objective function (pre-allocated buffers version - use in hot paths)
+
+double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
+                         OptimBuffers& buf, double ux, double uz, int N) {
+    return wingBeatAccelVec(kin, phys, buf, ux, uz, N).squaredNorm();
+}
+
+// Convenience overload (allocates internally, for one-off calls)
+
+double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
+                         double ux, double uz, int N) {
+    OptimBuffers buf;
+    buf.init(kin, phys);
+    return wingBeatAccel(kin, phys, buf, ux, uz, N);
+}
+
 // findEquilibria: multi-start equilibrium search at a single (ux, uz) point
 
 namespace {
@@ -268,14 +250,16 @@ double nloptObjective(const std::vector<double>& x, [[maybe_unused]] std::vector
 }
 
 bool isNewBranch(const std::vector<EquilibriumBranch>& branches, const KinematicParams& sol, double tol = 1e-3) {
+    const std::vector<double> sol_vals = sol.variableValues();
+    const double tol_sq = tol * tol;
     for (const auto& prev : branches) {
-        std::vector<double> prev_vals = prev.kin.variableValues();
-        std::vector<double> sol_vals = sol.variableValues();
+        const std::vector<double> prev_vals = prev.kin.variableValues();
         double dist_sq = 0.0;
         for (size_t i = 0; i < prev_vals.size(); ++i) {
-            dist_sq += std::pow(prev_vals[i] - sol_vals[i], 2);
+            const double diff = prev_vals[i] - sol_vals[i];
+            dist_sq += diff * diff;
         }
-        if (std::sqrt(dist_sq) < tol) return false;
+        if (dist_sq < tol_sq) return false;
     }
     return true;
 }
@@ -381,12 +365,12 @@ LandscapeData computeLandscape(
         data.param1_values.resize(resolution);
         data.objective_values.resize(resolution, std::vector<double>(1));
 
+        KinematicParams kin = kin_template;
         for (int i = 0; i < resolution; ++i) {
             double t = static_cast<double>(i) / (resolution - 1);
             double val = lb[0] + t * (ub[0] - lb[0]);
             data.param1_values[i] = val;
 
-            KinematicParams kin = kin_template;
             kin.setVariableValues({val});
             double accel = std::sqrt(wingBeatAccel(kin, phys, buffers, ux, 0.0));
             data.objective_values[i][0] = accel;
@@ -406,12 +390,11 @@ LandscapeData computeLandscape(
             data.param2_values[j] = lb[1] + t2 * (ub[1] - lb[1]);
         }
 
+        KinematicParams kin = kin_template;
+        std::vector<double> x = kin_template.variableValues();
         for (int i = 0; i < resolution; ++i) {
             for (int j = 0; j < resolution; ++j) {
-                KinematicParams kin = kin_template;
-
                 // Set first two variable parameters; keep others at midpoint
-                std::vector<double> x = kin_template.variableValues();
                 x[0] = data.param1_values[i];
                 x[1] = data.param2_values[j];
                 kin.setVariableValues(x);

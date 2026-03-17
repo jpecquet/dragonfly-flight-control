@@ -49,41 +49,22 @@ std::vector<double> toScalarSeries(
     return result;
 }
 
+template<typename T>
 size_t bladeCountForWing(
     const std::vector<std::vector<SingleWingVectors>>& wing_data,
     size_t wing_index,
-    const std::vector<Vec3> SingleWingVectors::* vec_member
+    const std::vector<T> SingleWingVectors::* member
 ) {
     size_t count = 0;
     for (const auto& step : wing_data) {
         if (wing_index >= step.size()) {
             continue;
         }
-        const size_t n = (step[wing_index].*vec_member).size();
+        const size_t n = (step[wing_index].*member).size();
         if (count == 0) {
             count = n;
         } else if (n != count) {
-            throw std::runtime_error("Inconsistent per-blade vector count across timesteps");
-        }
-    }
-    return count;
-}
-
-size_t bladeCountForWing(
-    const std::vector<std::vector<SingleWingVectors>>& wing_data,
-    size_t wing_index,
-    const std::vector<double> SingleWingVectors::* scalar_member
-) {
-    size_t count = 0;
-    for (const auto& step : wing_data) {
-        if (wing_index >= step.size()) {
-            continue;
-        }
-        const size_t n = (step[wing_index].*scalar_member).size();
-        if (count == 0) {
-            count = n;
-        } else if (n != count) {
-            throw std::runtime_error("Inconsistent per-blade scalar count across timesteps");
+            throw std::runtime_error("Inconsistent per-blade count across timesteps");
         }
     }
     return count;

@@ -101,13 +101,13 @@ void buildCompositeEllipseBladeGrid(int n_blades, std::vector<double>& eta,
     for (double& w : area_weights) w /= sum_w;
 }
 
-void buildTwistH1Scales(const PitchTwistH1Model& twist_model,
-                        const std::vector<double>& blade_eta,
-                        std::vector<double>& scales) {
+double buildTwistH1Scales(const PitchTwistH1Model& twist_model,
+                          const std::vector<double>& blade_eta,
+                          std::vector<double>& scales) {
     scales.clear();
     scales.resize(blade_eta.size(), 1.0);
     if (!twist_model.enabled) {
-        return;
+        return 0.0;
     }
     if (!std::isfinite(twist_model.ref_eta) || twist_model.ref_eta <= 0.0) {
         throw std::runtime_error("pitch twist ref_eta must be finite and > 0");
@@ -126,6 +126,7 @@ void buildTwistH1Scales(const PitchTwistH1Model& twist_model,
             ((ref_coeff - twist_model.root_coeff) * (eta / twist_model.ref_eta)) + twist_model.root_coeff;
         scales[i] = coeff_eta / ref_coeff;
     }
+    return ref_coeff;
 }
 }  // namespace
 
@@ -136,7 +137,7 @@ Wing::Wing(const std::string& name, double mu0, double lb0, WingSide side,
       n_blade_elements_(std::max(1, n_blade_elements)),
       blade_(aero_params), pitch_twist_h1_(pitch_twist_h1), angleFunc_(std::move(angleFunc)) {
     buildCompositeEllipseBladeGrid(n_blade_elements_, blade_eta_, blade_area_weights_);
-    buildTwistH1Scales(pitch_twist_h1_, blade_eta_, twist_h1_scales_);
+    pitch_twist_h1_ref_coeff_ = buildTwistH1Scales(pitch_twist_h1_, blade_eta_, twist_h1_scales_);
 }
 
 Wing::Wing(const std::string& name, double mu0, double lb0, WingSide side,
@@ -234,7 +235,7 @@ Vec3 Wing::computeForce(
         const double eta_ref = SPAN_EVAL_POINT;
         double psi_ref = angles.psi;
         if (pitch_twist_h1_.enabled) {
-            const double ref_coeff = std::hypot(pitch_twist_h1_.c1, pitch_twist_h1_.s1);
+            const double ref_coeff = pitch_twist_h1_ref_coeff_;
             if (ref_coeff > EPS) {
                 const double coeff_eta =
                     ((ref_coeff - pitch_twist_h1_.root_coeff) * (eta_ref / pitch_twist_h1_.ref_eta))
