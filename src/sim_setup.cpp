@@ -166,6 +166,27 @@ void populateWingMotion(
     applyWingAngleOverrides(entry, wing_label, "psi", n_harmonics, out.psi);
     applyWingAngleOverrides(entry, wing_label, "cone", n_harmonics, out.cone);
 
+    if (const std::string* v = findOverride(entry, "phi_waveform")) {
+        if (*v == "berman") out.phi_waveform = PhiWaveform::Berman;
+        else if (*v == "fourier") out.phi_waveform = PhiWaveform::Fourier;
+        else throw std::runtime_error("wing '" + wing_label + "' phi_waveform must be 'fourier' or 'berman'");
+    }
+    if (const std::string* v = findOverride(entry, "phi_k")) {
+        out.phi_k = parseutil::parseDoubleStrict(*v, "wing '" + wing_label + "' key 'phi_k'");
+        if (out.phi_k <= 0.0 || out.phi_k >= 1.0)
+            throw std::runtime_error("wing '" + wing_label + "' phi_k must be in (0, 1)");
+    }
+    if (const std::string* v = findOverride(entry, "psi_waveform")) {
+        if (*v == "berman") out.psi_waveform = PsiWaveform::Berman;
+        else if (*v == "fourier") out.psi_waveform = PsiWaveform::Fourier;
+        else throw std::runtime_error("wing '" + wing_label + "' psi_waveform must be 'fourier' or 'berman'");
+    }
+    if (const std::string* v = findOverride(entry, "psi_k")) {
+        out.psi_k = parseutil::parseDoubleStrict(*v, "wing '" + wing_label + "' key 'psi_k'");
+        if (out.psi_k <= 0.0)
+            throw std::runtime_error("wing '" + wing_label + "' psi_k must be > 0");
+    }
+
     out.has_custom_motion = true;
 }
 
@@ -391,6 +412,26 @@ SimKinematicParams readKinematicParams(const Config& cfg) {
     loadAngleSeries(cfg, "psi", kin.n_harmonics, cfg.getDouble("psi_mean", 0.0), kin.psi);
     loadAngleSeries(cfg, "cone", kin.n_harmonics, cfg.getDouble("cone_mean", 0.0), kin.cone);
 
+    const std::string phi_waveform_str = cfg.getString("phi_waveform", "fourier");
+    if (phi_waveform_str == "berman") {
+        kin.phi_waveform = PhiWaveform::Berman;
+        kin.phi_k = cfg.getDouble("phi_k");
+        if (kin.phi_k <= 0.0 || kin.phi_k >= 1.0)
+            throw std::runtime_error("phi_k must be in (0, 1) for berman waveform");
+    } else if (phi_waveform_str != "fourier") {
+        throw std::runtime_error("phi_waveform must be 'fourier' or 'berman'");
+    }
+
+    const std::string psi_waveform_str = cfg.getString("psi_waveform", "fourier");
+    if (psi_waveform_str == "berman") {
+        kin.psi_waveform = PsiWaveform::Berman;
+        kin.psi_k = cfg.getDouble("psi_k");
+        if (kin.psi_k <= 0.0)
+            throw std::runtime_error("psi_k must be > 0 for berman waveform");
+    } else if (psi_waveform_str != "fourier") {
+        throw std::runtime_error("psi_waveform must be 'fourier' or 'berman'");
+    }
+
     return kin;
 }
 
@@ -454,7 +495,8 @@ std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinema
 
         auto angleFunc = makeAngleFunc(
             motion.gamma, motion.phi, motion.psi,
-            w.phase_offset, motion.omega, motion.harmonic_period_wingbeats, motion.cone
+            w.phase_offset, motion.omega, motion.harmonic_period_wingbeats, motion.cone,
+            motion.phi_waveform, motion.phi_k, motion.psi_waveform, motion.psi_k
         );
         PitchTwistH1Model twist;
         if (w.has_psi_twist_h1) {

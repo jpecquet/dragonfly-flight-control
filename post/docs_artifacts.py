@@ -915,6 +915,48 @@ def plot_mass_regression(
     plt.close(fig)
 
 
+def render_tracking_video_from_h5(
+    input_h5: Path,
+    output_video: Path,
+    *,
+    render_config: Path,
+    theme: str | None = None,
+    no_blender: bool = False,
+    frame_step: int = 1,
+) -> None:
+    """Render a tracking simulation video (dragonfly + target) from an HDF5 file."""
+    from post.composite import check_blender_available, render_hybrid, render_mpl_only
+    from post.hybrid_config import HybridConfig
+    from post.io import read_tracking
+    from post.style import apply_theme_to_config
+
+    params, time, states, wings, controller = read_tracking(str(input_h5))
+
+    config = HybridConfig.load(str(render_config))
+    config = apply_theme_to_config(config, theme)
+
+    if no_blender:
+        render_mpl_only(
+            states, wings, params, str(output_video),
+            controller=controller, config=config, frame_step=frame_step,
+        )
+        return
+
+    if check_blender_available():
+        render_hybrid(
+            states, wings, params,
+            str(input_h5), str(output_video),
+            time=time, controller=controller, config=config,
+            frame_step=frame_step,
+        )
+        return
+
+    render_mpl_only(
+        states, wings, params, str(output_video),
+        controller=controller, config=config, frame_step=frame_step,
+    )
+
+
 def render_simulation_video_from_h5(
     input_h5: Path,
     output_video: Path,

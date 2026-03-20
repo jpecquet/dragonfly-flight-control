@@ -24,7 +24,9 @@ from PIL import Image
 
 from .hybrid_config import HybridConfig, BlenderRenderConfig, compute_viewport
 from .mpl_overlay import (
+    adapt_camera_for_tracking,
     compute_blender_ortho_scale,
+    compute_blender_ortho_scale_2d,
     render_all_frames_parallel,
 )
 from .annotation_overlay import render_annotation_frames, build_wingtip_paths_bottom_payload
@@ -772,10 +774,20 @@ def render_hybrid(
         targets = controller['target_position'] if controller else None
         config.viewport = compute_viewport(states, targets=targets)
 
+    if controller is not None:
+        config.camera = adapt_camera_for_tracking(
+            config.camera, config.viewport, config.style, show_axes=bool(config.show_axes)
+        )
+
     # Compute exact ortho_scale and center offset from matplotlib projection
-    ortho_scale, (offset_x, offset_y) = compute_blender_ortho_scale(
-        config.camera, config.viewport, config.style, show_axes=bool(config.show_axes)
-    )
+    if controller is not None:
+        ortho_scale, (offset_x, offset_y) = compute_blender_ortho_scale_2d(
+            config.camera, config.viewport, config.style, show_axes=bool(config.show_axes)
+        )
+    else:
+        ortho_scale, (offset_x, offset_y) = compute_blender_ortho_scale(
+            config.camera, config.viewport, config.style, show_axes=bool(config.show_axes)
+        )
     config.blender.computed_ortho_scale = ortho_scale
     config.blender.center_offset_x = offset_x
     config.blender.center_offset_y = offset_y
@@ -906,6 +918,11 @@ def render_mpl_only(
     if config.viewport is None:
         targets = controller['target_position'] if controller else None
         config.viewport = compute_viewport(states, targets=targets)
+
+    if controller is not None:
+        config.camera = adapt_camera_for_tracking(
+            config.camera, config.viewport, config.style, show_axes=bool(config.show_axes)
+        )
 
     n_frames = len(states)
     n_workers = config.n_workers if config.n_workers > 0 else (os.cpu_count() or MAX_PARALLEL_WORKERS)

@@ -3,28 +3,17 @@
 #include "sim_setup.hpp"
 #include "trajectory_controller.hpp"
 
-#include <cmath>
 #include <iostream>
 #include <string>
 
 namespace {
 
-// Compute the first-harmonic amplitude of a HarmonicSeries
 double firstHarmonicAmplitude(const HarmonicSeries& s) {
     return s.amplitude_coeff.empty() ? 0.0 : s.amplitude_coeff[0];
 }
 
-void applyControlOutput(const ControlOutput& ctrl,
-                        double& gamma_mean_cmd,
-                        double& psi_mean_cmd,
-                        double& phi_amp_cmd) {
-    gamma_mean_cmd = ctrl.gamma_mean;
-    psi_mean_cmd = ctrl.psi_mean;
-    phi_amp_cmd = ctrl.phi_amp;
-}
-
 void appendControllerState(SimulationOutput& output,
-                           const TrajectoryController& controller,
+                           const PursuitController& controller,
                            const ControlOutput& ctrl) {
     const auto& cs = controller.lastState();
     output.target_positions.push_back(cs.target_pos);
@@ -42,18 +31,12 @@ int runTrack(const Config& cfg) {
     auto tp = readTimeParams(cfg, kin.omega);
     std::string output_file = cfg.getString("output");
 
-    // PID gains
-    PIDGains x_gains = readPIDGains(cfg, "pid_x_", {2.0, 0.5, 0.8, 1.0});
-    PIDGains y_gains = readPIDGains(cfg, "pid_y_", {2.0, 0.5, 0.8, 1.0});
-    PIDGains z_gains = readPIDGains(cfg, "pid_z_", {4.0, 1.0, 1.2, 2.0});
-
     // Trajectory
     std::string traj_spec = cfg.getString("trajectory", "hover 0.0 0.0 0.0");
     TrajectoryFunc trajectory = trajectories::parse(traj_spec);
 
-    // Parameter bounds and mixing matrix
+    // Parameter bounds
     ParameterBounds bounds = readParameterBounds(cfg);
-    MixingMatrix mixing = readMixingMatrix(cfg);
 
     auto wingConfigs = buildWingConfigs(cfg, kin);
     auto wings = createWings(wingConfigs, kin);
@@ -88,7 +71,7 @@ int runTrack(const Config& cfg) {
         phi_amp_base = kin_phi_amp;
     }
 
-    // Controller-updated parameters shared by all pre-bound wing angle lambdas.
+    // Controller-updated gamma; psi and phi_amp are held fixed at baseline.
     double gamma_mean_cmd = gamma_mean_base;
     double psi_mean_cmd = psi_mean_base;
     double phi_amp_cmd = phi_amp_base;
@@ -114,17 +97,22 @@ int runTrack(const Config& cfg) {
             psi_mean_cmd,
             phi_amp_cmd,
             EPS,
-            base_motion.cone
+            base_motion.cone,
+            base_motion.phi_waveform,
+            base_motion.phi_k,
+            base_motion.psi_waveform,
+            base_motion.psi_k
         );
         wings[w].setAngleFunc(std::move(angleFunc));
     }
 
-    // Setup controller
-    TrajectoryController controller;
-    controller.setGains(x_gains, y_gains, z_gains);
+    // Setup pursuit controller
+    double kp = cfg.getDouble("pursuit_kp", 1.0);
+    PursuitController controller;
+    controller.setGain(kp);
+    controller.setOmega(kin.omega);
     controller.setTrajectory(std::move(trajectory));
     controller.setBaseline(gamma_mean_base, psi_mean_base, phi_amp_base);
-    controller.setMixing(mixing);
     controller.setBounds(bounds);
 
     // Controller data storage
@@ -145,37 +133,30 @@ int runTrack(const Config& cfg) {
 
     // Initial controller state
     auto ctrl = controller.compute(t, tp.dt, state);
-    applyControlOutput(ctrl, gamma_mean_cmd, psi_mean_cmd, phi_amp_cmd);
+    gamma_mean_cmd = ctrl.gamma_mean;
     appendControllerState(output, controller, ctrl);
 
     // Time integration with controller
-    std::cout << "Running trajectory tracking for " << cfg.getInt("n_wingbeats", 5)
-              << " wingbeats..." << std::endl;
+    std::cout << "Running pursuit tracking for " << cfg.getInt("n_wingbeats", 5)
+              << " wingbeats (pursuit_kp=" << kp << ")..." << std::endl;
 
     for (int i = 0; i < tp.nsteps; ++i) {
-        // Controller is already computed for i=0 at t=0.
         if (i > 0) {
             ctrl = controller.compute(t, tp.dt, state);
-            applyControlOutput(ctrl, gamma_mean_cmd, psi_mean_cmd, phi_amp_cmd);
+            gamma_mean_cmd = ctrl.gamma_mean;
         }
 
-        // 2. Physics step
         state = stepRK4(t, tp.dt, state, wings, scratch);
         t += tp.dt;
 
-        // Store outputs
         storeTimestep(output, t, state, wings, wing_data);
-
-        // Store controller state
         appendControllerState(output, controller, ctrl);
     }
 
     // Report final tracking error
     const auto& final_cs = controller.lastState();
-    double final_error = final_cs.pos_error.norm();
-    std::cout << "Final position error: " << final_error << std::endl;
+    std::cout << "Final position error: " << final_cs.pos_error.norm() << std::endl;
 
-    // Write output
     writeHDF5(output_file, output, wings);
     std::cout << "Output written to " << output_file << std::endl;
 

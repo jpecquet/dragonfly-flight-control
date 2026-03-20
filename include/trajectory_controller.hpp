@@ -53,6 +53,36 @@ struct ControllerState {
     ControlOutput params;
 };
 
+// Pursuit controller: tracks a moving target using proportional control of the stroke plane angle.
+// psi_mean and phi_amp are held fixed at baseline values. gamma_mean is modulated by a
+// proportional gain applied to the signed angle between the wingbeat-averaged body velocity
+// and the target direction (target position relative to dragonfly body center of mass).
+// Velocity is smoothed with an exponential moving average whose time constant equals one
+// wingbeat period (tau = 2*pi / omega), suppressing the within-wingbeat oscillation that
+// otherwise causes chattering in the control output.
+class PursuitController {
+public:
+    void setGain(double kp) { kp_ = kp; }
+    void setOmega(double omega) { omega_ = omega; }
+    void setTrajectory(TrajectoryFunc traj) { trajectory_ = std::move(traj); }
+    void setBaseline(double gamma_mean, double psi_mean, double phi_amp);
+    void setBounds(const ParameterBounds& bounds) { bounds_ = bounds; }
+
+    ControlOutput compute(double t, double dt, const State& state);
+    const ControllerState& lastState() const { return last_state_; }
+
+private:
+    double kp_ = 1.0;
+    double omega_ = 1.0;           // Wingbeat angular frequency (nondim)
+    double gamma_mean_base_ = 0.0;
+    double psi_mean_base_ = 0.0;
+    double phi_amp_base_ = 0.0;
+    Vec3 vel_avg_ = Vec3::Zero();  // EMA-smoothed velocity
+    TrajectoryFunc trajectory_ = nullptr;
+    ParameterBounds bounds_;
+    ControllerState last_state_;
+};
+
 // Trajectory tracking controller
 // Coordinates 3 PID controllers (one per axis) and maps outputs to kinematic parameters
 class TrajectoryController {

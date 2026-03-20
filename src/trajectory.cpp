@@ -79,6 +79,12 @@ TrajectoryFunc waypoints(const std::vector<Vec3>& pts, const std::vector<double>
     };
 }
 
+TrajectoryFunc linear(const Vec3& start, const Vec3& vel) {
+    return [start, vel](double t) -> TrajectoryPoint {
+        return {start + vel * t, vel};
+    };
+}
+
 namespace {
 
 // Helper to parse a Vec3 from "x,y,z" format
@@ -142,6 +148,13 @@ TrajectoryFunc parse(const std::string& spec) {
         }
 
         return waypoints(pts, times);
+    }
+
+    if (type == "linear") {
+        double x, y, z, vx, vy, vz;
+        if (!(iss >> x >> y >> z >> vx >> vy >> vz))
+            throw std::runtime_error("linear requires: x y z vx vy vz");
+        return linear(Vec3(x, y, z), Vec3(vx, vy, vz));
     }
 
     throw std::runtime_error("Unknown trajectory type: " + type);

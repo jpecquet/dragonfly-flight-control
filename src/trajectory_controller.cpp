@@ -2,6 +2,52 @@
 
 #include <algorithm>
 
+void PursuitController::setBaseline(double gamma_mean, double psi_mean, double phi_amp) {
+    gamma_mean_base_ = gamma_mean;
+    psi_mean_base_ = psi_mean;
+    phi_amp_base_ = phi_amp;
+}
+
+ControlOutput PursuitController::compute(double t, double dt, const State& state) {
+    // Update velocity EMA; time constant = one wingbeat period (2*pi / omega)
+    const double alpha = std::exp(-dt * omega_ / (2.0 * M_PI));
+    vel_avg_ = alpha * vel_avg_ + (1.0 - alpha) * state.vel;
+
+    TrajectoryPoint target = trajectory_(t);
+    Vec3 r = target.position - state.pos;  // Target direction vector
+
+    double gamma_mean = gamma_mean_base_;
+
+    const double r_norm = r.norm();
+    const double v_norm = vel_avg_.norm();
+
+    if (r_norm > 1e-12 && v_norm > 1e-12) {
+        Vec3 r_hat = r / r_norm;
+        Vec3 v_hat = vel_avg_ / v_norm;
+
+        // Unsigned angle between velocity and target direction
+        double alpha = std::acos(std::clamp(v_hat.dot(r_hat), -1.0, 1.0));
+
+        // Sign: positive y-component of v_hat x r_hat means the target is above the velocity
+        // direction in the xz-plane, so we tilt the stroke plane forward (increase gamma_mean).
+        double sign = (v_hat.cross(r_hat).y() >= 0.0) ? 1.0 : -1.0;
+
+        gamma_mean = std::clamp(gamma_mean_base_ + kp_ * sign * alpha,
+                                bounds_.gamma_mean_min, bounds_.gamma_mean_max);
+    }
+
+    last_state_ = {
+        target.position,
+        target.velocity,
+        r,
+        target.velocity - state.vel,
+        Vec3::Zero(),
+        {gamma_mean, psi_mean_base_, phi_amp_base_, gamma_mean_base_, psi_mean_base_, phi_amp_base_}
+    };
+
+    return {gamma_mean, psi_mean_base_, phi_amp_base_, gamma_mean_base_, psi_mean_base_, phi_amp_base_};
+}
+
 TrajectoryController::TrajectoryController()
     : trajectory_(trajectories::hover(Vec3::Zero())) {}
 

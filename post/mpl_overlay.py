@@ -129,6 +129,146 @@ def compute_blender_ortho_scale(
     return ortho_scale, (center_offset_x, center_offset_y)
 
 
+def create_tracking_figure_2d(camera: CameraConfig, style: StyleConfig) -> Tuple[plt.Figure, plt.Axes]:
+    """Create figure with 2D axes for the XZ side-view tracking plot."""
+    fig, ax = plt.subplots(figsize=camera.figsize, dpi=camera.dpi)
+    fig.patch.set_facecolor(style.figure_facecolor)
+    ax.set_facecolor(style.axes_facecolor)
+    return fig, ax
+
+
+def setup_tracking_axes_2d(
+    ax: plt.Axes,
+    viewport: ViewportConfig,
+    style: StyleConfig,
+    show_axes: bool = True,
+) -> None:
+    """Configure 2D XZ side-view axes for tracking plots.
+
+    Does not set aspect='equal'. Instead the figure height is pre-computed by
+    adapt_camera_for_tracking so the axes naturally fills the available space
+    at the correct data aspect ratio.
+    """
+    half = viewport.half_extent_xyz
+    ax.set_xlim(viewport.center[0] - half[0], viewport.center[0] + half[0])
+    ax.set_ylim(viewport.center[2] - half[2], viewport.center[2] + half[2])
+
+    if not show_axes:
+        ax.set_axis_off()
+        ax.set_position([0.0, 0.0, 1.0, 1.0])
+        return
+
+    ax.set_xlabel(r'$\tilde{X}$', fontsize=10, color=style.text_color)
+    ax.set_ylabel(r'$\tilde{Z}$', fontsize=10, color=style.text_color)
+    ax.tick_params(colors=style.text_color, which='both')
+    for spine in ax.spines.values():
+        spine.set_edgecolor(style.axes_edge_color)
+    ax.grid(True, color=style.grid_color, alpha=0.45)
+    ax.xaxis.set_major_locator(MultipleLocator(_major_tick_step(float(viewport.extent_xyz[0]))))
+    ax.yaxis.set_major_locator(MultipleLocator(_major_tick_step(float(viewport.extent_xyz[2]))))
+
+
+def compute_blender_ortho_scale_2d(
+    camera: CameraConfig,
+    viewport: ViewportConfig,
+    style: Optional[StyleConfig] = None,
+    show_axes: bool = True,
+) -> Tuple[float, Tuple[float, float]]:
+    """
+    Compute Blender ortho_scale to match a 2D XZ tracking plot.
+
+    The Blender camera looks along -Y, so the horizontal direction in the
+    render maps to the world X axis. We measure the axes bounding box to find
+    the exact pixels-per-world-unit ratio.
+    """
+    resolved_style = style if style is not None else StyleConfig.themed('light')
+    apply_matplotlib_style(resolved_style)
+    fig, ax = create_tracking_figure_2d(camera, resolved_style)
+    setup_tracking_axes_2d(ax, viewport, resolved_style, show_axes=show_axes)
+    if show_axes:
+        fig.tight_layout()
+    fig.canvas.draw()
+
+    render_width, render_height = camera.resolution
+
+    bbox = ax.get_window_extent()
+    ax_width_px = bbox.width
+    x_extent = float(viewport.extent_xyz[0])
+    pixels_per_world = ax_width_px / x_extent
+    ortho_scale = render_width / pixels_per_world
+
+    c = viewport.center
+    center_disp = ax.transData.transform([(c[0], c[2])])[0]
+    center_offset_x = center_disp[0] - render_width / 2
+    center_offset_y = center_disp[1] - render_height / 2
+
+    plt.close(fig)
+    return ortho_scale, (center_offset_x, center_offset_y)
+
+
+def _even_px_height(figsize_height: float, dpi: int) -> float:
+    """Round figsize_height up so that height_px = int(figsize_height * dpi) is even."""
+    px = int(figsize_height * dpi)
+    if px % 2 != 0:
+        px += 1
+    return px / dpi
+
+
+def adapt_camera_for_tracking(
+    camera: CameraConfig,
+    viewport: ViewportConfig,
+    style: StyleConfig,
+    show_axes: bool = True,
+) -> CameraConfig:
+    """
+    Return a copy of CameraConfig with figsize_height adapted to the XZ data aspect ratio.
+
+    Builds a dummy figure to measure the absolute label margins from tight_layout, then
+    sets figsize_height so the axes (at the correct XZ aspect ratio) fills the figure
+    with no wasted top/bottom whitespace.
+    """
+    import copy
+
+    x_extent = float(viewport.extent_xyz[0])
+    z_extent = float(viewport.extent_xyz[2])
+    data_aspect = z_extent / x_extent
+
+    new_cam = copy.copy(camera)
+
+    if not show_axes:
+        new_cam.figsize_height = _even_px_height(camera.figsize_width * data_aspect, camera.dpi)
+        return new_cam
+
+    # Measure label margins with a dummy figure (no aspect constraint so tight_layout
+    # gives us pure label-margin sizes).
+    apply_matplotlib_style(style)
+    fig, ax = plt.subplots(figsize=camera.figsize, dpi=camera.dpi)
+    fig.patch.set_facecolor(style.figure_facecolor)
+    half = viewport.half_extent_xyz
+    ax.set_xlim(viewport.center[0] - half[0], viewport.center[0] + half[0])
+    ax.set_ylim(viewport.center[2] - half[2], viewport.center[2] + half[2])
+    ax.set_xlabel(r'$\tilde{X}$', fontsize=10, color=style.text_color)
+    ax.set_ylabel(r'$\tilde{Z}$', fontsize=10, color=style.text_color)
+    ax.tick_params(colors=style.text_color, which='both')
+    ax.xaxis.set_major_locator(MultipleLocator(_major_tick_step(x_extent)))
+    ax.yaxis.set_major_locator(MultipleLocator(_major_tick_step(z_extent)))
+    fig.tight_layout()
+    fig.canvas.draw()
+
+    pos = ax.get_position()  # fractional axes bbox after tight_layout
+    # Convert fractional margins to absolute inches using the original figsize
+    left_in   = pos.x0 * camera.figsize_width
+    right_in  = (1.0 - pos.x1) * camera.figsize_width
+    bottom_in = pos.y0 * camera.figsize_height
+    top_in    = (1.0 - pos.y1) * camera.figsize_height
+    plt.close(fig)
+
+    ax_width_in = camera.figsize_width - left_in - right_in
+    ax_height_in = ax_width_in * data_aspect
+    new_cam.figsize_height = _even_px_height(ax_height_in + bottom_in + top_in, camera.dpi)
+    return new_cam
+
+
 def create_overlay_figure(camera: CameraConfig, style: StyleConfig) -> Tuple[plt.Figure, Axes3D]:
     """
     Create matplotlib figure with transparent 3D axes.
@@ -427,12 +567,12 @@ def render_tracking_frame(
     config: HybridConfig,
     output_path: Path,
     draw_models: bool = False,
-    render_context: Optional[Tuple[plt.Figure, Axes3D]] = None,
+    render_context: Optional[Tuple] = None,
 ) -> str:
     """
-    Render matplotlib overlay for a tracking frame.
+    Render 2D XZ side-view overlay for a tracking frame.
 
-    Includes trajectory, target, and error visualization.
+    Shows the dragonfly trail, target trajectory, and current target marker.
 
     Args:
         frame_idx: Current frame index
@@ -447,80 +587,39 @@ def render_tracking_frame(
         Path to rendered PNG file
     """
     style = config.style
+    show_axes = bool(config.show_axes)
+
     if render_context is None:
         apply_matplotlib_style(style)
-        fig, ax = create_overlay_figure(config.camera, style)
+        fig, ax = create_tracking_figure_2d(config.camera, style)
+        setup_tracking_axes_2d(ax, config.viewport, style, show_axes=show_axes)
+        if show_axes:
+            fig.tight_layout()
     else:
         fig, ax = render_context
         ax.cla()
-    setup_axes(ax, config.viewport, config.camera, style, show_axes=bool(config.show_axes))
-
-    wing_lb0 = params.get('wing_lb0', {})
-
-    # Current state
-    xb = states[frame_idx][0:3]
-    v = _wing_frame(wing_vectors, frame_idx)
-    if draw_models:
-        _draw_body_and_wings(ax, xb, v, wing_lb0, style)
+        setup_tracking_axes_2d(ax, config.viewport, style, show_axes=show_axes)
 
     target = controller['target_position'][frame_idx]
-    error = controller['position_error'][frame_idx]
-    error_mag = np.linalg.norm(error)
 
-    # Draw full target trajectory (faded)
+    # Full target trajectory (faded dashed line)
     target_positions = controller['target_position']
     unique_targets = np.unique(target_positions, axis=0)
     if len(unique_targets) > 1:
-        ax.plot(target_positions[:, 0], target_positions[:, 1], target_positions[:, 2],
+        ax.plot(target_positions[:, 0], target_positions[:, 2],
                 color=style.target_color, linewidth=1.0, alpha=0.3, linestyle='--')
 
-    # Draw actual trajectory trail
+    # Actual trajectory trail
     trail_points = _trail_points(states, frame_idx, int(config.trail_length))
     if trail_points is not None:
-        ax.plot(trail_points[:, 0], trail_points[:, 1], trail_points[:, 2],
+        ax.plot(trail_points[:, 0], trail_points[:, 2],
                 color=style.trajectory_color,
                 linewidth=style.trajectory_linewidth,
                 alpha=0.7)
 
-    # Draw current target marker
-    ax.scatter([target[0]], [target[1]], [target[2]],
+    # Current target marker
+    ax.scatter([target[0]], [target[2]],
                color=style.target_color, s=style.marker_size, marker='o', alpha=0.8)
-
-    # Draw error line (current position to target)
-    if error_mag > 0.01:
-        ax.plot([xb[0], target[0]], [xb[1], target[1]], [xb[2], target[2]],
-                color=style.error_color, linewidth=1.5, linestyle='--', alpha=0.7)
-
-    if config.show_forces:
-        _draw_forces(ax, xb, v, wing_lb0, config)
-
-    # Add info text
-    text_lines = [
-        f"Error: {error_mag:.3f}",
-        f"Target: ({target[0]:.2f}, {target[1]:.2f}, {target[2]:.2f})",
-        f"Actual: ({xb[0]:.2f}, {xb[1]:.2f}, {xb[2]:.2f})",
-    ]
-    if config.show_velocity_text:
-        ux, uz = states[frame_idx][3], states[frame_idx][5]
-        text_lines.append(f"$u_x$={ux:.2f}, $u_z$={uz:.2f}")
-    text = "\n".join(text_lines)
-    ax.text2D(0.02, 0.98, text, transform=ax.transAxes, fontsize=9,
-              verticalalignment='top', family='monospace',
-              color=style.text_color)
-
-    # Legend
-    ax.text2D(0.85, 0.98, "Target", color=style.target_color,
-              transform=ax.transAxes, fontsize=9, verticalalignment='top')
-    ax.text2D(0.85, 0.94, "Actual", color=style.trajectory_color,
-              transform=ax.transAxes, fontsize=9, verticalalignment='top')
-    ax.text2D(0.85, 0.90, "Error", color=style.error_color,
-              transform=ax.transAxes, fontsize=9, verticalalignment='top')
-
-    # Frame counter
-    n_frames = len(states)
-    ax.text2D(0.98, 0.02, f"Frame {frame_idx + 1}/{n_frames}",
-              transform=ax.transAxes, fontsize=8, color=style.muted_text_color,
-              verticalalignment='bottom', horizontalalignment='right')
 
     # Save to file
     output_file = output_path / f"mpl_{frame_idx:06d}.png"
@@ -692,7 +791,14 @@ def _render_frame_range(
 ) -> List[str]:
     """Render a contiguous frame range, reusing one figure/axes context."""
     apply_matplotlib_style(config.style)
-    fig, ax = create_overlay_figure(config.camera, config.style)
+    show_axes = bool(config.show_axes)
+    if controller is not None:
+        fig, ax = create_tracking_figure_2d(config.camera, config.style)
+        setup_tracking_axes_2d(ax, config.viewport, config.style, show_axes=show_axes)
+        if show_axes:
+            fig.tight_layout()
+    else:
+        fig, ax = create_overlay_figure(config.camera, config.style)
     render_context = (fig, ax)
 
     files = []

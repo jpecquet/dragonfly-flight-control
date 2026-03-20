@@ -738,11 +738,10 @@ def main():
     center_offset_x = blender_cfg.get('center_offset_x', 0.0)
     center_offset_y = blender_cfg.get('center_offset_y', 0.0)
 
-    # Convert pixel offset to camera shift (fraction of sensor size)
-    # shift_x/y are in fractions of the sensor dimension
-    # Positive shift moves the image in the positive direction
+    # Convert pixel offset to camera shift.
+    # Blender camera shift is in units of sensor WIDTH for both axes.
     shift_x = -center_offset_x / render_width
-    shift_y = -center_offset_y / render_height
+    shift_y = -center_offset_y / render_width
 
     # Setup scene with full resolution
     setup_scene(render_width, render_height)

@@ -66,6 +66,7 @@ target_include_directories(dragonfly_physics PUBLIC
 
 target_link_libraries(dragonfly_physics PUBLIC
     Eigen3::Eigen
+    yaml-cpp::yaml-cpp
 )
 
 # Sampling library (Sobol sequence generator)

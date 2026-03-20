@@ -6,6 +6,9 @@
 #include <string>
 #include <vector>
 
+enum class PhiWaveform { Fourier, Berman };  // Berman: smoothed triangular (Eq. 2.10)
+enum class PsiWaveform { Fourier, Berman };  // Berman: hyperbolic tangent (Eq. 2.12)
+
 // Wing angles at a given time
 struct WingAngles {
     double gam = 0.0;      // Stroke plane angle
@@ -33,7 +36,29 @@ struct MotionParams {
     HarmonicSeries phi;
     HarmonicSeries psi;
     HarmonicSeries cone;  // Dynamic coning angle beta(t) [rad], added to wing config cone_angle
+    PhiWaveform phi_waveform = PhiWaveform::Fourier;
+    double phi_k = 0.0;  // Berman K in (0, 1): 0→sinusoidal, 1→triangular
+    PsiWaveform psi_waveform = PsiWaveform::Fourier;
+    double psi_k = 0.0;  // Berman C_η > 0: 0→sinusoidal, ∞→step function
 };
+
+// Berman (2007) Eq. 2.10: smoothed triangular waveform for flapping angle.
+// phi(t) = phi_mean + (phi_m / asin(k)) * asin(k * cos(theta))
+// Outputs value (relative to mean) and its time derivative. Uses cos for phase convention.
+inline void evalBermanPhi(double theta, double phi_m, double k, double basis_omega,
+                          double& val, double& rate) {
+    const double k_cos = k * std::cos(theta);
+    val = (phi_m / std::asin(k)) * std::asin(k_cos);
+    const double denom = std::sqrt(std::max(0.0, 1.0 - k_cos * k_cos));
+    rate = (phi_m / std::asin(k)) * k * (-std::sin(theta)) / std::max(denom, 1e-12) * basis_omega;
+}
+
+// Berman (2007) Eq. 2.12: hyperbolic tangent waveform for pitch angle.
+// psi(t) = psi_mean + (psi_m / tanh(k)) * tanh(k * cos(theta))
+// Returns value relative to mean.
+inline double evalBermanPsi(double theta, double psi_m, double k) {
+    return (psi_m / std::tanh(k)) * std::tanh(k * std::cos(theta));
+}
 
 inline void validateHarmonicSeries(const HarmonicSeries& series, const char* name) {
     if (series.amplitude_coeff.size() != series.phase_coeff.size()) {
@@ -79,7 +104,11 @@ inline AngleFunc makeControlledAngleFunc(
     const double& psi_mean_cmd,
     const double& phi_amp_cmd,
     double eps = 1e-12,
-    const HarmonicSeries& cone_base = HarmonicSeries()
+    const HarmonicSeries& cone_base = HarmonicSeries(),
+    PhiWaveform phi_waveform = PhiWaveform::Fourier,
+    double phi_k = 0.0,
+    PsiWaveform psi_waveform = PsiWaveform::Fourier,
+    double psi_k = 0.0
 ) {
     const double* gamma_mean_cmd_ptr = &gamma_mean_cmd;
     const double* psi_mean_cmd_ptr = &psi_mean_cmd;
@@ -102,7 +131,11 @@ inline AngleFunc makeControlledAngleFunc(
             psi_base,
             cone_base,
             eps,
-            phase_offset](double t) -> WingAngles {
+            phase_offset,
+            phi_waveform,
+            phi_k,
+            psi_waveform,
+            psi_k](double t) -> WingAngles {
         const double phase = basis_omega * t + phase_offset;
         const double gamma_shift = *gamma_mean_cmd_ptr - gamma_mean_base;
         const double psi_shift = *psi_mean_cmd_ptr - psi_mean_base;
@@ -115,27 +148,35 @@ inline AngleFunc makeControlledAngleFunc(
 
         double gam = evaluateHarmonicValue(gamma_base, phase) + gamma_shift;
         double gam_dot = evaluateHarmonicRate(gamma_base, phase, basis_omega);
-        double phi = evaluateHarmonicValue(phi_base, phase, phi_scale);
-        double phi_dot = evaluateHarmonicRate(phi_base, phase, basis_omega, phi_scale);
 
-        // If both baseline references are zero, allow controller to inject a first harmonic.
-        if (std::abs(phi_ref_amp) <= eps && std::abs(*phi_amp_cmd_ptr) > eps) {
-            phi += *phi_amp_cmd_ptr * std::cos(phase);
-            phi_dot += -*phi_amp_cmd_ptr * basis_omega * std::sin(phase);
+        double phi_val, phi_dot_val;
+        if (phi_waveform == PhiWaveform::Berman) {
+            const double phi_m = (phi_base.amplitude_coeff.empty() ? 0.0 : phi_base.amplitude_coeff[0]) * phi_scale;
+            const double phi_phase = phi_base.phase_coeff.empty() ? 0.0 : phi_base.phase_coeff[0];
+            evalBermanPhi(phase + phi_phase, phi_m, phi_k, basis_omega, phi_val, phi_dot_val);
+            phi_val += phi_base.mean;
+        } else {
+            phi_val = evaluateHarmonicValue(phi_base, phase, phi_scale);
+            phi_dot_val = evaluateHarmonicRate(phi_base, phase, basis_omega, phi_scale);
+            // If both baseline references are zero, allow controller to inject a first harmonic.
+            if (std::abs(phi_ref_amp) <= eps && std::abs(*phi_amp_cmd_ptr) > eps) {
+                phi_val += *phi_amp_cmd_ptr * std::cos(phase);
+                phi_dot_val += -*phi_amp_cmd_ptr * basis_omega * std::sin(phase);
+            }
         }
 
-        const double psi = evaluateHarmonicValue(psi_base, phase) + psi_shift;
+        double psi_val;
+        if (psi_waveform == PsiWaveform::Berman) {
+            const double psi_m = psi_base.amplitude_coeff.empty() ? 0.0 : psi_base.amplitude_coeff[0];
+            const double psi_phase = psi_base.phase_coeff.empty() ? 0.0 : psi_base.phase_coeff[0];
+            psi_val = psi_base.mean + evalBermanPsi(phase + psi_phase, psi_m, psi_k) + psi_shift;
+        } else {
+            psi_val = evaluateHarmonicValue(psi_base, phase) + psi_shift;
+        }
+
         const double cone = evaluateHarmonicValue(cone_base, phase);
         const double cone_dot = evaluateHarmonicRate(cone_base, phase, basis_omega);
-        return {
-            gam,
-            gam_dot,
-            phi,
-            phi_dot,
-            psi,
-            cone,
-            cone_dot
-        };
+        return {gam, gam_dot, phi_val, phi_dot_val, psi_val, cone, cone_dot};
     };
 }
 
@@ -144,7 +185,11 @@ inline AngleFunc makeAngleFunc(const HarmonicSeries& gamma,
                                const HarmonicSeries& psi,
                                double phaseOffset, double omega,
                                double harmonic_period_wingbeats = 1.0,
-                               const HarmonicSeries& cone = HarmonicSeries()) {
+                               const HarmonicSeries& cone = HarmonicSeries(),
+                               PhiWaveform phi_waveform = PhiWaveform::Fourier,
+                               double phi_k = 0.0,
+                               PsiWaveform psi_waveform = PsiWaveform::Fourier,
+                               double psi_k = 0.0) {
     validateHarmonicSeries(gamma, "gamma");
     validateHarmonicSeries(phi, "phi");
     validateHarmonicSeries(psi, "psi");
@@ -156,12 +201,33 @@ inline AngleFunc makeAngleFunc(const HarmonicSeries& gamma,
 
     return [=](double t) -> WingAngles {
         const double phase = basis_omega * t + phaseOffset;
+
+        double phi_val, phi_dot_val;
+        if (phi_waveform == PhiWaveform::Berman) {
+            const double phi_m = phi.amplitude_coeff.empty() ? 0.0 : phi.amplitude_coeff[0];
+            const double phi_phase = phi.phase_coeff.empty() ? 0.0 : phi.phase_coeff[0];
+            evalBermanPhi(phase + phi_phase, phi_m, phi_k, basis_omega, phi_val, phi_dot_val);
+            phi_val += phi.mean;
+        } else {
+            phi_val = evaluateHarmonicValue(phi, phase);
+            phi_dot_val = evaluateHarmonicRate(phi, phase, basis_omega);
+        }
+
+        double psi_val;
+        if (psi_waveform == PsiWaveform::Berman) {
+            const double psi_m = psi.amplitude_coeff.empty() ? 0.0 : psi.amplitude_coeff[0];
+            const double psi_phase = psi.phase_coeff.empty() ? 0.0 : psi.phase_coeff[0];
+            psi_val = psi.mean + evalBermanPsi(phase + psi_phase, psi_m, psi_k);
+        } else {
+            psi_val = evaluateHarmonicValue(psi, phase);
+        }
+
         return {
             evaluateHarmonicValue(gamma, phase),
             evaluateHarmonicRate(gamma, phase, basis_omega),
-            evaluateHarmonicValue(phi, phase),
-            evaluateHarmonicRate(phi, phase, basis_omega),
-            evaluateHarmonicValue(psi, phase),
+            phi_val,
+            phi_dot_val,
+            psi_val,
             evaluateHarmonicValue(cone, phase),
             evaluateHarmonicRate(cone, phase, basis_omega)
         };

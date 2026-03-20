@@ -186,6 +186,7 @@ Vec3 Wing::computeForce(
     vecs.lift = Vec3::Zero();
     vecs.drag = Vec3::Zero();
     vecs.alpha = std::numeric_limits<double>::quiet_NaN();
+    vecs.power = 0.0;
     if (vecs.blade_e_s.size() != blade_eta_.size()) {
         vecs.blade_e_s.resize(blade_eta_.size(), Vec3::Zero());
         vecs.blade_e_r.resize(blade_eta_.size(), Vec3::Zero());
@@ -222,6 +223,7 @@ Vec3 Wing::computeForce(
             u, orient_eta.e_r, orient_eta.e_c, coeff_i, lift_i, drag_i);
         vecs.lift += lift_i;
         vecs.drag += drag_i;
+        vecs.power += (lift_i + drag_i).dot(uw - ub);
         vecs.blade_e_s[i] = orient_eta.e_s;
         vecs.blade_e_r[i] = orient_eta.e_r;
         vecs.blade_e_c[i] = orient_eta.e_c;

@@ -116,7 +116,11 @@ In addition to flapping, the wing motion has a pitching component. Here we take 
 
 ## Wing angle representation
 
-In the model, the motion of each wing can be described by four angular quantities: the stroke plane angle $\gamma(t)$, the coning angle $\beta(t)$, the flapping angle $\phi(t)$, and the pitching angle $\psi(t)$. In steady flight, the mean values are constant, and the wing angles can be represented by harmonic series of the form
+In the model, the motion of each wing can be described by four angular quantities: the stroke plane angle $\gamma(t)$, the coning angle $\beta(t)$, the flapping angle $\phi(t)$, and the pitching angle $\psi(t)$. Two waveform options are available for $\phi$ and $\psi$.
+
+### Fourier series
+
+The default representation is a harmonic series of the form
 
 $$
 \theta(t) = \theta_0 + \sum_{k=1}^{N} \theta_k \cos{(k \omega t + \delta_k)}
@@ -125,6 +129,22 @@ $$
 The stroke plane angle is simply $\gamma(t) = \gamma_0$. The coning angle may be represented by $\beta(t) = \beta_0$, but in some cases, the wingtip does not follow the stroke plane exactly. Instead it draws a narrow ellipse whose major axis is the stroke plane as viewed from the side {cite}`azuma1985` {cite}`azuma1988`. In this case, a single-harmonic ($N=1$) representation $\beta(t) = \beta_0 + \beta_1 \cos{(\omega t + \delta_1)}$ is appropriate, with the wing cone widening on the downstroke and narrowing on the upstroke. Higher-order representations may also be appropriate to capture more irregular motion in the stroke plane normal direction.
 
 The flapping angle $\phi(t)$ has been found to be well represented by a single harmonic. The time evolution of the pitching angle $\psi(t)$ is somewhat more complex, and 3 to 4 harmonics may be required to adequately capture it {cite}`azuma1985` {cite}`azuma1988`.
+
+### Berman waveforms
+
+{cite}`berman2007` introduce alternative functional forms for $\phi$ and $\psi$ that span a wider range of waveform shapes with a single parameter. For the flapping angle, a smoothed triangular waveform is used:
+
+$$
+\phi(t) = \phi_0 + \frac{\phi_1}{\sin^{-1} K_\phi} \sin^{-1}\!\left[K_\phi \cos(\omega t + \delta_1)\right], \quad K_\phi \in (0, 1)
+$$
+
+As $K_\phi \to 0$ the waveform approaches a cosine; as $K_\phi \to 1$ it approaches a triangular wave. For the pitching angle, a hyperbolic tangent waveform is used:
+
+$$
+\psi(t) = \psi_0 + \frac{\psi_1}{\tanh K_\psi} \tanh\!\left[K_\psi \cos(\omega t + \delta_1)\right], \quad K_\psi > 0
+$$
+
+As $K_\psi \to 0$ the waveform approaches a cosine; as $K_\psi \to \infty$ it approaches a square wave, corresponding to an instantaneous pitch reversal. These waveforms are selected in the config with `phi_waveform = berman` and `psi_waveform = berman`, with the shape parameters specified as `phi_k` and `psi_k` respectively. The amplitude $\phi_1$ (or $\psi_1$) and phase $\delta_1$ are taken from the first harmonic of the corresponding angle series.
 
 ## References
 

@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 
 
-SUPPORTED_SIMULATION_DRIVERS = {"yaml_case", "reachable", "multi_yaml_case"}
+SUPPORTED_SIMULATION_DRIVERS = {"yaml_case", "yaml_track_case", "reachable", "multi_yaml_case"}
 SUPPORTED_THEMES = {"light", "dark"}
 SUPPORTED_ARTIFACT_KINDS = {
     "case_fore_hind_kinematics",
@@ -25,6 +25,7 @@ SUPPORTED_ARTIFACT_KINDS = {
     "reachable_boundary",
     "forewing_stroke_diagram",
     "boundary_stroke_and_forces",
+    "tracking_video",
 }
 
 
@@ -169,6 +170,15 @@ def _validate_artifact_common(
             _expect_int_ge(frame_step, f"artifacts[{idx}].frame_step", 1, path=path)
         return
 
+    if kind == "tracking_video":
+        _expect_nonempty_str(artifact.get("input_h5"), f"artifacts[{idx}].input_h5", path=path)
+        render_config = artifact.get("render_config", docs_media_cfg.get("render_config"))
+        _expect_nonempty_str(render_config, f"artifacts[{idx}].render_config", path=path)
+        frame_step = artifact.get("frame_step")
+        if frame_step is not None:
+            _expect_int_ge(frame_step, f"artifacts[{idx}].frame_step", 1, path=path)
+        return
+
     if kind == "stick_video":
         _expect_nonempty_str(artifact.get("input_h5"), f"artifacts[{idx}].input_h5", path=path)
         stations = artifact.get("stations")
@@ -243,7 +253,7 @@ def validate_post_config(config: Any, *, path: Path | None = None) -> dict[str, 
             f"expected one of {sorted(SUPPORTED_SIMULATION_DRIVERS)}"
         )
     _expect_nonempty_str(simulation.get("run_dir"), "simulation.run_dir", path=path)
-    if driver == "yaml_case":
+    if driver in ("yaml_case", "yaml_track_case"):
         _expect_nonempty_str(simulation.get("case_file"), "simulation.case_file", path=path)
     if driver == "multi_yaml_case":
         cases = simulation.get("cases")

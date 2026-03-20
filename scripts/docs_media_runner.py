@@ -19,7 +19,7 @@ from typing import Any
 import yaml
 
 from scripts.docs_media_config import load_post_config
-from scripts.case_runner import run_case
+from scripts.case_runner import run_case, run_track_case
 from scripts.pipeline_common import build_plot_env, ensure_dir, run_cmd
 
 
@@ -176,6 +176,20 @@ def _run_simulation(
         h5_path = run_case(case_file, run_dir=run_dir, binary=binary_path)
         return run_dir, h5_path
 
+    if driver == "yaml_track_case":
+        case_file_raw = sim_cfg.get("case_file")
+        if not isinstance(case_file_raw, str) or not case_file_raw:
+            raise ValueError("simulation.case_file must be a non-empty string for driver=yaml_track_case")
+        case_file = _resolve_repo_path(case_file_raw)
+
+        if skip_sim:
+            return run_dir, run_dir / "output.h5"
+
+        binary_value = binary_override if binary_override is not None else sim_cfg.get("binary")
+        binary_path = Path(binary_value) if isinstance(binary_value, str) and binary_value else None
+        h5_path = run_track_case(case_file, run_dir=run_dir, binary=binary_path)
+        return run_dir, h5_path
+
     if driver == "multi_yaml_case":
         cases_raw = sim_cfg.get("cases")
         if not isinstance(cases_raw, list) or not cases_raw:
@@ -289,6 +303,7 @@ def _run_artifact(
         plot_wing_force_components_timeseries,
         render_simulation_video_from_h5,
         render_stick_video_from_h5,
+        render_tracking_video_from_h5,
     )
 
     context = {
@@ -454,6 +469,28 @@ def _run_artifact(
             frame_step=frame_step_val,
             annotation_overlay=resolved.get("annotation_overlay"),
             last_n_wingbeats=float(last_n_wb_raw) if last_n_wb_raw is not None else None,
+        )
+        return
+
+    if kind == "tracking_video":
+        input_h5_raw = resolved.get("input_h5")
+        if not isinstance(input_h5_raw, str) or not input_h5_raw:
+            raise ValueError("tracking_video requires input_h5")
+        render_config_raw = resolved.get("render_config", docs_media_cfg.get("render_config"))
+        if not isinstance(render_config_raw, str) or not render_config_raw:
+            raise ValueError("tracking_video requires render_config (artifact or docs_media default)")
+        frame_step_val = (
+            int(frame_step_override)
+            if frame_step_override is not None
+            else int(resolved.get("frame_step", docs_media_cfg.get("frame_step", 1)))
+        )
+        render_tracking_video_from_h5(
+            _resolve_repo_path(input_h5_raw),
+            output_path,
+            render_config=_resolve_repo_path(render_config_raw),
+            theme=theme,
+            no_blender=no_blender,
+            frame_step=frame_step_val,
         )
         return
 

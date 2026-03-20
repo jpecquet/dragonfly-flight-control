@@ -34,11 +34,15 @@ TrajectoryFunc circle(const Vec3& center, double radius, double omega);
 // Returns hover at final point after last time
 TrajectoryFunc waypoints(const std::vector<Vec3>& pts, const std::vector<double>& times);
 
+// Constant-velocity motion from a starting position
+TrajectoryFunc linear(const Vec3& start, const Vec3& velocity);
+
 // Parse trajectory from config string
 // Formats:
 //   "hover 0.0 0.0 1.0"
 //   "circle 0.0 0.0 1.0 0.5 1.0"  (center_x, center_y, center_z, radius, omega)
 //   "waypoints 0,0,0@0.0 1,0,1@1.0 0,0,1@2.0"  (x,y,z@time ...)
+//   "linear 0.0 0.0 5.0 1.0 0.0 0.0"  (start_x, start_y, start_z, vx, vy, vz)
 TrajectoryFunc parse(const std::string& spec);
 
 } // namespace trajectories

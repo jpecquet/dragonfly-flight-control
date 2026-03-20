@@ -296,6 +296,43 @@ def run_case(
     return output_h5
 
 
+def run_track_case(
+    case_yaml: Path,
+    *,
+    run_dir: Path | None = None,
+    binary: Path | None = None,
+) -> Path:
+    """Copy tracking YAML with patched output path and run 'dragonfly track'. Returns HDF5 path."""
+    raw = yaml.safe_load(case_yaml.read_text(encoding="utf-8"))
+    case_id = str(raw.get("case_id", case_yaml.stem))
+
+    if run_dir is None:
+        runs_root = RUNS_ROOT / case_id
+        run_dir = resolve_run_dir(None, repo_root=REPO_ROOT, runs_root=runs_root)
+    run_dir = ensure_dir(run_dir)
+
+    if binary is None:
+        binary = DEFAULT_BINARY
+    binary = Path(binary).expanduser()
+    if not binary.is_absolute():
+        binary = REPO_ROOT / binary
+    if not binary.exists():
+        raise FileNotFoundError(f"dragonfly binary not found: {binary}")
+
+    output_h5 = run_dir / "output.h5"
+    patched = dict(raw)
+    patched["output"] = str(output_h5)
+    patched_path = run_dir / f"track_{case_id}.yaml"
+    patched_path.write_text(yaml.dump(patched, default_flow_style=False), encoding="utf-8")
+
+    run_cmd([str(binary), "track", "-c", str(patched_path)], cwd=run_dir)
+    if not output_h5.exists():
+        raise FileNotFoundError(f"Tracking output not found: {output_h5}")
+
+    print(f"[done] output: {output_h5}")
+    return output_h5
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("case_yaml", help="Path to case YAML file.")

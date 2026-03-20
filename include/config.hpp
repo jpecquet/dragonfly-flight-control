@@ -43,6 +43,7 @@ struct WingConfigEntry {
 };
 
 // Simple key=value config file parser with [[wing]] section support
+// Also supports YAML files (auto-detected by .yaml extension)
 class Config {
 public:
     static Config load(const std::string& filename);
@@ -106,6 +107,8 @@ public:
     }
 
 private:
+    static Config loadYAML(const std::string& filename);
+
     std::map<std::string, std::string> values_;
     std::vector<WingConfigEntry> wings_;
 };

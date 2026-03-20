@@ -27,4 +27,5 @@ validation/wang2007
 :hidden:
 
 research/reachable
+research/pursuit
 ```

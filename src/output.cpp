@@ -190,8 +190,16 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
     H5Easy::dump(file, "/parameters/gamma_phase", k.gamma.phase_coeff);
     H5Easy::dump(file, "/parameters/phi_amp", k.phi.amplitude_coeff);
     H5Easy::dump(file, "/parameters/phi_phase", k.phi.phase_coeff);
+    H5Easy::dump(file, "/parameters/phi_waveform",
+                 std::string(k.phi_waveform == PhiWaveform::Berman ? "berman" : "fourier"));
+    if (k.phi_waveform == PhiWaveform::Berman)
+        H5Easy::dump(file, "/parameters/phi_k", k.phi_k);
     H5Easy::dump(file, "/parameters/psi_amp", k.psi.amplitude_coeff);
     H5Easy::dump(file, "/parameters/psi_phase", k.psi.phase_coeff);
+    H5Easy::dump(file, "/parameters/psi_waveform",
+                 std::string(k.psi_waveform == PsiWaveform::Berman ? "berman" : "fourier"));
+    if (k.psi_waveform == PsiWaveform::Berman)
+        H5Easy::dump(file, "/parameters/psi_k", k.psi_k);
     H5Easy::dump(file, "/parameters/cone_amp", k.cone.amplitude_coeff);
     H5Easy::dump(file, "/parameters/cone_phase", k.cone.phase_coeff);
 
@@ -321,6 +329,7 @@ void writeHDF5(const std::string& filename, const SimulationOutput& output,
         file.createDataSet(group + "/lift", toMatrix(output.wing_data, i, &SingleWingVectors::lift));
         file.createDataSet(group + "/drag", toMatrix(output.wing_data, i, &SingleWingVectors::drag));
         H5Easy::dump(file, group + "/alpha", toScalarSeries(output.wing_data, i, &SingleWingVectors::alpha));
+        H5Easy::dump(file, group + "/power", toScalarSeries(output.wing_data, i, &SingleWingVectors::power));
 
         const size_t blade_count = wings[i].bladeEta().size();
         file.createGroup(group + "/blade");

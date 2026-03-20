@@ -1,0 +1,65 @@
+case_id: pursuit
+description: Pursuit problem — dragonfly starts at rest at the origin and intercepts a target beginning at z=5 moving along x at 1 m/s
+specimen:
+  body_length: 0.04
+  body_mass: 0.0003249
+  frequency: 62.6418
+environment:
+  rho_air: 1.225
+  gravity: 9.81
+simulation:
+  n_wingbeats: 75
+  steps_per_wingbeat: 50
+  n_blade_elements: 1
+initial_state:
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  ux: 0.0
+  uy: 0.0
+  uz: 0.0
+trajectory: "linear 0.0 0.0 5.0 1.0 0.0 0.0"
+pursuit_kp: 0.5
+bounds:
+  gamma_mean_min: 0.0   # rad — allows return to near-hover orientation
+  gamma_mean_max: 2.0   # rad — allows strong forward tilt for descent/deceleration
+output: output/pursuit.h5
+wings:
+  fore:
+    span: 0.03
+    area: 0.000221
+    drag_coeff_set: wang2004
+    lift_coeff_set: wang2004
+    phase: 0.0   # Phase offset relative to reference (degrees)
+    kinematics:
+      gamma:
+        mean: 65.0    # Stroke plane baseline tilt (degrees); produces net upward + forward force
+      phi:
+        mean: 0.0
+        harmonics:
+        - - 52.6552
+          - 0.0
+      psi:
+        mean: 0.0
+        harmonics:
+        - - 11.2742
+          - 34.8117
+  hind:
+    span: 0.03
+    area: 0.000221
+    drag_coeff_set: wang2004
+    lift_coeff_set: wang2004
+    phase: 180
+    kinematics:
+      gamma:
+        mean: 65.0    # Same baseline as fore wings
+      phi:
+        mean: 0.0
+        harmonics:
+        - - 52.6552
+          - 0.0
+      psi:
+        mean: 0.0
+        harmonics:
+        - - 11.2742
+          - 34.8117
