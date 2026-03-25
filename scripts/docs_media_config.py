@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 
 
-SUPPORTED_SIMULATION_DRIVERS = {"yaml_case", "yaml_track_case", "reachable", "multi_yaml_case"}
+SUPPORTED_SIMULATION_DRIVERS = {"yaml_case", "yaml_track_case", "reachable", "multi_yaml_case", "hover", "hover-control", "pursuit"}
 SUPPORTED_THEMES = {"light", "dark"}
 SUPPORTED_ARTIFACT_KINDS = {
     "case_fore_hind_kinematics",
@@ -26,6 +26,10 @@ SUPPORTED_ARTIFACT_KINDS = {
     "forewing_stroke_diagram",
     "boundary_stroke_and_forces",
     "tracking_video",
+    "pursuit_video",
+    "hover_power",
+    "hover_params",
+    "hover_control",
 }
 
 
@@ -291,6 +295,10 @@ def validate_post_config(config: Any, *, path: Path | None = None) -> dict[str, 
                     _expect_nonempty_str(entry.get("param"), f"simulation.runs[{i}].param", path=path)
                     if "value" not in entry:
                         raise ValueError(f"simulation.runs[{i}].value is required when param is set{_ctx(path)}")
+    if driver in ("hover", "hover-control"):
+        _expect_nonempty_str(simulation.get("hover_config"), "simulation.hover_config", path=path)
+    if driver == "pursuit":
+        _expect_nonempty_str(simulation.get("pursuit_config"), "simulation.pursuit_config", path=path)
     if simulation.get("binary") is not None:
         _expect_nonempty_str(simulation.get("binary"), "simulation.binary", path=path)
 

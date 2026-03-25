@@ -1,4 +1,6 @@
 #include "cmd_args.hpp"
+#include "cmd_hover.hpp"
+#include "cmd_pursuit.hpp"
 #include "cmd_optim.hpp"
 #include "cmd_plot.hpp"
 #include "cmd_reachable.hpp"
@@ -58,6 +60,9 @@ void printUsage(const char* prog) {
     std::cerr << "  sim       Run flight simulation (-c/--config <config>)\n";
     std::cerr << "  track     Run trajectory tracking simulation (-c/--config <config>)\n";
     std::cerr << "  optim     Find equilibrium flight conditions (-c/--config <config>)\n";
+    std::cerr << "  hover     Find minimum-power hover solution (-c/--config <config.yaml>)\n";
+    std::cerr << "  hover-control  Hover stabilization simulation (-c/--config <config.yaml>)\n";
+    std::cerr << "  pursuit   Dual-mode hover/pursuit simulation (-c/--config <config.yaml>)\n";
     std::cerr << "  reachable Map reachable (ux,uz) equilibria (-c/--config <config.yaml>)\n";
     std::cerr << "  plot      Generate visualization (-c/--config <config>)\n";
     std::cerr << "  wingtest  Generate wing rotation test data (see options below)\n";
@@ -120,9 +125,18 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
-        // Reachable uses YAML directly, not Config
+        // Commands using YAML directly (not Config)
+        if (command == "hover") {
+            return runHover(config_file);
+        }
+        if (command == "hover-control") {
+            return runHoverControl(config_file);
+        }
         if (command == "reachable") {
             return runReachable(config_file);
+        }
+        if (command == "pursuit") {
+            return runPursuit(config_file);
         }
 
         Config cfg = Config::load(config_file);

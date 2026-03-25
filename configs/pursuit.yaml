@@ -1,0 +1,80 @@
+morphology:
+  omega: 25.1327  # 8*pi rad/s nondimensional
+  wings:
+    - name: fore
+      side: left
+      mu0: 0.025
+      lb0: 0.75
+      nu: 0.03
+      ar: 7.0
+      phase: 0.0
+      aero_model: wang2004
+    - name: fore
+      side: right
+      mu0: 0.025
+      lb0: 0.75
+      nu: 0.03
+      ar: 7.0
+      phase: 0.0
+      aero_model: wang2004
+    - name: hind
+      side: left
+      mu0: 0.025
+      lb0: 0.75
+      nu: 0.03
+      ar: 7.0
+      phase: 3.14159
+      aero_model: wang2004
+    - name: hind
+      side: right
+      mu0: 0.025
+      lb0: 0.75
+      nu: 0.03
+      ar: 7.0
+      phase: 3.14159
+      aero_model: wang2004
+
+control:
+  gamma: 0.7854          # 45 deg hover stroke plane angle
+  psi_amp: 0.995         # ~57 deg pitch amplitude (fixed, shared)
+  psi_phase: 1.5708      # 90 deg pitch phase (fixed, shared)
+
+  # Sensing model (shared across modes)
+  avg_window: 0.5        # velocity averaging window (wingbeats)
+  sense_delay: 0.25      # neural processing delay (wingbeats)
+  muscle_tau: 0.5        # neuromuscular lag time constant (wingbeats)
+
+  hover:
+    Kp_z: 0.7            # phi_amp gain on -u_z
+    Kp_x: 1.2            # psi_mean gain on -u_x
+    phi_amp_min: 0.20
+    phi_amp_max: 0.90
+    psi_mean_min: -0.10
+    psi_mean_max: 0.80
+
+  pursuit:
+    Kp_gamma: 1.0         # gamma proportional gain on angle error
+    phi_amp: 0.6109       # 35 deg, fixed during pursuit
+    psi_mean: 0.0         # 0 deg, symmetric stroke during pursuit
+    psi_amp: 0.3491       # 20 deg, moderate pitch for efficient force
+    gamma_max: 1.5708     # 90 deg ceiling
+
+detection:
+  fov_half_angle: 1.0472  # 60 deg half-cone
+  fov_axis: [1.0, 0.0, 0.0]  # forward (+x)
+  intercept_distance: 0.1 # body lengths (nondim)
+  post_intercept_wingbeats: 30
+
+target:
+  trajectory: "linear 0.0 0.0 5.0 1.0 0.0 0.0"
+
+simulation:
+  max_wingbeats: 200
+  steps_per_wingbeat: 200
+
+algorithm:
+  n_samples: 500
+  max_eval: 500
+  equilibrium_tol: 1.0e-4
+
+output: pursuit.h5

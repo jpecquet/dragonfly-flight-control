@@ -1,0 +1,19 @@
+version: 1
+
+simulation:
+  driver: hover
+  hover_config: configs/hover_minpower.yaml
+  run_dir: docs/research/hover/artifacts
+  binary: build/bin/dragonfly
+
+docs_media:
+  media_dir: docs/_static/media/hover
+  themes: [light, dark]
+
+artifacts:
+- kind: hover_power
+  input_h5: "{run_dir}/hover_minpower.h5"
+  output: hover_power.{theme}.png
+- kind: hover_params
+  input_h5: "{run_dir}/hover_minpower.h5"
+  output: hover_params.{theme}.png

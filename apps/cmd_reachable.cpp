@@ -67,6 +67,8 @@ WingConfig parseWingYAML(const YAML::Node& node) {
     wc.side = parseSide(node["side"].as<std::string>());
     wc.mu0 = node["mu0"].as<double>();
     wc.lb0 = node["lb0"].as<double>();
+    wc.nu  = node["nu"].as<double>(0.0);
+    wc.ar  = node["ar"].as<double>(0.0);
     wc.phase_offset = node["phase"].as<double>(0.0);
     wc.cone_angle = node["cone"].as<double>(0.0);
     wc.n_blade_elements = node["n_blade_elements"].as<int>(1);

@@ -280,6 +280,87 @@ def _run_simulation(
 
         return run_dir, primary_h5
 
+    if driver == "hover":
+        binary_value = binary_override if binary_override is not None else sim_cfg.get("binary")
+        binary_path = _resolve_repo_path(binary_value) if isinstance(binary_value, str) and binary_value else REPO_ROOT / "build" / "bin" / "dragonfly"
+
+        hover_config_raw = sim_cfg.get("hover_config")
+        if not isinstance(hover_config_raw, str) or not hover_config_raw:
+            raise ValueError("hover driver requires hover_config")
+
+        hover_cfg = _resolve_repo_path(hover_config_raw)
+        hover_yaml = _load_yaml(hover_cfg)
+        output_name = str(hover_yaml.get("output", "hover_minpower.h5"))
+        out_path = run_dir / output_name
+
+        if not skip_sim:
+            if not binary_path.exists():
+                raise FileNotFoundError(f"dragonfly binary not found: {binary_path}")
+            patched_yaml = dict(hover_yaml)
+            patched_yaml["output"] = str(out_path)
+            patched_cfg = run_dir / f"hover_run_{Path(hover_config_raw).stem}.yaml"
+            patched_cfg.write_text(yaml.dump(patched_yaml, default_flow_style=False), encoding="utf-8")
+            run_cmd([str(binary_path), "hover", "-c", str(patched_cfg)], cwd=run_dir)
+            if not out_path.exists():
+                raise FileNotFoundError(f"Hover output not found: {out_path}")
+            print(f"[done] output: {out_path}")
+
+        return run_dir, out_path
+
+    if driver == "hover-control":
+        binary_value = binary_override if binary_override is not None else sim_cfg.get("binary")
+        binary_path = _resolve_repo_path(binary_value) if isinstance(binary_value, str) and binary_value else REPO_ROOT / "build" / "bin" / "dragonfly"
+
+        hover_config_raw = sim_cfg.get("hover_config")
+        if not isinstance(hover_config_raw, str) or not hover_config_raw:
+            raise ValueError("hover-control driver requires hover_config")
+
+        hover_cfg = _resolve_repo_path(hover_config_raw)
+        hover_yaml = _load_yaml(hover_cfg)
+        output_name = str(hover_yaml.get("output", "hover_control.h5"))
+        out_path = run_dir / output_name
+
+        if not skip_sim:
+            if not binary_path.exists():
+                raise FileNotFoundError(f"dragonfly binary not found: {binary_path}")
+            patched_yaml = dict(hover_yaml)
+            patched_yaml["output"] = str(out_path)
+            patched_cfg = run_dir / f"hover_control_run_{Path(hover_config_raw).stem}.yaml"
+            patched_cfg.write_text(yaml.dump(patched_yaml, default_flow_style=False), encoding="utf-8")
+            run_cmd([str(binary_path), "hover-control", "-c", str(patched_cfg)], cwd=run_dir)
+            if not out_path.exists():
+                raise FileNotFoundError(f"Hover control output not found: {out_path}")
+            print(f"[done] output: {out_path}")
+
+        return run_dir, out_path
+
+    if driver == "pursuit":
+        binary_value = binary_override if binary_override is not None else sim_cfg.get("binary")
+        binary_path = _resolve_repo_path(binary_value) if isinstance(binary_value, str) and binary_value else REPO_ROOT / "build" / "bin" / "dragonfly"
+
+        pursuit_config_raw = sim_cfg.get("pursuit_config")
+        if not isinstance(pursuit_config_raw, str) or not pursuit_config_raw:
+            raise ValueError("pursuit driver requires pursuit_config")
+
+        pursuit_cfg = _resolve_repo_path(pursuit_config_raw)
+        pursuit_yaml = _load_yaml(pursuit_cfg)
+        output_name = str(pursuit_yaml.get("output", "pursuit.h5"))
+        out_path = run_dir / output_name
+
+        if not skip_sim:
+            if not binary_path.exists():
+                raise FileNotFoundError(f"dragonfly binary not found: {binary_path}")
+            patched_yaml = dict(pursuit_yaml)
+            patched_yaml["output"] = str(out_path)
+            patched_cfg = run_dir / f"pursuit_run_{Path(pursuit_config_raw).stem}.yaml"
+            patched_cfg.write_text(yaml.dump(patched_yaml, default_flow_style=False), encoding="utf-8")
+            run_cmd([str(binary_path), "pursuit", "-c", str(patched_cfg)], cwd=run_dir)
+            if not out_path.exists():
+                raise FileNotFoundError(f"Pursuit output not found: {out_path}")
+            print(f"[done] output: {out_path}")
+
+        return run_dir, out_path
+
     raise ValueError(f"Unsupported simulation.driver: {driver!r}")
 
 
@@ -301,6 +382,7 @@ def _run_artifact(
         plot_mass_regression,
         plot_wing_aoa_timeseries,
         plot_wing_force_components_timeseries,
+        render_pursuit_video_from_h5,
         render_simulation_video_from_h5,
         render_stick_video_from_h5,
         render_tracking_video_from_h5,
@@ -494,6 +576,28 @@ def _run_artifact(
         )
         return
 
+    if kind == "pursuit_video":
+        input_h5_raw = resolved.get("input_h5")
+        if not isinstance(input_h5_raw, str) or not input_h5_raw:
+            raise ValueError("pursuit_video requires input_h5")
+        render_config_raw = resolved.get("render_config", docs_media_cfg.get("render_config"))
+        if not isinstance(render_config_raw, str) or not render_config_raw:
+            raise ValueError("pursuit_video requires render_config (artifact or docs_media default)")
+        frame_step_val = (
+            int(frame_step_override)
+            if frame_step_override is not None
+            else int(resolved.get("frame_step", docs_media_cfg.get("frame_step", 1)))
+        )
+        render_pursuit_video_from_h5(
+            _resolve_repo_path(input_h5_raw),
+            output_path,
+            render_config=_resolve_repo_path(render_config_raw),
+            theme=theme,
+            no_blender=no_blender,
+            frame_step=frame_step_val,
+        )
+        return
+
     if kind == "stick_video":
         input_h5_raw = resolved.get("input_h5")
         if not isinstance(input_h5_raw, str) or not input_h5_raw:
@@ -652,6 +756,45 @@ def _run_artifact(
             _resolve_repo_path(forewing_csv_raw),
             output_path,
             extra_specimens=extra if isinstance(extra, list) else None,
+            theme=theme,
+        )
+        return
+
+    if kind == "hover_power":
+        from post.docs_artifacts import plot_hover_power
+
+        input_h5_raw = resolved.get("input_h5")
+        if not isinstance(input_h5_raw, str) or not input_h5_raw:
+            raise ValueError("hover_power requires input_h5")
+        plot_hover_power(
+            _resolve_repo_path(input_h5_raw),
+            output_path,
+            theme=theme,
+        )
+        return
+
+    if kind == "hover_params":
+        from post.docs_artifacts import plot_hover_params
+
+        input_h5_raw = resolved.get("input_h5")
+        if not isinstance(input_h5_raw, str) or not input_h5_raw:
+            raise ValueError("hover_params requires input_h5")
+        plot_hover_params(
+            _resolve_repo_path(input_h5_raw),
+            output_path,
+            theme=theme,
+        )
+        return
+
+    if kind == "hover_control":
+        from post.docs_artifacts import plot_hover_control
+
+        input_h5_raw = resolved.get("input_h5")
+        if not isinstance(input_h5_raw, str) or not input_h5_raw:
+            raise ValueError("hover_control requires input_h5")
+        plot_hover_control(
+            _resolve_repo_path(input_h5_raw),
+            output_path,
             theme=theme,
         )
         return

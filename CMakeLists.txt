@@ -131,6 +131,8 @@ add_executable(dragonfly_cli
     apps/cmd_termvel.cpp
     apps/cmd_wingtest.cpp
     apps/cmd_reachable.cpp
+    apps/cmd_hover.cpp
+    apps/cmd_pursuit.cpp
 )
 target_include_directories(dragonfly_cli PRIVATE
     ${CMAKE_SOURCE_DIR}/apps

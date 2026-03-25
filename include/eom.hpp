@@ -36,6 +36,8 @@ struct SingleWingVectors {
     Vec3 drag;   // Drag force vector
     double alpha = 0.0;  // AoA at reference span station (radians, currently 2/3 span)
     double power = 0.0;  // Aerodynamic power: sum_i F_aero_i · v_flap_i (W), where v_flap excludes body velocity
+    double phi_dot = 0.0;  // Flapping angular velocity (for inertial power computation)
+    double psi_dot = 0.0;  // Pitching angular velocity (for inertial power computation)
     std::vector<Vec3> blade_e_s;   // Per-blade stroke direction vectors
     std::vector<Vec3> blade_e_r;   // Per-blade radial direction vectors
     std::vector<Vec3> blade_e_c;   // Per-blade chord direction vectors

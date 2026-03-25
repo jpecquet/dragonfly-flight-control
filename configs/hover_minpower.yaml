@@ -1,0 +1,52 @@
+morphology:
+  omega: 25.1327  # 8*pi, nondimensional (= 62.6 Hz * 2pi / (reference time^-1))
+  wings:
+    - name: fore
+      side: left
+      mu0: 0.025
+      lb0: 0.75
+      nu: 0.03
+      ar: 7.0
+      phase: 0.0
+      aero_model: wang2004
+    - name: fore
+      side: right
+      mu0: 0.025
+      lb0: 0.75
+      nu: 0.03
+      ar: 7.0
+      phase: 0.0
+      aero_model: wang2004
+    - name: hind
+      side: left
+      mu0: 0.025
+      lb0: 0.75
+      nu: 0.03
+      ar: 7.0
+      phase: 3.14159
+      aero_model: wang2004
+    - name: hind
+      side: right
+      mu0: 0.025
+      lb0: 0.75
+      nu: 0.03
+      ar: 7.0
+      phase: 3.14159
+      aero_model: wang2004
+
+gamma_sweep: [0.0, 1.5708, 25]  # min (rad), max (rad), n_points — 0° to 90°
+
+control_bounds:  # scalar = fixed, [min, max] = variable
+  phi_amp:    [0.349, 1.396]   # 20° to 80°
+  psi_mean:   [0.0,   0.785]   # 0° to 45°
+  psi_amp:    [0.087, 1.047]   # 5° to 60°
+  psi_phase:  [0.0,   6.283]   # full range
+
+# Fixed params: gamma_amp=0, gamma_phase=0, phi_mean=0, phi_phase=0
+
+algorithm:
+  n_samples: 500
+  max_eval: 500
+  equilibrium_tol: 1.0e-4
+
+output: hover_minpower.h5

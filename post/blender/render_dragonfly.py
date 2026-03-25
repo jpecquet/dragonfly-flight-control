@@ -788,6 +788,30 @@ def main():
         wing_objects[wname] = wing_obj
         wing_deform_data[wname] = capture_wing_deform_data(wing_obj, info['span'])
 
+    # Target sphere (pursuit mode: 3D sphere that disappears at intercept)
+    target_positions = frame_data.get('target_position')
+    target_modes = frame_data.get('target_mode')  # 0=HOVER, 1=PURSUIT
+    target_obj = None
+    target_intercept_frame = None
+    if target_positions is not None:
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=0.1, segments=24, ring_count=16)
+        target_obj = bpy.context.active_object
+        target_obj.name = "Target"
+        mat = bpy.data.materials.new(name="TargetMaterial")
+        mat.use_nodes = True
+        bsdf = mat.node_tree.nodes.get("Principled BSDF")
+        if bsdf is not None:
+            target_color = style_cfg.get('target_color', '#2ca02c')
+            r, g, b = int(target_color[1:3], 16) / 255, int(target_color[3:5], 16) / 255, int(target_color[5:7], 16) / 255
+            bsdf.inputs["Base Color"].default_value = (r, g, b, 1.0)
+        target_obj.data.materials.append(mat)
+        # Find intercept frame: first frame where mode transitions from PURSUIT back to HOVER
+        if target_modes is not None:
+            for fi in range(1, len(target_modes)):
+                if target_modes[fi - 1] == 1 and target_modes[fi] == 0:
+                    target_intercept_frame = fi
+                    break
+
     # Render frames (camera stays fixed at viewport center)
     for frame_idx in range(start_frame, end_frame):
         # Get body position for this frame
@@ -811,6 +835,15 @@ def main():
                 wing_name=wname,
             )
             transform_wing(wing_obj, origin, e_r, e_c)
+
+        # Position target sphere
+        if target_obj is not None and target_positions is not None:
+            if target_intercept_frame is not None and frame_idx >= target_intercept_frame:
+                target_obj.hide_render = True
+            else:
+                target_obj.hide_render = False
+                tp = target_positions[frame_idx]
+                target_obj.location = Vector((tp[0], tp[1], tp[2]))
 
         # Render
         render_frame(frame_idx, output_dir)

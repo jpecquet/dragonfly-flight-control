@@ -133,7 +133,7 @@ double buildTwistH1Scales(const PitchTwistH1Model& twist_model,
 Wing::Wing(const std::string& name, double mu0, double lb0, WingSide side,
            const BladeElementAeroParams& aero_params, double cone_angle, AngleFunc angleFunc,
            int n_blade_elements, const PitchTwistH1Model& pitch_twist_h1)
-    : name_(name), mu0_(mu0), lb0_(lb0), side_(side), cone_angle_(cone_angle),
+    : name_(name), mu0_(mu0), lb0_(lb0), nu_(0.0), ar_(0.0), side_(side), cone_angle_(cone_angle),
       n_blade_elements_(std::max(1, n_blade_elements)),
       blade_(aero_params), pitch_twist_h1_(pitch_twist_h1), angleFunc_(std::move(angleFunc)) {
     buildCompositeEllipseBladeGrid(n_blade_elements_, blade_eta_, blade_area_weights_);
@@ -187,6 +187,8 @@ Vec3 Wing::computeForce(
     vecs.drag = Vec3::Zero();
     vecs.alpha = std::numeric_limits<double>::quiet_NaN();
     vecs.power = 0.0;
+    vecs.phi_dot = angles.phi_dot;
+    vecs.psi_dot = angles.psi_dot;
     if (vecs.blade_e_s.size() != blade_eta_.size()) {
         vecs.blade_e_s.resize(blade_eta_.size(), Vec3::Zero());
         vecs.blade_e_r.resize(blade_eta_.size(), Vec3::Zero());

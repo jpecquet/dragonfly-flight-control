@@ -442,7 +442,7 @@ def _extract_wing_twist_h1(time_values, wing_names, params) -> Dict[str, Dict]:
     return twist_payload
 
 
-def extract_frame_data(states, wing_vectors, params=None, time_values=None):
+def extract_frame_data(states, wing_vectors, params=None, time_values=None, controller=None):
     """
     Extract frame data to a JSON-serializable format for Blender.
 
@@ -451,6 +451,7 @@ def extract_frame_data(states, wing_vectors, params=None, time_values=None):
         wing_vectors: Dict-of-arrays keyed by wing name
         params: Optional simulation parameters dict (used for wing geometry metadata)
         time_values: Optional time array matching frame count
+        controller: Optional controller dict with target_position, mode, etc.
 
     Returns:
         dict: Frame data suitable for JSON serialization
@@ -493,6 +494,10 @@ def extract_frame_data(states, wing_vectors, params=None, time_values=None):
             str(name): float(value) for name, value in params.get('wing_cone_angle', {}).items()
         }
         payload['wing_twist_h1'] = _extract_wing_twist_h1(time_arr, wing_names, params)
+    if controller is not None and 'target_position' in controller:
+        payload['target_position'] = np.asarray(controller['target_position']).tolist()
+        if 'mode' in controller:
+            payload['target_mode'] = np.asarray(controller['mode']).tolist()
     return payload
 
 
@@ -506,6 +511,7 @@ def run_blender_render(
     end_frame: int = -1,
     params: Optional[Dict] = None,
     time_values: Optional[np.ndarray] = None,
+    controller: Optional[Dict] = None,
 ):
     """
     Run Blender to render dragonfly frames.
@@ -524,7 +530,7 @@ def run_blender_render(
         raise RuntimeError("Blender not found")
 
     # Extract and save frame data
-    frame_data = extract_frame_data(states, wing_vectors, params=params, time_values=time_values)
+    frame_data = extract_frame_data(states, wing_vectors, params=params, time_values=time_values, controller=controller)
     with open(data_file, 'w') as f:
         json.dump(frame_data, f)
 
@@ -603,6 +609,7 @@ def run_blender_render_parallel(
     n_workers: Optional[int] = None,
     params: Optional[Dict] = None,
     time_values: Optional[np.ndarray] = None,
+    controller: Optional[Dict] = None,
 ):
     """
     Run Blender to render dragonfly frames in parallel.
@@ -627,7 +634,7 @@ def run_blender_render_parallel(
     n_workers = max(1, min(int(n_workers), MAX_PARALLEL_WORKERS))
 
     # Extract and save frame data (shared by all workers)
-    frame_data = extract_frame_data(states, wing_vectors, params=params, time_values=time_values)
+    frame_data = extract_frame_data(states, wing_vectors, params=params, time_values=time_values, controller=controller)
     with open(data_file, 'w') as f:
         json.dump(frame_data, f)
 
@@ -681,6 +688,20 @@ def run_blender_render_parallel(
 def check_blender_available() -> bool:
     """Check if Blender is available on the system."""
     return find_blender() is not None
+
+
+def _visible_targets(controller: Optional[Dict]) -> Optional[np.ndarray]:
+    """Extract target positions visible in the animation (up to intercept for pursuit)."""
+    if controller is None or 'target_position' not in controller:
+        return None
+    targets = controller['target_position']
+    if 'mode' in controller:
+        mode = np.asarray(controller['mode'])
+        # Find intercept: first transition from PURSUIT(1) back to HOVER(0)
+        transitions = np.where((mode[:-1] == 1) & (mode[1:] == 0))[0]
+        if len(transitions) > 0:
+            targets = targets[:transitions[0] + 1]
+    return targets
 
 
 def _subsample_animation_inputs(
@@ -771,8 +792,7 @@ def render_hybrid(
         print(f"Frame skipping enabled: step={frame_step} ({original_n} -> {len(states)} frames)")
 
     if config.viewport is None:
-        targets = controller['target_position'] if controller else None
-        config.viewport = compute_viewport(states, targets=targets)
+        config.viewport = compute_viewport(states, targets=_visible_targets(controller))
 
     if controller is not None:
         config.camera = adapt_camera_for_tracking(
@@ -857,7 +877,8 @@ def render_hybrid(
                 print(f"Rendering Blender frames ({n_workers} workers)...")
                 run_blender_render_parallel(
                     states, wing_vectors, cache_blender_dir, str(config_file),
-                    str(data_file), n_frames, n_workers, params=params, time_values=time_values
+                    str(data_file), n_frames, n_workers, params=params, time_values=time_values,
+                    controller=controller,
                 )
             except Exception:
                 cache_tmpdir.cleanup()
@@ -916,8 +937,7 @@ def render_mpl_only(
         print(f"Frame skipping enabled: step={frame_step} ({original_n} -> {len(states)} frames)")
 
     if config.viewport is None:
-        targets = controller['target_position'] if controller else None
-        config.viewport = compute_viewport(states, targets=targets)
+        config.viewport = compute_viewport(states, targets=_visible_targets(controller))
 
     if controller is not None:
         config.camera = adapt_camera_for_tracking(

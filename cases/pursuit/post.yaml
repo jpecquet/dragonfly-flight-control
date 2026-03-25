@@ -1,8 +1,8 @@
 version: 1
 
 simulation:
-  driver: yaml_track_case
-  case_file: cases/pursuit/case.yaml
+  driver: pursuit
+  pursuit_config: configs/pursuit.yaml
   run_dir: runs/pursuit/sim
   binary: build/bin/dragonfly
 
@@ -12,7 +12,7 @@ docs_media:
   themes: [light, dark]
 
 artifacts:
-  - kind: tracking_video
-    input_h5: "{run_dir}/output.h5"
+  - kind: pursuit_video
+    input_h5: "{run_dir}/pursuit.h5"
     output: pursuit_animation.{theme}.mp4
     frame_step: 20

@@ -1,5 +1,9 @@
 # Reachability Analysis
 
+```{seealso}
+The hover equilibrium point ($\tilde{u}_x = \tilde{u}_z = 0$) is explored further in the [Hover Solution](hover.md), which finds minimum-power kinematics and demonstrates a proportional hover controller.
+```
+
 ## Overview
 
 We investigate the region of $(\tilde{u}_x, \tilde{u}_z)$ velocity space that the dragonfly can sustain as a steady-state equilibrium by adjusting its wing control parameters. For each point on a regular grid in velocity space, we run a multi-start optimizer to find control parameters that bring the net body force to zero. A grid point is considered reachable if the optimizer achieves a residual below a specified tolerance.

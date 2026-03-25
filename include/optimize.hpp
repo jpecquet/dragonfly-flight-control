@@ -101,11 +101,30 @@ double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
 Vec3 wingBeatAccelVec(const KinematicParams& kin, const PhysicalParams& phys,
                       OptimBuffers& buffers, double ux, double uz, int N = 40);
 
+// Returns the wingbeat-averaged positive muscular power (clamped per Berman & Wang 2007)
+double wingBeatPower(const KinematicParams& kin, const PhysicalParams& phys,
+                     OptimBuffers& buffers, double ux, double uz, int N = 40);
+
 // Result of a multi-start equilibrium search
 struct EquilibriumBranch {
     KinematicParams kin;
     double residual;  // sqrt(|a_mean|^2)
 };
+
+// Result of a minimum-power hover search
+struct HoverSolution {
+    KinematicParams kin;
+    double power;     // Mean aerodynamic power
+    double residual;  // sqrt(|a_mean|²) — equilibrium quality
+};
+
+// Find the minimum-power hover equilibrium with gamma_mean >= lower bound in kin_template.
+// Phase 1 finds equilibrium warm starts; Phase 2 minimizes power subject to equilibrium constraint.
+// Returns a solution with NaN power/residual if no equilibrium is found in Phase 1.
+HoverSolution findMinPowerHover(
+    const KinematicParams& kin_template,
+    const PhysicalParams& phys,
+    int n_samples, int max_eval, double equilibrium_tol);
 
 // Multi-start equilibrium search at a single (ux, uz) point
 std::vector<EquilibriumBranch> findEquilibria(

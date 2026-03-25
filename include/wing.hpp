@@ -22,8 +22,10 @@ inline WingSide parseSide(const std::string& s) {
 struct WingConfig : MotionParams {
     std::string name;       // Wing identifier (e.g., "fore", "hind", "aux")
     WingSide side;          // Left or Right
-    double mu0 = 0.0;             // Mass parameter
-    double lb0 = 0.0;             // Span length
+    double mu0 = 0.0;             // Aerodynamic loading parameter rho*S*R/m
+    double lb0 = 0.0;             // Span ratio R/L
+    double nu = 0.0;              // Wing mass fraction m_w/m (0 = massless wing)
+    double ar = 0.0;              // Wing aspect ratio R/c_bar (0 = skip pitching inertia)
     DragCoefficientModel drag_model = DragCoefficientModel::Sinusoidal;
     LiftCoefficientModel lift_model = LiftCoefficientModel::Sinusoidal;
     double Cd_min = 0.0;          // Minimum drag coefficient
@@ -88,10 +90,19 @@ public:
     // Update the angle function (for reusing Wing objects with new kinematics)
     void setAngleFunc(AngleFunc func) { angleFunc_ = std::move(func); }
 
+    // Set wing inertia parameters (mass fraction and aspect ratio)
+    void setInertia(double nu, double ar) { nu_ = nu; ar_ = ar; }
+
     // Accessors
     const std::string& name() const { return name_; }
     double mu0() const { return mu0_; }
     double lb0() const { return lb0_; }
+    double nu() const { return nu_; }
+    double ar() const { return ar_; }
+    // Nondimensional flapping MoI: I_phi/(m*L^2) = nu*lb0^2/4
+    double inertia_phi() const { return nu_ * lb0_ * lb0_ / 4.0; }
+    // Nondimensional pitching MoI: I_psi/(m*L^2) = nu*lb0^2/(pi^2*AR^2)
+    double inertia_psi() const { return (ar_ > 0.0) ? nu_ * lb0_ * lb0_ / (M_PI * M_PI * ar_ * ar_) : 0.0; }
     WingSide side() const { return side_; }
     int nBladeElements() const { return n_blade_elements_; }
     const std::vector<double>& bladeEta() const { return blade_eta_; }
@@ -101,8 +112,10 @@ public:
 
 private:
     std::string name_;     // Wing identifier
-    double mu0_;           // Wing mass parameter
-    double lb0_;           // Wing length
+    double mu0_;           // Aerodynamic loading parameter
+    double lb0_;           // Wing span ratio
+    double nu_;            // Wing mass fraction
+    double ar_;            // Wing aspect ratio
     WingSide side_;        // Left or Right
     double cone_angle_;    // Coning angle (radians)
     int n_blade_elements_; // Number of spanwise blade elements

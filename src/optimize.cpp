@@ -231,6 +231,68 @@ double wingBeatAccel(const KinematicParams& kin, const PhysicalParams& phys,
     return wingBeatAccel(kin, phys, buf, ux, uz, N);
 }
 
+// wingBeatPower: returns the wingbeat-averaged positive muscular power.
+// Muscular power = inertial power - aerodynamic power on wing, following
+// Berman & Wang (2007) Eq. 2.22-2.25.  Negative muscular power is clamped
+// to zero (assumes perfect elastic storage).
+
+double wingBeatPower(const KinematicParams& kin, const PhysicalParams& phys,
+                     OptimBuffers& buf, double ux, double uz, int N) {
+    updateWingAngleFuncs(buf.wings, kin, phys);
+
+    double T = 2.0 * M_PI / kin.omega.value;
+    double dt = T / N;
+    double p_mean = 0.0;
+    State state(Vec3::Zero(), Vec3(ux, 0.0, uz));
+
+    // Evaluate at N+1 points for finite-difference accelerations
+    const int M = N + 1;
+    struct WingSnapshot { double phi_dot; double psi_dot; double aero_power; };
+    std::vector<std::vector<WingSnapshot>> snapshots(M, std::vector<WingSnapshot>(buf.wings.size()));
+
+    for (int i = 0; i < M; ++i) {
+        double t = i * dt;
+        auto& scratch = (i % 2 == 0) ? buf.scratch1 : buf.scratch2;
+        equationOfMotion(t, state, buf.wings, scratch);
+        for (size_t w = 0; w < buf.wings.size(); ++w) {
+            snapshots[i][w] = {scratch[w].phi_dot, scratch[w].psi_dot, scratch[w].power};
+        }
+    }
+
+    // Integrate using trapezoidal rule with central-difference accelerations
+    for (int i = 0; i < N; ++i) {
+        double p1 = 0.0, p2 = 0.0;
+        for (size_t w = 0; w < buf.wings.size(); ++w) {
+            const double I_phi = buf.wings[w].inertia_phi();
+            const double I_psi = buf.wings[w].inertia_psi();
+
+            // Central-difference accelerations (wrap around for periodicity)
+            int im1 = (i > 0) ? i - 1 : N - 1;
+            int ip1 = i + 1;
+            int ip2 = (ip1 < N) ? ip1 + 1 : 1;
+
+            double phi_ddot_1 = (snapshots[ip1][w].phi_dot - snapshots[im1][w].phi_dot) / (2.0 * dt);
+            double psi_ddot_1 = (snapshots[ip1][w].psi_dot - snapshots[im1][w].psi_dot) / (2.0 * dt);
+            double phi_ddot_2 = (snapshots[ip2][w].phi_dot - snapshots[i][w].phi_dot) / (2.0 * dt);
+            double psi_ddot_2 = (snapshots[ip2][w].psi_dot - snapshots[i][w].psi_dot) / (2.0 * dt);
+
+            // Muscular power = inertial - aero (at each endpoint)
+            double p_muscle_1 = I_phi * phi_ddot_1 * snapshots[i][w].phi_dot
+                              + I_psi * psi_ddot_1 * snapshots[i][w].psi_dot
+                              - snapshots[i][w].aero_power;
+            double p_muscle_2 = I_phi * phi_ddot_2 * snapshots[ip1][w].phi_dot
+                              + I_psi * psi_ddot_2 * snapshots[ip1][w].psi_dot
+                              - snapshots[ip1][w].aero_power;
+
+            p1 += std::max(0.0, p_muscle_1);
+            p2 += std::max(0.0, p_muscle_2);
+        }
+        p_mean += (dt / T) * (p1 + p2) / 2.0;
+    }
+
+    return p_mean;
+}
+
 // findEquilibria: multi-start equilibrium search at a single (ux, uz) point
 
 namespace {
@@ -247,6 +309,26 @@ double nloptObjective(const std::vector<double>& x, [[maybe_unused]] std::vector
     auto* ctx = static_cast<NLoptContext*>(data);
     ctx->kin->setVariableValues(x);
     return wingBeatAccel(*ctx->kin, *ctx->phys, *ctx->buffers, ctx->ux, ctx->uz);
+}
+
+struct NLoptPowerContext {
+    KinematicParams* kin;
+    const PhysicalParams* phys;
+    OptimBuffers* buffers;
+    double ux, uz;
+    double tol_sq;
+};
+
+double nloptPowerObjective(const std::vector<double>& x, [[maybe_unused]] std::vector<double>& grad, void* data) {
+    auto* ctx = static_cast<NLoptPowerContext*>(data);
+    ctx->kin->setVariableValues(x);
+    return wingBeatPower(*ctx->kin, *ctx->phys, *ctx->buffers, ctx->ux, ctx->uz);
+}
+
+double nloptEquilibriumConstraint(const std::vector<double>& x, [[maybe_unused]] std::vector<double>& grad, void* data) {
+    auto* ctx = static_cast<NLoptPowerContext*>(data);
+    ctx->kin->setVariableValues(x);
+    return wingBeatAccel(*ctx->kin, *ctx->phys, *ctx->buffers, ctx->ux, ctx->uz) - ctx->tol_sq;
 }
 
 bool isNewBranch(const std::vector<EquilibriumBranch>& branches, const KinematicParams& sol, double tol = 1e-3) {
@@ -313,6 +395,85 @@ std::vector<EquilibriumBranch> findEquilibria(
     }
 
     return branches;
+}
+
+// findMinPowerHover: two-phase hover search
+// Phase 1: find equilibrium warm starts; Phase 2: minimize power subject to equilibrium constraint.
+
+HoverSolution findMinPowerHover(
+    const KinematicParams& kin_template,
+    const PhysicalParams& phys,
+    int n_samples, int max_eval, double equilibrium_tol) {
+
+    constexpr double NaN = std::numeric_limits<double>::quiet_NaN();
+
+    auto branches = findEquilibria(kin_template, phys, 0.0, 0.0, n_samples, max_eval, equilibrium_tol);
+
+    if (branches.empty()) {
+        return {kin_template, NaN, NaN};
+    }
+
+    std::vector<double> lb, ub;
+    kin_template.getVariableBounds(lb, ub);
+    double tol_sq = equilibrium_tol * equilibrium_tol;
+
+    HoverSolution best;
+    best.power = std::numeric_limits<double>::infinity();
+    best.residual = NaN;
+
+    OptimBuffers buffers;
+    buffers.init(kin_template, phys);
+
+    for (const auto& branch : branches) {
+        KinematicParams kin = branch.kin;
+
+        NLoptPowerContext ctx{&kin, &phys, &buffers, 0.0, 0.0, tol_sq};
+        nlopt::opt opt(nlopt::LN_COBYLA, lb.size());
+        opt.set_lower_bounds(lb);
+        opt.set_upper_bounds(ub);
+        opt.set_min_objective(nloptPowerObjective, &ctx);
+        opt.add_inequality_constraint(nloptEquilibriumConstraint, &ctx, 1e-8);
+        opt.set_maxeval(max_eval);
+        opt.set_xtol_rel(1e-8);
+        opt.set_ftol_rel(1e-10);
+
+        std::vector<double> x = branch.kin.variableValues();
+        double minf = HUGE_VAL;
+
+        try {
+            opt.optimize(x, minf);
+            kin.setVariableValues(x);
+        } catch (...) {
+            continue;
+        }
+
+        double residual = std::sqrt(wingBeatAccel(kin, phys, buffers, 0.0, 0.0));
+
+        // Reject if Phase 2 moved the solution out of equilibrium
+        if (residual > equilibrium_tol) continue;
+
+        double power = wingBeatPower(kin, phys, buffers, 0.0, 0.0);
+
+        if (power < best.power) {
+            best.kin = kin;
+            best.power = power;
+            best.residual = residual;
+        }
+    }
+
+    // If no Phase 2 branch stayed in equilibrium, fall back to lowest-power Phase 1 branch
+    if (std::isinf(best.power)) {
+        for (const auto& branch : branches) {
+            double power = wingBeatPower(branch.kin, phys, buffers, 0.0, 0.0);
+            if (power < best.power) {
+                best.kin = branch.kin;
+                best.power = power;
+                best.residual = branch.residual;
+            }
+        }
+    }
+
+    return best;
 }
 
 // Algorithm selection implementation

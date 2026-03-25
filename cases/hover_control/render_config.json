@@ -1,0 +1,19 @@
+{
+  "camera": {
+    "elevation": 15.0,
+    "azimuth": -70.0,
+    "figsize_width": 6.5,
+    "figsize_height": 4.333333333333333,
+    "dpi": 300,
+    "box_zoom": 1.05
+  },
+  "blender": {
+    "scale_factor": 2.0
+  },
+  "framerate": 30,
+  "trail_length": -1,
+  "show_axes": true,
+  "show_velocity_text": false,
+  "show_forces": false,
+  "n_workers": 0
+}

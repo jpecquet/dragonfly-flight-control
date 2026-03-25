@@ -600,14 +600,21 @@ def render_tracking_frame(
         ax.cla()
         setup_tracking_axes_2d(ax, config.viewport, style, show_axes=show_axes)
 
-    target = controller['target_position'][frame_idx]
+    # Target rendering: skip if handled by Blender (pursuit mode has 'mode' key)
+    target_in_blender = 'mode' in controller
+    if not target_in_blender:
+        target = controller['target_position'][frame_idx]
 
-    # Full target trajectory (faded dashed line)
-    target_positions = controller['target_position']
-    unique_targets = np.unique(target_positions, axis=0)
-    if len(unique_targets) > 1:
-        ax.plot(target_positions[:, 0], target_positions[:, 2],
-                color=style.target_color, linewidth=1.0, alpha=0.3, linestyle='--')
+        # Full target trajectory (faded dashed line)
+        target_positions = controller['target_position']
+        unique_targets = np.unique(target_positions, axis=0)
+        if len(unique_targets) > 1:
+            ax.plot(target_positions[:, 0], target_positions[:, 2],
+                    color=style.target_color, linewidth=1.0, alpha=0.3, linestyle='--')
+
+        # Current target marker
+        ax.scatter([target[0]], [target[2]],
+                   color=style.target_color, s=style.marker_size, marker='o', alpha=0.8)
 
     # Actual trajectory trail
     trail_points = _trail_points(states, frame_idx, int(config.trail_length))
@@ -616,10 +623,6 @@ def render_tracking_frame(
                 color=style.trajectory_color,
                 linewidth=style.trajectory_linewidth,
                 alpha=0.7)
-
-    # Current target marker
-    ax.scatter([target[0]], [target[2]],
-               color=style.target_color, s=style.marker_size, marker='o', alpha=0.8)
 
     # Save to file
     output_file = output_path / f"mpl_{frame_idx:06d}.png"

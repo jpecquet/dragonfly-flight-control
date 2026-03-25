@@ -531,6 +531,7 @@ std::vector<Wing> createWings(const std::vector<WingConfig>& wc, const SimKinema
             w.name, w.mu0, w.lb0, w.side, aero, w.cone_angle,
             std::move(angleFunc), w.n_blade_elements, twist
         );
+        wings.back().setInertia(w.nu, w.ar);
     }
     return wings;
 }

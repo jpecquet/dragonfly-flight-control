@@ -915,22 +915,20 @@ def plot_mass_regression(
     plt.close(fig)
 
 
-def render_tracking_video_from_h5(
+def _render_target_video(
     input_h5: Path,
     output_video: Path,
+    params, time, states, wings, controller,
     *,
     render_config: Path,
     theme: str | None = None,
     no_blender: bool = False,
     frame_step: int = 1,
 ) -> None:
-    """Render a tracking simulation video (dragonfly + target) from an HDF5 file."""
+    """Shared renderer for tracking/pursuit videos (dragonfly + target)."""
     from post.composite import check_blender_available, render_hybrid, render_mpl_only
     from post.hybrid_config import HybridConfig
-    from post.io import read_tracking
     from post.style import apply_theme_to_config
-
-    params, time, states, wings, controller = read_tracking(str(input_h5))
 
     config = HybridConfig.load(str(render_config))
     config = apply_theme_to_config(config, theme)
@@ -954,6 +952,46 @@ def render_tracking_video_from_h5(
     render_mpl_only(
         states, wings, params, str(output_video),
         controller=controller, config=config, frame_step=frame_step,
+    )
+
+
+def render_tracking_video_from_h5(
+    input_h5: Path,
+    output_video: Path,
+    *,
+    render_config: Path,
+    theme: str | None = None,
+    no_blender: bool = False,
+    frame_step: int = 1,
+) -> None:
+    """Render a tracking simulation video (dragonfly + target) from an HDF5 file."""
+    from post.io import read_tracking
+
+    params, time, states, wings, controller = read_tracking(str(input_h5))
+    _render_target_video(
+        input_h5, output_video, params, time, states, wings, controller,
+        render_config=render_config, theme=theme, no_blender=no_blender,
+        frame_step=frame_step,
+    )
+
+
+def render_pursuit_video_from_h5(
+    input_h5: Path,
+    output_video: Path,
+    *,
+    render_config: Path,
+    theme: str | None = None,
+    no_blender: bool = False,
+    frame_step: int = 1,
+) -> None:
+    """Render a pursuit simulation video (dragonfly + target) from an HDF5 file."""
+    from post.io import read_pursuit
+
+    params, time, states, wings, controller = read_pursuit(str(input_h5))
+    _render_target_video(
+        input_h5, output_video, params, time, states, wings, controller,
+        render_config=render_config, theme=theme, no_blender=no_blender,
+        frame_step=frame_step,
     )
 
 
@@ -1522,6 +1560,189 @@ def plot_reachable_boundary(
     ax.set_xlabel(r"$\tilde{u}_x$")
     ax.set_ylabel(r"$\tilde{u}_z$")
     ax.set_aspect("equal")
+
+    fig.savefig(str(output_path), dpi=300)
+    plt.close(fig)
+
+
+def plot_hover_power(
+    h5_path: Path,
+    output_path: Path,
+    *,
+    theme: str | None = None,
+) -> None:
+    """Plot minimum hover power as a function of stroke plane angle."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from post.style import apply_matplotlib_style, figure_size, resolve_style
+
+    style = resolve_style(theme=theme)
+    apply_matplotlib_style(style)
+
+    import h5py
+
+    with h5py.File(str(h5_path), "r") as f:
+        gamma = np.asarray(f["gamma_values"][:], dtype=float)
+        power = np.asarray(f["power"][:], dtype=float)
+
+    gamma_deg = np.degrees(gamma)
+    valid = np.isfinite(power)
+
+    fig, ax = plt.subplots(figsize=figure_size(0.55), layout="constrained")
+
+    ax.plot(gamma_deg[valid], power[valid], "o-",
+            color=style.trajectory_color, markersize=4, linewidth=1.5)
+
+    if valid.any():
+        i_min = np.nanargmin(power)
+        ax.axvline(gamma_deg[i_min], color=style.grid_color, linestyle="--",
+                   linewidth=0.8)
+        ax.annotate(
+            f"{gamma_deg[i_min]:.0f}°",
+            xy=(gamma_deg[i_min], power[i_min]),
+            xytext=(8, 12), textcoords="offset points",
+            fontsize=9, color=style.text_color,
+        )
+
+    # Mark points where no equilibrium was found
+    if (~valid).any():
+        ax.plot(gamma_deg[~valid], np.zeros(np.sum(~valid)),
+                "x", color=style.error_color, markersize=6,
+                label="no equilibrium")
+        ax.legend()
+
+    ax.set_xlabel(r"Stroke plane angle $\gamma_0$ (deg)")
+    ax.set_ylabel(r"Mean aerodynamic power $\bar{P}$")
+    ax.set_xlim(0, 90)
+
+    fig.savefig(str(output_path), dpi=300)
+    plt.close(fig)
+
+
+def plot_hover_params(
+    h5_path: Path,
+    output_path: Path,
+    *,
+    theme: str | None = None,
+) -> None:
+    """Plot optimized control parameters as a function of stroke plane angle."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from post.style import apply_matplotlib_style, figure_size, resolve_style
+
+    style = resolve_style(theme=theme)
+    apply_matplotlib_style(style)
+
+    import h5py
+
+    with h5py.File(str(h5_path), "r") as f:
+        gamma = np.asarray(f["gamma_values"][:], dtype=float)
+        params = np.asarray(f["params"][:], dtype=float)  # (n_points, 10)
+        param_names = [s.decode() if isinstance(s, bytes) else s
+                       for s in f["param_names"][:]]
+
+    gamma_deg = np.degrees(gamma)
+    valid = np.isfinite(params[:, 0])
+
+    # Identify variable params: those that vary across the sweep
+    variable_indices = []
+    labels = {
+        "phi_amp": r"$\phi_A$",
+        "psi_mean": r"$\psi_0$",
+        "psi_amp": r"$\psi_A$",
+        "psi_phase": r"$\delta_\psi$",
+    }
+    for i, name in enumerate(param_names):
+        if name in labels:
+            variable_indices.append(i)
+
+    fig, axes = plt.subplots(len(variable_indices), 1,
+                             figsize=figure_size(0.2 * len(variable_indices)),
+                             layout="constrained", sharex=True)
+    if len(variable_indices) == 1:
+        axes = [axes]
+
+    for ax, idx in zip(axes, variable_indices):
+        name = param_names[idx]
+        vals = np.degrees(params[:, idx])
+        ax.plot(gamma_deg[valid], vals[valid], "o-",
+                color=style.trajectory_color, markersize=3, linewidth=1.2)
+        ax.set_ylabel(labels[name] + " (deg)")
+        ax.set_xlim(0, 90)
+
+    axes[-1].set_xlabel(r"Stroke plane angle $\gamma_0$ (deg)")
+
+    fig.savefig(str(output_path), dpi=300)
+    plt.close(fig)
+
+
+def plot_hover_control(
+    h5_path: Path,
+    output_path: Path,
+    *,
+    theme: str | None = None,
+) -> None:
+    """Plot hover control simulation: velocity and control input time histories."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from post.style import apply_matplotlib_style, figure_size, resolve_style
+
+    style = resolve_style(theme=theme)
+    apply_matplotlib_style(style)
+
+    import h5py
+
+    with h5py.File(str(h5_path), "r") as f:
+        t = np.asarray(f["time"][:], dtype=float)
+        # Support both old (flat) and new (standard sim + /hover_control/) layouts
+        if "hover_control" in f:
+            hc = f["hover_control"]
+            states = np.asarray(f["state"][:], dtype=float)
+            ux = states[:, 3]
+            uz = states[:, 5]
+            phi_amp = np.asarray(hc["phi_amp"][:], dtype=float)
+            psi_mean = np.asarray(hc["psi_mean"][:], dtype=float)
+            omega = float(f["parameters/omega"][()])
+            phi_amp_eq = float(hc["phi_amp_eq"][()])
+            psi_mean_eq = float(hc["psi_mean_eq"][()])
+        else:
+            ux = np.asarray(f["ux"][:], dtype=float)
+            uz = np.asarray(f["uz"][:], dtype=float)
+            phi_amp = np.asarray(f["phi_amp"][:], dtype=float)
+            psi_mean = np.asarray(f["psi_mean"][:], dtype=float)
+            omega = float(f["omega"][()])
+            phi_amp_eq = float(f["phi_amp_eq"][()])
+            psi_mean_eq = float(f["psi_mean_eq"][()])
+
+    wingbeats = t * omega / (2.0 * np.pi)
+
+    fig, axes = plt.subplots(2, 1, figsize=figure_size(0.55), layout="constrained",
+                             sharex=True)
+
+    # Top: velocities
+    ax = axes[0]
+    ax.plot(wingbeats, ux, linewidth=1.2, label=r"$u_x$", color=style.trajectory_color)
+    ax.plot(wingbeats, uz, linewidth=1.2, label=r"$u_z$", color=style.error_color)
+    ax.axhline(0, color=style.grid_color, linewidth=0.5, linestyle="--")
+    ax.set_ylabel("Velocity")
+    ax.legend(fontsize=8)
+
+    # Bottom: control inputs
+    ax = axes[1]
+    ax.plot(wingbeats, np.degrees(phi_amp), linewidth=1.2,
+            label=r"$\phi_A$", color=style.trajectory_color)
+    ax.plot(wingbeats, np.degrees(psi_mean), linewidth=1.2,
+            label=r"$\psi_0$", color=style.error_color)
+    ax.axhline(np.degrees(phi_amp_eq), color=style.trajectory_color,
+               linewidth=0.5, linestyle=":")
+    ax.axhline(np.degrees(psi_mean_eq), color=style.error_color,
+               linewidth=0.5, linestyle=":")
+    ax.set_ylabel("Control (deg)")
+    ax.set_xlabel("Wingbeats")
+    ax.legend(fontsize=8)
 
     fig.savefig(str(output_path), dpi=300)
     plt.close(fig)

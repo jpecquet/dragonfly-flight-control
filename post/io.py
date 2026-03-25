@@ -212,6 +212,41 @@ def read_tracking(filename):
     return params, time, states, wings, controller
 
 
+def read_pursuit(filename):
+    """
+    Read pursuit simulation output from HDF5 file.
+
+    Returns:
+        params: dict of simulation parameters
+        time: 1D array of time values
+        states: ndarray of state vectors (N, 6)
+        wings: dict-of-arrays keyed by wing name
+        controller: dict with target_position (Nx3), gamma_mean, psi_mean, phi_amp,
+                    mode, distance, and equilibrium scalars
+    """
+    params, time, states, wings = read_simulation(filename)
+
+    with h5py.File(filename, "r") as f:
+        pc = f["/pursuit_control"]
+        target_x = pc["target_x"][:]
+        target_y = pc["target_y"][:]
+        target_z = pc["target_z"][:]
+        controller = {
+            'target_position': np.column_stack([target_x, target_y, target_z]),
+            'gamma_mean': pc["gamma_mean"][:],
+            'psi_mean': pc["psi_mean"][:],
+            'phi_amp': pc["phi_amp"][:],
+            'mode': pc["mode"][:],
+            'distance': pc["distance"][:],
+            'phi_amp_eq': float(pc["phi_amp_eq"][()]),
+            'psi_mean_eq': float(pc["psi_mean_eq"][()]),
+            'detection_wingbeat': float(pc["detection_wingbeat"][()]),
+            'intercept_wingbeat': float(pc["intercept_wingbeat"][()]),
+        }
+
+    return params, time, states, wings, controller
+
+
 def read_wing_rotation(filename):
     """
     Read wing rotation test data from HDF5 file.
