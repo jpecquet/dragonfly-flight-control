@@ -5,15 +5,113 @@ simulation:
   hover_config: configs/hover_minpower.yaml
   run_dir: docs/research/hover/artifacts
   binary: build/bin/dragonfly
+  runs:
+    # mu0 study
+    - output: hover_mu_001.h5
+      overrides:
+        morphology.wings.0.mu0: 0.01
+        morphology.wings.1.mu0: 0.01
+        morphology.wings.2.mu0: 0.01
+        morphology.wings.3.mu0: 0.01
+    - output: hover_mu_005.h5
+      overrides:
+        morphology.wings.0.mu0: 0.05
+        morphology.wings.1.mu0: 0.05
+        morphology.wings.2.mu0: 0.05
+        morphology.wings.3.mu0: 0.05
+    # lb0 study
+    - output: hover_lb0_06.h5
+      overrides:
+        morphology.wings.0.lb0: 0.6
+        morphology.wings.1.lb0: 0.6
+        morphology.wings.2.lb0: 0.6
+        morphology.wings.3.lb0: 0.6
+    - output: hover_lb0_09.h5
+      overrides:
+        morphology.wings.0.lb0: 0.9
+        morphology.wings.1.lb0: 0.9
+        morphology.wings.2.lb0: 0.9
+        morphology.wings.3.lb0: 0.9
+    # omega study
+    - output: hover_omega_6pi.h5
+      param: morphology.omega
+      value: 18.8496   # 6*pi
+    - output: hover_omega_10pi.h5
+      param: morphology.omega
+      value: 31.4159   # 10*pi
+    # nu study
+    - output: hover_nu_0.h5
+      overrides:
+        morphology.wings.0.nu: 0.0
+        morphology.wings.1.nu: 0.0
+        morphology.wings.2.nu: 0.0
+        morphology.wings.3.nu: 0.0
+    - output: hover_nu_003.h5
+      overrides:
+        morphology.wings.0.nu: 0.03
+        morphology.wings.1.nu: 0.03
+        morphology.wings.2.nu: 0.03
+        morphology.wings.3.nu: 0.03
+
+  sim_cases:
+    - cases/hover/hover_stick_ref.yaml
+    - cases/hover/hover_stick_high_mu.yaml
 
 docs_media:
   media_dir: docs/_static/media/hover
   themes: [light, dark]
 
 artifacts:
-- kind: hover_power
+- kind: hover_sweep
   input_h5: "{run_dir}/hover_minpower.h5"
-  output: hover_power.{theme}.png
-- kind: hover_params
-  input_h5: "{run_dir}/hover_minpower.h5"
-  output: hover_params.{theme}.png
+  output: hover_sweep.{theme}.png
+
+- kind: hover_param_study
+  datasets:
+    - h5: "{run_dir}/hover_mu_001.h5"
+      label: "$\\mu_0 = 0.01$"
+    - h5: "{run_dir}/hover_minpower.h5"
+      label: "$\\mu_0 = 0.025$"
+    - h5: "{run_dir}/hover_mu_005.h5"
+      label: "$\\mu_0 = 0.05$"
+  output: hover_mu0.{theme}.png
+
+- kind: hover_param_study
+  datasets:
+    - h5: "{run_dir}/hover_lb0_06.h5"
+      label: "$\\lambda_0 = 0.6$"
+    - h5: "{run_dir}/hover_minpower.h5"
+      label: "$\\lambda_0 = 0.75$"
+    - h5: "{run_dir}/hover_lb0_09.h5"
+      label: "$\\lambda_0 = 0.9$"
+  output: hover_lb0.{theme}.png
+
+- kind: hover_param_study
+  datasets:
+    - h5: "{run_dir}/hover_omega_6pi.h5"
+      label: "$\\tilde{{\\omega}} = 6\\pi$"
+    - h5: "{run_dir}/hover_minpower.h5"
+      label: "$\\tilde{{\\omega}} = 8\\pi$"
+    - h5: "{run_dir}/hover_omega_10pi.h5"
+      label: "$\\tilde{{\\omega}} = 10\\pi$"
+  output: hover_omega.{theme}.png
+
+- kind: hover_param_study
+  datasets:
+    - h5: "{run_dir}/hover_nu_0.h5"
+      label: "$\\nu = 0$"
+    - h5: "{run_dir}/hover_minpower.h5"
+      label: "$\\nu = 0.015$"
+    - h5: "{run_dir}/hover_nu_003.h5"
+      label: "$\\nu = 0.03$"
+  output: hover_nu.{theme}.png
+
+- kind: stick_video
+  input_h5: "{run_dir}/hover_stick_ref.h5"
+  output: hover_stick_ref.{theme}.mp4
+  stations: [0.6666667]
+
+- kind: stick_video
+  input_h5: "{run_dir}/hover_stick_high_mu.h5"
+  output: hover_stick_high_mu.{theme}.mp4
+  stations: [0.6666667]

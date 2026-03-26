@@ -305,6 +305,33 @@ def _run_simulation(
                 raise FileNotFoundError(f"Hover output not found: {out_path}")
             print(f"[done] output: {out_path}")
 
+        # Parametric runs (base_config + runs pattern)
+        runs_raw = sim_cfg.get("runs", [])
+        if runs_raw:
+            base_yaml = _load_yaml(hover_cfg)
+            if not skip_sim:
+                for run in runs_raw:
+                    run_yaml = copy.deepcopy(base_yaml)
+                    run_output = str(run["output"])
+                    run_out_path = run_dir / run_output
+                    run_yaml["output"] = str(run_out_path)
+                    _apply_run_overrides(run_yaml, run)
+                    stem = Path(run_output).stem
+                    patched_cfg = run_dir / f"hover_run_{stem}.yaml"
+                    patched_cfg.write_text(yaml.dump(run_yaml, default_flow_style=False), encoding="utf-8")
+                    run_cmd([str(binary_path), "hover", "-c", str(patched_cfg)], cwd=run_dir)
+                    if not run_out_path.exists():
+                        raise FileNotFoundError(f"Hover output not found: {run_out_path}")
+                    print(f"[done] output: {run_out_path}")
+
+        # Additional sim cases (for stick plots, etc.)
+        sim_cases = sim_cfg.get("sim_cases", [])
+        if sim_cases and not skip_sim:
+            for case_raw in sim_cases:
+                case_path = _resolve_repo_path(str(case_raw))
+                run_cmd([str(binary_path), "sim", "-c", str(case_path)], cwd=run_dir)
+                print(f"[done] sim case: {case_path}")
+
         return run_dir, out_path
 
     if driver == "hover-control":
@@ -760,30 +787,32 @@ def _run_artifact(
         )
         return
 
-    if kind == "hover_power":
-        from post.docs_artifacts import plot_hover_power
+    if kind == "hover_sweep":
+        from post.docs_artifacts import plot_hover_sweep
 
         input_h5_raw = resolved.get("input_h5")
         if not isinstance(input_h5_raw, str) or not input_h5_raw:
-            raise ValueError("hover_power requires input_h5")
-        plot_hover_power(
+            raise ValueError("hover_sweep requires input_h5")
+        plot_hover_sweep(
             _resolve_repo_path(input_h5_raw),
             output_path,
             theme=theme,
         )
         return
 
-    if kind == "hover_params":
-        from post.docs_artifacts import plot_hover_params
+    if kind == "hover_param_study":
+        from post.docs_artifacts import plot_hover_param_study
 
-        input_h5_raw = resolved.get("input_h5")
-        if not isinstance(input_h5_raw, str) or not input_h5_raw:
-            raise ValueError("hover_params requires input_h5")
-        plot_hover_params(
-            _resolve_repo_path(input_h5_raw),
-            output_path,
-            theme=theme,
-        )
+        ds_raw = resolved.get("datasets")
+        if not isinstance(ds_raw, list) or not ds_raw:
+            raise ValueError("hover_param_study requires datasets")
+        datasets = []
+        for ds in ds_raw:
+            entry: dict[str, Any] = {"h5": _resolve_repo_path(str(ds["h5"])), "label": str(ds["label"])}
+            if "color" in ds:
+                entry["color"] = str(ds["color"])
+            datasets.append(entry)
+        plot_hover_param_study(datasets, output_path, theme=theme)
         return
 
     if kind == "hover_control":

@@ -1565,13 +1565,13 @@ def plot_reachable_boundary(
     plt.close(fig)
 
 
-def plot_hover_power(
+def plot_hover_sweep(
     h5_path: Path,
     output_path: Path,
     *,
     theme: str | None = None,
 ) -> None:
-    """Plot minimum hover power as a function of stroke plane angle."""
+    """Plot hover sweep results: power (left) and control params (right)."""
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -1585,68 +1585,16 @@ def plot_hover_power(
     with h5py.File(str(h5_path), "r") as f:
         gamma = np.asarray(f["gamma_values"][:], dtype=float)
         power = np.asarray(f["power"][:], dtype=float)
-
-    gamma_deg = np.degrees(gamma)
-    valid = np.isfinite(power)
-
-    fig, ax = plt.subplots(figsize=figure_size(0.55), layout="constrained")
-
-    ax.plot(gamma_deg[valid], power[valid], "o-",
-            color=style.trajectory_color, markersize=4, linewidth=1.5)
-
-    if valid.any():
-        i_min = np.nanargmin(power)
-        ax.axvline(gamma_deg[i_min], color=style.grid_color, linestyle="--",
-                   linewidth=0.8)
-        ax.annotate(
-            f"{gamma_deg[i_min]:.0f}°",
-            xy=(gamma_deg[i_min], power[i_min]),
-            xytext=(8, 12), textcoords="offset points",
-            fontsize=9, color=style.text_color,
-        )
-
-    # Mark points where no equilibrium was found
-    if (~valid).any():
-        ax.plot(gamma_deg[~valid], np.zeros(np.sum(~valid)),
-                "x", color=style.error_color, markersize=6,
-                label="no equilibrium")
-        ax.legend()
-
-    ax.set_xlabel(r"Stroke plane angle $\gamma_0$ (deg)")
-    ax.set_ylabel(r"Mean aerodynamic power $\bar{P}$")
-    ax.set_xlim(0, 90)
-
-    fig.savefig(str(output_path), dpi=300)
-    plt.close(fig)
-
-
-def plot_hover_params(
-    h5_path: Path,
-    output_path: Path,
-    *,
-    theme: str | None = None,
-) -> None:
-    """Plot optimized control parameters as a function of stroke plane angle."""
-    import matplotlib.pyplot as plt
-    import numpy as np
-
-    from post.style import apply_matplotlib_style, figure_size, resolve_style
-
-    style = resolve_style(theme=theme)
-    apply_matplotlib_style(style)
-
-    import h5py
-
-    with h5py.File(str(h5_path), "r") as f:
-        gamma = np.asarray(f["gamma_values"][:], dtype=float)
         params = np.asarray(f["params"][:], dtype=float)  # (n_points, 10)
         param_names = [s.decode() if isinstance(s, bytes) else s
                        for s in f["param_names"][:]]
 
     gamma_deg = np.degrees(gamma)
-    valid = np.isfinite(params[:, 0])
+    gamma_max = np.max(gamma_deg)
+    valid_power = np.isfinite(power)
+    valid_params = np.isfinite(params[:, 0])
 
-    # Identify variable params: those that vary across the sweep
+    # Identify variable params
     variable_indices = []
     labels = {
         "phi_amp": r"$\phi_A$",
@@ -1658,23 +1606,159 @@ def plot_hover_params(
         if name in labels:
             variable_indices.append(i)
 
-    fig, axes = plt.subplots(len(variable_indices), 1,
-                             figsize=figure_size(0.2 * len(variable_indices)),
-                             layout="constrained", sharex=True)
-    if len(variable_indices) == 1:
-        axes = [axes]
+    n_params = len(variable_indices)
+    fig = plt.figure(figsize=figure_size(0.55), layout="constrained")
+    gs = fig.add_gridspec(n_params, 2, width_ratios=[1, 1])
 
-    for ax, idx in zip(axes, variable_indices):
+    # Left: power subplot spanning all rows
+    ax_power = fig.add_subplot(gs[:, 0])
+    ax_power.plot(gamma_deg[valid_power], power[valid_power], "o-",
+                  color=style.trajectory_color, markersize=4, linewidth=1.5)
+
+    if (~valid_power).any():
+        ax_power.plot(gamma_deg[~valid_power],
+                      np.zeros(np.sum(~valid_power)),
+                      "x", color=style.error_color, markersize=6,
+                      label="no equilibrium")
+        ax_power.legend()
+
+    ax_power.set_xlabel(r"Stroke plane angle $\gamma_0$ (deg)")
+    ax_power.set_ylabel(r"$\langle\tilde{P}\rangle$")
+    ax_power.set_xlim(0, gamma_max)
+    ax_power.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    ax_power.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
+
+    # Right: stacked parameter subplots
+    param_axes = [fig.add_subplot(gs[i, 1], sharex=ax_power if i == 0 else None)
+                  for i in range(n_params)]
+    for i in range(1, n_params):
+        param_axes[i].sharex(param_axes[0])
+
+    for ax, idx in zip(param_axes, variable_indices):
         name = param_names[idx]
         vals = np.degrees(params[:, idx])
-        ax.plot(gamma_deg[valid], vals[valid], "o-",
+        ax.plot(gamma_deg[valid_params], vals[valid_params], "o-",
                 color=style.trajectory_color, markersize=3, linewidth=1.2)
         ax.set_ylabel(labels[name] + " (deg)")
-        ax.set_xlim(0, 90)
+        ax.yaxis.set_major_locator(plt.MaxNLocator(nbins=4, integer=True))
 
-    axes[-1].set_xlabel(r"Stroke plane angle $\gamma_0$ (deg)")
+    # Hide x tick labels on all but the bottom param subplot
+    for ax in param_axes[:-1]:
+        plt.setp(ax.get_xticklabels(), visible=False)
+
+    param_axes[-1].set_xlabel(r"Stroke plane angle $\gamma_0$ (deg)")
+    param_axes[-1].xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    param_axes[0].set_xlim(0, gamma_max)
 
     fig.savefig(str(output_path), dpi=300)
+    plt.close(fig)
+
+
+def plot_hover_param_study(
+    datasets: list[dict],
+    output_path: Path,
+    *,
+    theme: str | None = None,
+) -> None:
+    """Plot hover parametric study: power (left) and control params (right) for multiple datasets."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from post.style import apply_matplotlib_style, figure_size, resolve_style
+
+    style = resolve_style(theme=theme)
+    apply_matplotlib_style(style)
+
+    import h5py
+
+    # Default color cycle
+    default_colors = ["#4393c3", "#74c476", "#d6604d"]
+
+    # Load all datasets
+    loaded = []
+    for i, ds in enumerate(datasets):
+        with h5py.File(str(ds["h5"]), "r") as f:
+            gamma = np.asarray(f["gamma_values"][:], dtype=float)
+            power = np.asarray(f["power"][:], dtype=float)
+            params = np.asarray(f["params"][:], dtype=float)
+            param_names = [s.decode() if isinstance(s, bytes) else s
+                           for s in f["param_names"][:]]
+        color = ds.get("color", default_colors[i % len(default_colors)])
+        loaded.append({
+            "gamma_deg": np.degrees(gamma),
+            "power": power,
+            "params": params,
+            "param_names": param_names,
+            "label": ds["label"],
+            "color": color,
+        })
+
+    gamma_max = max(np.max(d["gamma_deg"]) for d in loaded)
+
+    # Identify variable params from first dataset
+    variable_indices = []
+    labels = {
+        "phi_amp": r"$\phi_A$",
+        "psi_mean": r"$\psi_0$",
+        "psi_amp": r"$\psi_A$",
+        "psi_phase": r"$\delta_\psi$",
+    }
+    for i, name in enumerate(loaded[0]["param_names"]):
+        if name in labels:
+            variable_indices.append(i)
+
+    n_params = len(variable_indices)
+    fig = plt.figure(figsize=figure_size(0.55), layout="constrained")
+    gs = fig.add_gridspec(n_params, 2, width_ratios=[1, 1])
+
+    # Left: power subplot spanning all rows
+    ax_power = fig.add_subplot(gs[:, 0])
+    for d in loaded:
+        valid = np.isfinite(d["power"])
+        ax_power.plot(d["gamma_deg"][valid], d["power"][valid], "o-",
+                      color=d["color"], markersize=4, linewidth=1.5,
+                      label=d["label"])
+
+    ax_power.set_xlabel(r"Stroke plane angle $\gamma_0$ (deg)")
+    ax_power.set_ylabel(r"$\langle\tilde{P}\rangle$")
+    ax_power.set_xlim(0, gamma_max)
+    ax_power.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    ax_power.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
+
+    # Right: stacked parameter subplots
+    param_axes = [fig.add_subplot(gs[i, 1], sharex=ax_power if i == 0 else None)
+                  for i in range(n_params)]
+    for i in range(1, n_params):
+        param_axes[i].sharex(param_axes[0])
+
+    for ax, idx in zip(param_axes, variable_indices):
+        pname = loaded[0]["param_names"][idx]
+        for d in loaded:
+            valid = np.isfinite(d["params"][:, 0])
+            vals = np.degrees(d["params"][:, idx])
+            ax.plot(d["gamma_deg"][valid], vals[valid], "o-",
+                    color=d["color"], markersize=3, linewidth=1.2)
+        ax.set_ylabel(labels[pname] + " (deg)")
+        ax.yaxis.set_major_locator(plt.MaxNLocator(nbins=4, integer=True))
+
+    for ax in param_axes[:-1]:
+        plt.setp(ax.get_xticklabels(), visible=False)
+
+    param_axes[-1].set_xlabel(r"Stroke plane angle $\gamma_0$ (deg)")
+    param_axes[-1].xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    param_axes[0].set_xlim(0, gamma_max)
+
+    # Shared legend above figure
+    handles, legend_labels = ax_power.get_legend_handles_labels()
+    fig.legend(
+        handles, legend_labels,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.01),
+        ncol=max(1, len(legend_labels)),
+        fontsize=10.0,
+    )
+
+    fig.savefig(str(output_path), dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 

@@ -5,36 +5,40 @@ morphology:
       side: left
       mu0: 0.025
       lb0: 0.75
-      nu: 0.03
+      nu: 0.015
       ar: 7.0
       phase: 0.0
+      cone: 0.174533  # 10°
       aero_model: wang2004
     - name: fore
       side: right
       mu0: 0.025
       lb0: 0.75
-      nu: 0.03
+      nu: 0.015
       ar: 7.0
       phase: 0.0
+      cone: 0.174533  # 10°
       aero_model: wang2004
     - name: hind
       side: left
       mu0: 0.025
       lb0: 0.75
-      nu: 0.03
+      nu: 0.015
       ar: 7.0
       phase: 3.14159
+      cone: -0.174533  # -10°
       aero_model: wang2004
     - name: hind
       side: right
       mu0: 0.025
       lb0: 0.75
-      nu: 0.03
+      nu: 0.015
       ar: 7.0
       phase: 3.14159
+      cone: -0.174533  # -10°
       aero_model: wang2004
 
-gamma_sweep: [0.0, 1.5708, 25]  # min (rad), max (rad), n_points — 0° to 90°
+gamma_sweep: [0.0, 1.48353, 18]  # min (rad), max (rad), n_points — 0° to 85° in 5° steps
 
 control_bounds:  # scalar = fixed, [min, max] = variable
   phi_amp:    [0.349, 1.396]   # 20° to 80°

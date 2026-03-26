@@ -50,6 +50,20 @@ html_js_files = ["theme_media.js"]
 html_show_sphinx = False
 html_show_sourcelink = False
 
+mathjax3_config = {
+    "tex": {
+        "inlineMath": [["\\(", "\\)"], ["$", "$"]],
+        "displayMath": [["\\[", "\\]"], ["$$", "$$"]],
+    },
+    "options": {
+        # Furo sets mathjax_ignore on the content section, which blocks
+        # MathJax from processing $...$ in raw HTML (e.g. figure captions).
+        # Disable the ignore class so MathJax processes the full page.
+        # Code blocks are safe: MathJax skips <pre>, <code>, <script>, etc.
+        "ignoreHtmlClass": "mathjax_ignore_disabled",
+    },
+}
+
 bibtex_bibfiles = ["references.bib"]
 
 myst_enable_extensions = [

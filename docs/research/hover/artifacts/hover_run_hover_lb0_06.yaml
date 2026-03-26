@@ -25,7 +25,7 @@ morphology:
   - aero_model: wang2004
     ar: 7.0
     cone: 0.174533
-    lb0: 0.75
+    lb0: 0.6
     mu0: 0.025
     name: fore
     nu: 0.015
@@ -34,7 +34,7 @@ morphology:
   - aero_model: wang2004
     ar: 7.0
     cone: 0.174533
-    lb0: 0.75
+    lb0: 0.6
     mu0: 0.025
     name: fore
     nu: 0.015
@@ -43,7 +43,7 @@ morphology:
   - aero_model: wang2004
     ar: 7.0
     cone: -0.174533
-    lb0: 0.75
+    lb0: 0.6
     mu0: 0.025
     name: hind
     nu: 0.015
@@ -52,10 +52,10 @@ morphology:
   - aero_model: wang2004
     ar: 7.0
     cone: -0.174533
-    lb0: 0.75
+    lb0: 0.6
     mu0: 0.025
     name: hind
     nu: 0.015
     phase: 3.14159
     side: right
-output: /Users/jean/Code/dragonfly-flight-control/docs/research/hover/artifacts/hover_minpower.h5
+output: /Users/jean/Code/dragonfly-flight-control/docs/research/hover/artifacts/hover_lb0_06.h5

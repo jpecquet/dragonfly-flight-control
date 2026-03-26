@@ -27,8 +27,8 @@ SUPPORTED_ARTIFACT_KINDS = {
     "boundary_stroke_and_forces",
     "tracking_video",
     "pursuit_video",
-    "hover_power",
-    "hover_params",
+    "hover_sweep",
+    "hover_param_study",
     "hover_control",
 }
 

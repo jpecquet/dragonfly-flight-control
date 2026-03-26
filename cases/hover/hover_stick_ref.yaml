@@ -1,0 +1,57 @@
+case_id: hover_stick_ref
+description: Hover equilibrium kinematics at gamma=30 deg (reference parameters)
+
+specimen:
+  body_length: 0.04
+  body_mass: 0.0003
+  frequency: 62.6418
+
+environment:
+  rho_air: 1.225
+  gravity: 9.81
+
+simulation:
+  n_wingbeats: 1
+  steps_per_wingbeat: 200
+
+tether: true
+output: docs/research/hover/artifacts/hover_stick_ref.h5
+
+initial_state:
+  ux: 0.0
+  uz: 0.0
+
+wings:
+  fore:
+    span: 0.03
+    area: 0.000204082
+    cone: 10.0
+    drag_coeff_set: wang2004
+    lift_coeff_set: wang2004
+    kinematics:
+      gamma:
+        mean: 30.0
+      phi:
+        harmonics:
+          - [25.03, 0.0]
+      psi:
+        mean: 17.47
+        harmonics:
+          - [59.79, 92.97]
+  hind:
+    span: 0.03
+    area: 0.000204082
+    cone: -10.0
+    phase: 180.0
+    drag_coeff_set: wang2004
+    lift_coeff_set: wang2004
+    kinematics:
+      gamma:
+        mean: 30.0
+      phi:
+        harmonics:
+          - [25.03, 0.0]
+      psi:
+        mean: 17.47
+        harmonics:
+          - [59.79, 92.97]

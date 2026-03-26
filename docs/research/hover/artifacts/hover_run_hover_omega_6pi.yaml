@@ -20,7 +20,7 @@ gamma_sweep:
 - 1.48353
 - 18
 morphology:
-  omega: 25.1327
+  omega: 18.8496
   wings:
   - aero_model: wang2004
     ar: 7.0
@@ -58,4 +58,4 @@ morphology:
     nu: 0.015
     phase: 3.14159
     side: right
-output: /Users/jean/Code/dragonfly-flight-control/docs/research/hover/artifacts/hover_minpower.h5
+output: /Users/jean/Code/dragonfly-flight-control/docs/research/hover/artifacts/hover_omega_6pi.h5

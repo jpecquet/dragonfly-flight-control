@@ -28,7 +28,7 @@ morphology:
     lb0: 0.75
     mu0: 0.025
     name: fore
-    nu: 0.015
+    nu: 0.0
     phase: 0.0
     side: left
   - aero_model: wang2004
@@ -37,7 +37,7 @@ morphology:
     lb0: 0.75
     mu0: 0.025
     name: fore
-    nu: 0.015
+    nu: 0.0
     phase: 0.0
     side: right
   - aero_model: wang2004
@@ -46,7 +46,7 @@ morphology:
     lb0: 0.75
     mu0: 0.025
     name: hind
-    nu: 0.015
+    nu: 0.0
     phase: 3.14159
     side: left
   - aero_model: wang2004
@@ -55,7 +55,7 @@ morphology:
     lb0: 0.75
     mu0: 0.025
     name: hind
-    nu: 0.015
+    nu: 0.0
     phase: 3.14159
     side: right
-output: /Users/jean/Code/dragonfly-flight-control/docs/research/hover/artifacts/hover_minpower.h5
+output: /Users/jean/Code/dragonfly-flight-control/docs/research/hover/artifacts/hover_nu_0.h5
