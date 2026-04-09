@@ -1597,10 +1597,10 @@ def plot_hover_sweep(
     # Identify variable params
     variable_indices = []
     labels = {
-        "phi_amp": r"$\phi_A$",
+        "phi_amp": r"$\phi_1$",
         "psi_mean": r"$\psi_0$",
-        "psi_amp": r"$\psi_A$",
-        "psi_phase": r"$\delta_\psi$",
+        "psi_amp": r"$\psi_1$",
+        "psi_phase": r"$\delta_0$",
     }
     for i, name in enumerate(param_names):
         if name in labels:
@@ -1698,10 +1698,10 @@ def plot_hover_param_study(
     # Identify variable params from first dataset
     variable_indices = []
     labels = {
-        "phi_amp": r"$\phi_A$",
+        "phi_amp": r"$\phi_1$",
         "psi_mean": r"$\psi_0$",
-        "psi_amp": r"$\psi_A$",
-        "psi_phase": r"$\delta_\psi$",
+        "psi_amp": r"$\psi_1$",
+        "psi_phase": r"$\delta_0$",
     }
     for i, name in enumerate(loaded[0]["param_names"]):
         if name in labels:
@@ -1817,7 +1817,7 @@ def plot_hover_control(
     # Bottom: control inputs
     ax = axes[1]
     ax.plot(wingbeats, np.degrees(phi_amp), linewidth=1.2,
-            label=r"$\phi_A$", color=style.trajectory_color)
+            label=r"$\phi_1$", color=style.trajectory_color)
     ax.plot(wingbeats, np.degrees(psi_mean), linewidth=1.2,
             label=r"$\psi_0$", color=style.error_color)
     ax.axhline(np.degrees(phi_amp_eq), color=style.trajectory_color,
@@ -1826,7 +1826,89 @@ def plot_hover_control(
                linewidth=0.5, linestyle=":")
     ax.set_ylabel("Control (deg)")
     ax.set_xlabel("Wingbeats")
+    ax.set_xlim(wingbeats[0], wingbeats[-1])
     ax.legend(fontsize=8)
+
+    fig.savefig(str(output_path), dpi=300)
+    plt.close(fig)
+
+
+def plot_pursuit_control(
+    h5_path: Path,
+    output_path: Path,
+    *,
+    theme: str = "dark",
+) -> None:
+    """Plot pursuit control simulation: gamma, error angle, and distance vs time."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from post.style import apply_matplotlib_style, figure_size, resolve_style
+
+    style = resolve_style(theme=theme)
+    apply_matplotlib_style(style)
+
+    import h5py
+
+    with h5py.File(str(h5_path), "r") as f:
+        t = np.asarray(f["time"][:], dtype=float)
+        states = np.asarray(f["state"][:], dtype=float)
+        omega = float(f["parameters/omega"][()])
+        pc = f["pursuit_control"]
+        gamma_mean = np.asarray(pc["gamma_mean"][:], dtype=float)
+        distance = np.asarray(pc["distance"][:], dtype=float)
+        target_x = np.asarray(pc["target_x"][:], dtype=float)
+        target_z = np.asarray(pc["target_z"][:], dtype=float)
+        detection_wb = float(pc["detection_wingbeat"][()])
+        intercept_wb = float(pc["intercept_wingbeat"][()])
+
+    wingbeats = t * omega / (2.0 * np.pi)
+    pos_x, pos_z = states[:, 0], states[:, 2]
+    vel_x, vel_z = states[:, 3], states[:, 5]
+
+    # Compute signed angle alpha between velocity and line-of-sight
+    rx = target_x - pos_x
+    rz = target_z - pos_z
+    r_norm = np.sqrt(rx**2 + rz**2)
+    v_norm = np.sqrt(vel_x**2 + vel_z**2)
+    dot = vel_x * rx + vel_z * rz
+    cross_y = vel_x * rz - vel_z * rx
+    cos_alpha = np.where((r_norm > 1e-12) & (v_norm > 1e-12),
+                         dot / (v_norm * r_norm), 1.0)
+    cos_alpha = np.clip(cos_alpha, -1.0, 1.0)
+    alpha = np.sign(cross_y) * np.arccos(cos_alpha)
+
+    fig, axes = plt.subplots(3, 1, figsize=figure_size(0.7), layout="constrained",
+                             sharex=True)
+
+    # Top: gamma
+    ax = axes[0]
+    ax.plot(wingbeats, np.degrees(gamma_mean), linewidth=1.2,
+            color=style.trajectory_color)
+    ax.set_ylabel(r"$\gamma_0$ (deg)")
+
+    # Middle: error angle alpha
+    ax = axes[1]
+    ax.plot(wingbeats, np.degrees(alpha), linewidth=1.2,
+            color=style.error_color)
+    ax.axhline(0, color=style.grid_color, linewidth=0.5, linestyle="--")
+    ax.set_ylabel(r"$\alpha$ (deg)")
+
+    # Bottom: distance to target
+    ax = axes[2]
+    ax.plot(wingbeats, distance, linewidth=1.2,
+            color=style.target_color)
+    ax.set_ylabel("Distance")
+    ax.set_xlabel("Wingbeats")
+
+    # Mark detection and interception on all axes
+    for ax in axes:
+        ax.axvline(detection_wb, color=style.muted_text_color,
+                   linewidth=0.5, linestyle="--")
+        ax.axvline(intercept_wb, color=style.muted_text_color,
+                   linewidth=0.5, linestyle="--")
+
+    axes[0].set_xlim(wingbeats[0], wingbeats[-1])
 
     fig.savefig(str(output_path), dpi=300)
     plt.close(fig)

@@ -41,11 +41,13 @@ struct PursuitConfig {
     double psi_mean_min, psi_mean_max;
 
     // Pursuit mode
-    double Kp_gamma;         // Gamma proportional gain
-    double pursuit_phi_amp;  // Fixed phi_amp during pursuit
-    double pursuit_psi_mean; // Fixed psi_mean during pursuit
-    double pursuit_psi_amp;  // Fixed psi_amp during pursuit
-    double gamma_max;        // Max gamma during pursuit (gamma_min = gamma)
+    double Kp_gamma;           // Gamma proportional gain
+    double pursuit_phi_amp;    // Fixed phi_amp during pursuit
+    double pursuit_psi_mean;   // Fixed psi_mean during pursuit
+    double pursuit_psi_amp;    // Fixed psi_amp during pursuit
+    double gamma_pursuit_base; // Neutral pursuit gamma (level flight)
+    double gamma_min;          // Min gamma during pursuit
+    double gamma_max;          // Max gamma during pursuit
 
     // Detection / transitions
     double fov_half_angle;  // Half-cone angle (rad)
@@ -129,11 +131,13 @@ PursuitConfig parsePursuitConfig(const std::string& path) {
     cfg.psi_mean_max = hover["psi_mean_max"].as<double>(0.80);
 
     auto pursuit = ctrl["pursuit"];
-    cfg.Kp_gamma         = pursuit["Kp_gamma"].as<double>(1.0);
-    cfg.pursuit_phi_amp  = pursuit["phi_amp"].as<double>(1.2217);
-    cfg.pursuit_psi_mean = pursuit["psi_mean"].as<double>(0.0);
-    cfg.pursuit_psi_amp  = pursuit["psi_amp"].as<double>(cfg.psi_amp);
-    cfg.gamma_max        = pursuit["gamma_max"].as<double>(M_PI / 2.0);
+    cfg.Kp_gamma           = pursuit["Kp_gamma"].as<double>(1.0);
+    cfg.pursuit_phi_amp    = pursuit["phi_amp"].as<double>(1.2217);
+    cfg.pursuit_psi_mean   = pursuit["psi_mean"].as<double>(0.0);
+    cfg.pursuit_psi_amp    = pursuit["psi_amp"].as<double>(cfg.psi_amp);
+    cfg.gamma_pursuit_base = pursuit["gamma_base"].as<double>(cfg.gamma);
+    cfg.gamma_min          = pursuit["gamma_min"].as<double>(0.0);
+    cfg.gamma_max          = pursuit["gamma_max"].as<double>(M_PI / 2.0);
 
     auto det = yaml["detection"];
     cfg.fov_half_angle = det["fov_half_angle"].as<double>(M_PI / 3.0);
@@ -311,6 +315,8 @@ int runPursuit(const std::string& cfg_path) {
     std::vector<SingleWingVectors> scratch(wings.size());
     std::vector<SingleWingVectors> wing_data(wings.size());
 
+    double ux_delayed = 0.0, uz_delayed = 0.0;  // delayed velocity for gamma control
+
     double t = 0.0;
     storeTimestep(output, t, state, wings, wing_data);
 
@@ -363,7 +369,9 @@ int runPursuit(const std::string& cfg_path) {
             accum_count = 0;
 
             delay_buf.push_back({ux_avg, uz_avg});
-            auto [ux_delayed, uz_delayed] = delay_buf.front();
+            auto front = delay_buf.front();
+            ux_delayed = front.first;
+            uz_delayed = front.second;
             delay_buf.pop_front();
 
             // --- Mode-specific target computation ---
@@ -375,23 +383,7 @@ int runPursuit(const std::string& cfg_path) {
                 phi_amp_target  = std::clamp(phi_amp_target,  cfg.phi_amp_min,  cfg.phi_amp_max);
                 psi_mean_target = std::clamp(psi_mean_target, cfg.psi_mean_min, cfg.psi_mean_max);
             } else {
-                // Pursuit: gamma from direction error, other params fixed
-                TrajectoryPoint tp = trajectory(t);
-                Vec3 r = tp.position - state.pos;
-                double r_norm = r.norm();
-                double v_norm = std::sqrt(ux_delayed * ux_delayed + uz_delayed * uz_delayed);
-
-                double gamma_pursuit = cfg.gamma;
-                if (r_norm > 1e-12 && v_norm > 1e-12) {
-                    Vec3 v_delayed(ux_delayed, 0.0, uz_delayed);
-                    Vec3 r_hat = r / r_norm;
-                    Vec3 v_hat = v_delayed / v_norm;
-                    double angle = std::acos(std::clamp(v_hat.dot(r_hat), -1.0, 1.0));
-                    double sign = (v_hat.cross(r_hat).y() >= 0.0) ? 1.0 : -1.0;
-                    gamma_pursuit = std::clamp(cfg.gamma + cfg.Kp_gamma * sign * angle,
-                                               cfg.gamma, cfg.gamma_max);
-                }
-                gamma_target    = gamma_pursuit;
+                // Pursuit: fixed kinematics, gamma is updated per-step below
                 phi_amp_target  = cfg.pursuit_phi_amp;
                 psi_mean_target = cfg.pursuit_psi_mean;
                 psi_amp_target  = cfg.pursuit_psi_amp;
@@ -430,6 +422,18 @@ int runPursuit(const std::string& cfg_path) {
             if (wingbeats_since >= cfg.post_intercept_wingbeats) {
                 break;
             }
+        }
+
+        // --- Pursuit gamma target: z-error controller ---
+        // gamma = gamma_base - Kp * (z_target - z_dragonfly)
+        // gamma_base (~52.5 deg): gamma when target is at same altitude.
+        // Calibrated so that at detection (z_error = z_target ~ 3-5 bl), gamma ≈ 45-48 deg.
+        // Target above (z_error > 0): gamma decreases → more vertical force → dragonfly climbs.
+        // Target below (z_error < 0): gamma increases → less vertical force → dragonfly levels.
+        if (mode == FlightMode::PURSUIT) {
+            double z_error = los(2);  // z_target - z_dragonfly (positive = target above)
+            gamma_target = std::clamp(cfg.gamma_pursuit_base - cfg.Kp_gamma * z_error,
+                                      cfg.gamma_min, cfg.gamma_max);
         }
 
         // --- Neuromuscular lag on all four parameters ---

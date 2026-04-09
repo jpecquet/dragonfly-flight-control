@@ -40,7 +40,7 @@ where $\tilde{I}_{\phi,i}$ and $\tilde{I}_{\psi,i}$ are the nondimensional flapp
     data-light-src="../_static/media/hover/hover_sweep.light.png"
     data-dark-src="../_static/media/hover/hover_sweep.dark.png"
   />
-  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 1. Left: minimum muscular power as a function of stroke plane angle $\gamma_0$ (dashed line marks the power-minimizing angle). Right: optimal control parameters $\phi_A$, $\psi_0$, $\psi_A$, $\delta_\psi$.</div>
+  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 1. Left: minimum muscular power as a function of stroke plane angle $\gamma_0$ (dashed line marks the power-minimizing angle). Right: optimal control parameters $\phi_1$, $\psi_0$, $\psi_1$, $\delta_0$.</div>
 </div>
 ```
 
@@ -162,7 +162,7 @@ The optimizer results suggest a simple control scheme for hover stabilization:
 4. Fixed $\psi_1$ at 60° (near-constant across all $\gamma_0$)
 5. Fixed $\delta_0$ at 90° (also nearly constant)
 
-The equilibrium setpoints $\phi_{A,\text{eq}}$ and $\psi_{0,\text{eq}}$ are found by the optimizer at the chosen $\gamma_0$. The controller then regulates the body velocity to zero using only two control channels. The velocity input is averaged over half a wingbeat. To take into account the final muscle actuation time, the effective wing control parameters track the commanded values with a first-order lag with a time constant of half a wingbeat. The overall time delay is one wingbeat.
+The equilibrium setpoints $\phi_{1,\text{eq}}$ and $\psi_{0,\text{eq}}$ are found by the optimizer at the chosen $\gamma_0$. The controller then regulates the body velocity to zero using only two control channels. The velocity input is averaged over half a wingbeat. To take into account the finite muscle actuation time, the effective wing control parameters track the commanded values with a first-order lag with time constant $\tau$.
 
 ### Results
 
@@ -175,7 +175,7 @@ The equilibrium setpoints $\phi_{A,\text{eq}}$ and $\psi_{0,\text{eq}}$ are foun
     data-light-src="../_static/media/hover/hover_control.light.png"
     data-dark-src="../_static/media/hover/hover_control.dark.png"
   />
-  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 8. Hover stabilization from $(u_x, u_z) = (2.0, -1.0)$. Top: body velocity (within-wingbeat oscillations are physical). Bottom: control inputs $\phi_A$ and $\psi_0$ with dotted equilibrium lines. Parameters: $K_z = 0.7$, $K_x = 1.2$, averaging window $= 0.5\,T_\text{wb}$, sensing delay $= 0.25\,T_\text{wb}$, muscle lag $\tau = 0.5\,T_\text{wb}$.</div>
+  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 8. Hover stabilization from $(u_x, u_z) = (2.0, -1.0)$. Top: body velocity (within-wingbeat oscillations are physical). Bottom: control inputs $\phi_1$ and $\psi_0$ with dotted equilibrium lines. Parameters: $K_z = 0.7$, $K_x = 1.2$, averaging window $= 0.5\,T_\text{wb}$, muscle lag $\tau = 0.5\,T_\text{wb}$.</div>
 </div>
 ```
 

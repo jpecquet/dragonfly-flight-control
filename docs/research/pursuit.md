@@ -8,24 +8,13 @@ We develop a control scheme so that our model dragonfly can intercept a moving t
 
 ### Pursuit Controller
 
-The controller follows the same philosophy as the model developped for the pursuit of prey by tiger betles in {cite}`haselsteiner2014` and {cite}`noest2017`.
+The pursuit controller follows the same philosophy as the model developped for the pursuit of prey by tiger beetles in {cite}`haselsteiner2014` and {cite}`noest2017`. Upon detection of the target, the controller switches from the hover wing kinematics to kinematics that allow high-speed flight, with the only variable parameter being $\gamma$. The fixed parameters are a high flapping amplitude $\phi_1 = 35°$, $\psi_0 = 0°$ for a symmetric wing stroke, a low pitch amplitude $\psi_1 = 20°$, and $\delta_0 = 90^\circ$.
 
-The controller uses the same three-layer physiological feedback model as the {doc}`hover stabilization study <hover>` — rolling velocity average, neural sensing delay, and neuromuscular lag — which naturally smooths the transition between modes.
+$\gamma_0$ is modulated via proportional control on the signed angle $\alpha$ between the averaged velocity $\bar{\mathbf{v}}$ and the line-of-sight to the target $\mathbf{r} = \mathbf{x}_\text{target} - \mathbf{x}$. It is bound by a minimum of $0°$ and a maximum of $90°$:
 
-The controller operates in two modes with four runtime-controllable wing kinematic parameters: stroke plane angle $\gamma_0$, flapping amplitude $\phi_1$, mean pitch angle $\psi_0$, and pitch amplitude $\psi_1$.
+$$\gamma_0 = \text{clamp}\!\left(\gamma_\text{hover} + K_p \cdot \text{sign}(\alpha) \cdot |\alpha|,\ \gamma_\text{min},\ \gamma_\text{max}\right)$$
 
-**Hover mode.** At startup, the optimizer finds the minimum-power hover equilibrium at $\gamma_0 = 45°$, yielding equilibrium values for $\phi_1$ and $\psi_0$. Proportional feedback holds the dragonfly at rest:
-
-$$\phi_1^\text{target} = \phi_1^\text{eq} - K_{p,z} \, \bar{u}_z, \qquad
-\psi_0^\text{target} = \psi_0^\text{eq} + K_{p,x} \, \bar{u}_x$$
-
-where $\bar{u}_x$ and $\bar{u}_z$ are the delayed wingbeat-averaged velocities.
-
-**Pursuit mode.** Upon detection, the controller switches to fixed $\phi_1 = 35°$, $\psi_0 = 0°$, $\psi_1 = 20°$, while modulating $\gamma_0$ via proportional control on the signed angle $\alpha$ between the delayed velocity and the target direction:
-
-$$\gamma_0 = \text{clip}\!\left(\gamma_0^\text{hover} + K_{p,\gamma} \, \alpha,\; \gamma_0^\text{hover},\; 90°\right)$$
-
-The reduced pitch amplitude ($20°$ vs. $57°$ in hover) and moderate flapping amplitude ($35°$) produce efficient forward thrust when the stroke plane is tilted, while the inclined stroke plane provides the vertical force bias needed to maintain altitude during pursuit.
+Reducing $\gamma_0$ below the hover baseline tilts the stroke plane back toward horizontal, increasing the vertical force component and steering the dragonfly upward. Increasing $\gamma_0$ toward $90°$ tilts the stroke plane more forward, producing a larger horizontal force component for forward or downward flight.
 
 ### Target Detection and Interception
 
@@ -33,11 +22,9 @@ Target detection uses an angular field-of-view model: the target must lie within
 
 ## Results
 
-### Linear Target Trajectory
+### Run 1: Horizontal Target
 
-The dragonfly successfully intercepts the target at wingbeat 36.6. The full sequence is: hover at equilibrium, detect the target entering the field of view, pursue with increasing stroke plane tilt, intercept, then return to hover for 30 wingbeats.
-
-The neuromuscular lag (time constant $0.5$ wingbeats) smooths all parameter transitions — when the mode switches, $\gamma_0$, $\phi_1$, $\psi_0$, and $\psi_1$ transition continuously rather than jumping instantaneously, producing realistic flight behavior.
+The target begins at $(0, 0, 5)$ (five body lengths above the origin) and moves horizontally at unit velocity along $x$.
 
 ```{raw} html
 <div style="margin-bottom:1.5rem;">
@@ -54,9 +41,56 @@ The neuromuscular lag (time constant $0.5$ wingbeats) smooths all parameter tran
     <source src="../_static/media/pursuit/pursuit_animation.dark.mp4" type="video/mp4">
     Your browser does not support the video tag.
   </video>
-  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 1. Dual-mode pursuit. The dragonfly starts at rest (hover mode), detects the target entering its field of view, switches to pursuit mode with tilted stroke plane, and intercepts at wingbeat 36.6. The green marker shows the target moving at unit velocity along $x$ at altitude $z=5$.</div>
+  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 1. Dual-mode pursuit. The dragonfly starts at rest (hover mode), detects the target entering its field of view, switches to pursuit mode, and intercepts.</div>
 </div>
 ```
+
+```{image} ../_static/media/pursuit/pursuit_control.light.png
+:align: center
+:class: only-light
+:width: 80%
+```
+```{image} ../_static/media/pursuit/pursuit_control.dark.png
+:align: center
+:class: only-dark
+:width: 80%
+```
+<div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center; margin-bottom:1.5rem;">Fig. 2. Controller state for Run 1. Top: stroke plane angle $\gamma_0$. Middle: signed angle error $\alpha$ between velocity and line-of-sight. Bottom: distance to target. Dashed lines mark detection and interception.</div>
+
+### Run 2: Descending Target
+
+The target begins at $(0, 0, 5)$ and moves forward at unit velocity while descending at $-1$ m/s. The controller must first steer the dragonfly upward (reducing $\gamma_0$) and then forward (increasing $\gamma_0$) as the target descends through the dragonfly's altitude.
+
+```{raw} html
+<div style="margin-bottom:1.5rem;">
+  <video
+    class="case-study-video"
+    loop
+    autoplay
+    muted
+    playsinline
+    preload="metadata"
+    data-light-src="../_static/media/pursuit/pursuit_descending.light.mp4"
+    data-dark-src="../_static/media/pursuit/pursuit_descending.dark.mp4"
+  >
+    <source src="../_static/media/pursuit/pursuit_descending.dark.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+  <div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center;">Fig. 3. Pursuit of a descending target. The dragonfly climbs to intercept.</div>
+</div>
+```
+
+```{image} ../_static/media/pursuit/pursuit_descending_control.light.png
+:align: center
+:class: only-light
+:width: 80%
+```
+```{image} ../_static/media/pursuit/pursuit_descending_control.dark.png
+:align: center
+:class: only-dark
+:width: 80%
+```
+<div style="font-size:0.85em; line-height:1.2; margin-top:0.3rem; text-align:center; margin-bottom:1.5rem;">Fig. 4. Controller state for Run 2. The stroke plane angle actively modulates to steer the dragonfly onto the target.</div>
 
 ## References
 

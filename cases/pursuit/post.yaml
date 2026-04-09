@@ -5,14 +5,27 @@ simulation:
   pursuit_config: configs/pursuit.yaml
   run_dir: runs/pursuit/sim
   binary: build/bin/dragonfly
-
+  runs:
+    - output: pursuit_descending.h5
+      overrides:
+        target.trajectory: "linear 0.0 0.0 3.0 1.0 0.0 0.0"
 docs_media:
   media_dir: docs/_static/media/pursuit
   render_config: cases/pursuit/render_config.json
   themes: [light, dark]
 
 artifacts:
+  - kind: pursuit_control
+    input_h5: "{run_dir}/pursuit.h5"
+    output: pursuit_control.{theme}.png
   - kind: pursuit_video
     input_h5: "{run_dir}/pursuit.h5"
     output: pursuit_animation.{theme}.mp4
+    frame_step: 20
+  - kind: pursuit_control
+    input_h5: "{run_dir}/pursuit_descending.h5"
+    output: pursuit_descending_control.{theme}.png
+  - kind: pursuit_video
+    input_h5: "{run_dir}/pursuit_descending.h5"
+    output: pursuit_descending.{theme}.mp4
     frame_step: 20

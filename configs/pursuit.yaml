@@ -53,10 +53,12 @@ control:
     psi_mean_max: 0.80
 
   pursuit:
-    Kp_gamma: 1.0         # gamma proportional gain on angle error
+    Kp_gamma: 0.4189      # gamma gain on sin(LOS elevation); calibrated so elevation=90 deg → gamma=45 deg
     phi_amp: 0.6109       # 35 deg, fixed during pursuit
     psi_mean: 0.0         # 0 deg, symmetric stroke during pursuit
     psi_amp: 0.3491       # 20 deg, moderate pitch for efficient force
+    gamma_base: 1.2043    # ~69 deg — neutral gamma for level flight at phi_amp=35 deg
+    gamma_min: 0.35       # ~20 deg floor
     gamma_max: 1.5708     # 90 deg ceiling
 
 detection:

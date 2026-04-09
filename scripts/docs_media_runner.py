@@ -386,6 +386,25 @@ def _run_simulation(
                 raise FileNotFoundError(f"Pursuit output not found: {out_path}")
             print(f"[done] output: {out_path}")
 
+        # Additional runs with overrides
+        runs_raw = sim_cfg.get("runs", [])
+        if runs_raw:
+            base_yaml = _load_yaml(pursuit_cfg)
+            if not skip_sim:
+                for run in runs_raw:
+                    run_yaml = copy.deepcopy(base_yaml)
+                    run_output = str(run["output"])
+                    run_out_path = run_dir / run_output
+                    run_yaml["output"] = str(run_out_path)
+                    _apply_run_overrides(run_yaml, run)
+                    stem = Path(run_output).stem
+                    patched_cfg = run_dir / f"pursuit_run_{stem}.yaml"
+                    patched_cfg.write_text(yaml.dump(run_yaml, default_flow_style=False), encoding="utf-8")
+                    run_cmd([str(binary_path), "pursuit", "-c", str(patched_cfg)], cwd=run_dir)
+                    if not run_out_path.exists():
+                        raise FileNotFoundError(f"Pursuit output not found: {run_out_path}")
+                    print(f"[done] output: {run_out_path}")
+
         return run_dir, out_path
 
     raise ValueError(f"Unsupported simulation.driver: {driver!r}")
@@ -822,6 +841,19 @@ def _run_artifact(
         if not isinstance(input_h5_raw, str) or not input_h5_raw:
             raise ValueError("hover_control requires input_h5")
         plot_hover_control(
+            _resolve_repo_path(input_h5_raw),
+            output_path,
+            theme=theme,
+        )
+        return
+
+    if kind == "pursuit_control":
+        from post.docs_artifacts import plot_pursuit_control
+
+        input_h5_raw = resolved.get("input_h5")
+        if not isinstance(input_h5_raw, str) or not input_h5_raw:
+            raise ValueError("pursuit_control requires input_h5")
+        plot_pursuit_control(
             _resolve_repo_path(input_h5_raw),
             output_path,
             theme=theme,

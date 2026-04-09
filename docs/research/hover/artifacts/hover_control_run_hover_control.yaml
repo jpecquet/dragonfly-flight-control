@@ -14,7 +14,7 @@ control:
   psi_mean_max: 0.8
   psi_mean_min: -0.1
   psi_phase: 1.5708
-  sense_delay: 0.25
+  sense_delay: 0.0
 morphology:
   omega: 25.1327
   wings:

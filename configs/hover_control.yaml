@@ -51,7 +51,7 @@ control:
 
   # Timing (in wingbeats)
   avg_window: 0.5    # velocity averaging window
-  sense_delay: 0.25  # neural processing delay
+  sense_delay: 0.0   # no additional neural delay
   muscle_tau: 0.5    # neuromuscular lag time constant
 
   # Saturation limits

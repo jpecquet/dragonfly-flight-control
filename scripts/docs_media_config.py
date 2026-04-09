@@ -30,6 +30,7 @@ SUPPORTED_ARTIFACT_KINDS = {
     "hover_sweep",
     "hover_param_study",
     "hover_control",
+    "pursuit_control",
 }
 
 
